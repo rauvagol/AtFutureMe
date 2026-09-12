@@ -1,0 +1,58 @@
+<local:OverlayWindowBase x:Class="AtFutureMe.Windows.CategoryOverlay"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:AtFutureMe.Windows"
+        MinWidth="200" MinHeight="100"
+        MouseLeftButtonDown="OnWindowDrag">
+    <Border x:Name="PanelBorder" CornerRadius="10" BorderBrush="#000000" BorderThickness="1" ClipToBounds="True">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition x:Name="ChromeRow" Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <Border x:Name="DitherLayer" Grid.RowSpan="2" CornerRadius="10" IsHitTestVisible="False"/>
+            <ScrollViewer x:Name="BodyScroll" Grid.Row="1" Margin="10,0,10,8"
+                          VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled"
+                          Style="{StaticResource DarkScrollViewer}">
+                <StackPanel>
+                    <ItemsControl x:Name="ItemList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <local:OverlayItemRow/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <ItemsControl x:Name="ChildList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <local:CategorySectionBlock/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+            <Border x:Name="ChromeBar" Grid.Row="0" VerticalAlignment="Top" Padding="10,8,10,6"
+                    CornerRadius="10,10,0,0" Background="Transparent" Tag="chrome">
+                <DockPanel x:Name="Chrome">
+                    <StackPanel x:Name="ChromeActions" DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Style="{StaticResource ChromeButton}"
+                                FontFamily="Segoe MDL2 Assets" FontSize="12" Content="&#xE713;"
+                                Click="OnOpenConfig" ToolTip="Configure"/>
+                        <Button Style="{StaticResource ChromeButton}" Content="+" Click="OnAdd" ToolTip="Add an item"/>
+                        <Button Style="{StaticResource ChromeFolderButton}" Click="OnAddFolder"
+                                ToolTip="Add a folder in this category"/>
+                        <Button x:Name="UndoButton" Style="{StaticResource ChromeButton}"
+                                FontFamily="Segoe MDL2 Assets" FontSize="12" Content="&#xE7A7;"
+                                Click="OnUndoDelete" ToolTip="Undo delete"/>
+                        <Button Style="{StaticResource ChromeButton}" Content="⧈" Click="OnDock"
+                                ToolTip="Dock this category back into reminders"/>
+                    </StackPanel>
+                    <TextBlock x:Name="TitleText" Style="{StaticResource OverlayCaption}"
+                               Margin="6,0,8,0"
+                               AllowDrop="True" Tag="drop"
+                               DragOver="OnTitleDragOver" Drop="OnTitleDrop"/>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Border>
+</local:OverlayWindowBase>

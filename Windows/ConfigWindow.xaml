@@ -1,0 +1,947 @@
+<Window x:Class="AtFutureMe.Windows.ConfigWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:AtFutureMe.Windows"
+        Title="AtFutureMe — Configure"
+        Style="{StaticResource DarkWindow}"
+        Width="860" Height="620"
+        MinWidth="720" MinHeight="480"
+        WindowStartupLocation="CenterScreen"
+        Topmost="True">
+    <DockPanel Margin="16">
+        <TextBlock DockPanel.Dock="Top" Text="Configure overlay items and window behavior."
+                   Foreground="#9AA0A8" Margin="0,0,0,12"/>
+
+        <TabControl x:Name="MainTabs" SelectionChanged="MainTabsChanged">
+            <TabItem Header="Layout">
+                <Grid Margin="4,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="#9AA0A8" Margin="0,0,0,8"
+                                   Text="The full overlay layout. Click a task or folder to edit it here."/>
+                        <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                            <Button Style="{StaticResource DarkButton}" Content="Add" Click="AddTask"/>
+                            <Button Style="{StaticResource DarkButton}" Content="Add folder" Click="AddCategory"/>
+                            <Button Style="{StaticResource DarkButton}" Content="Add inside" Click="AddSubcategory"/>
+                            <Button Style="{StaticResource DarkButton}" Content="↑" Click="MoveLayoutUp" Width="36" Padding="0,6"/>
+                            <Button Style="{StaticResource DarkButton}" Content="↓" Click="MoveLayoutDown" Width="36" Padding="0,6"/>
+                            <Button Style="{StaticResource DarkButton}" Content="Delete" Click="DeleteLayout"/>
+                        </WrapPanel>
+                        <TreeView x:Name="LayoutTree" SelectedItemChanged="LayoutSelected"
+                                  PreviewMouseLeftButtonDown="LayoutTreeMouseDown"
+                                  PreviewMouseRightButtonDown="LayoutTreeRightDown"
+                                  PreviewKeyDown="LayoutKeyDown">
+                            <TreeView.ContextMenu>
+                                <ContextMenu Style="{x:Null}">
+                                    <MenuItem Header="Move to…" Style="{x:Null}" Click="OpenMoveToFolder"/>
+                                </ContextMenu>
+                            </TreeView.ContextMenu>
+                            <TreeView.ItemContainerStyle>
+                                <Style TargetType="TreeViewItem" BasedOn="{StaticResource {x:Type TreeViewItem}}">
+                                    <Setter Property="IsExpanded" Value="True"/>
+                                    <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                                </Style>
+                            </TreeView.ItemContainerStyle>
+                            <TreeView.ItemTemplate>
+                                <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Title}" Foreground="#E8EAED" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Meta}" Foreground="#7A8088" Margin="8,0,0,0"
+                                                   VerticalAlignment="Center"/>
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,0,0">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsFolder}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <Button Style="{StaticResource ChromeButton}" Content="+" Width="22"
+                                                    ToolTip="Add an item in this folder" Click="LayoutAddItem"/>
+                                            <Button Style="{StaticResource ChromeFolderButton}" Width="22"
+                                                    ToolTip="Add a folder in this folder" Click="LayoutAddFolder"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </HierarchicalDataTemplate>
+                            </TreeView.ItemTemplate>
+                        </TreeView>
+                    </DockPanel>
+                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"
+                                  Style="{StaticResource DarkScrollViewer}">
+                        <Grid>
+                            <TextBlock x:Name="LayoutHint" TextWrapping="Wrap" Foreground="#9AA0A8"
+                                       Text="Select a task or folder to edit it."/>
+                            <Grid x:Name="LayoutEditorHost"/>
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Tasks" Visibility="Collapsed">
+                <Grid Margin="4,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="280"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <DockPanel Grid.Column="0">
+                        <TextBlock DockPanel.Dock="Top" Text="Show" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                        <ComboBox x:Name="TaskTypeBox" DockPanel.Dock="Top" Style="{StaticResource DarkCombo}"
+                                  Margin="0,0,0,8" SelectionChanged="TaskFilterChanged"/>
+                        <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                            <Button Style="{StaticResource DarkButton}" Content="Add" Click="AddTask"/>
+                            <Button Style="{StaticResource DarkButton}" Content="↑" Click="MoveTaskUp" Width="36" Padding="0,6"/>
+                            <Button Style="{StaticResource DarkButton}" Content="↓" Click="MoveTaskDown" Width="36" Padding="0,6"/>
+                            <Button Style="{StaticResource DarkButton}" Content="Delete" Click="DeleteTask"/>
+                        </WrapPanel>
+                        <ListBox x:Name="TaskList" Background="#FF2A2D34" Foreground="#E8EAED"
+                                 BorderBrush="#FF3A3D45"
+                                 SelectionChanged="TaskSelected">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,2">
+                                        <TextBlock Text="{Binding Title}" Foreground="#E8EAED" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding TypeLabel}" Foreground="#7A8088" FontSize="11"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+
+                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"
+                                  Style="{StaticResource DarkScrollViewer}">
+                        <Grid x:Name="TaskEditorHost">
+                        <Grid x:Name="SharedTaskEditors">
+                        <StackPanel x:Name="OnceEditor" IsEnabled="False" Visibility="Collapsed">
+                            <TextBlock Text="Type" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                            <TextBlock Text="To Do" Foreground="#C5C9D0" Margin="0,0,0,8"/>
+                            <TextBlock Text="Title" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                            <TextBox x:Name="OnceTitle" Style="{StaticResource DarkTextBox}" TextChanged="OnceFieldChanged"/>
+                            <TextBlock Text="URL" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                            <TextBox x:Name="OnceUrl" Style="{StaticResource DarkTextBox}"
+                                     ToolTip="Optional. Click the task name on the overlay to open this URL, file, or program."
+                                     TextChanged="OnceFieldChanged"/>
+                            <TextBlock Text="Folder" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                            <ComboBox x:Name="OnceCategory" Style="{StaticResource DarkCombo}"
+                                      ItemTemplate="{StaticResource CategoryItemTemplate}" SelectionChanged="OnceFieldChanged"/>
+                            <TextBlock Text="When checked" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                            <ComboBox x:Name="OnceCheckRuleBox" Style="{StaticResource DarkCombo}"
+                                      SelectionChanged="OnceCheckRuleChanged"/>
+                            <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                       Text="Leave this on Use folder / Settings to follow the folder. Nested folders still apply when this is inherited."/>
+                            <StackPanel x:Name="OnceReshowRow" Visibility="Collapsed" Margin="0,10,0,0">
+                                <TextBlock Text="Show again this long before reset" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                <DockPanel>
+                                    <ComboBox x:Name="OnceReshowUnitBox" DockPanel.Dock="Right" Width="110"
+                                              Style="{StaticResource DarkCombo}"
+                                              SelectionChanged="OnceReshowUnitChanged">
+                                        <ComboBoxItem Content="Days"/>
+                                        <ComboBoxItem Content="Hours"/>
+                                    </ComboBox>
+                                    <TextBox x:Name="OnceReshowBox" Style="{StaticResource DarkTextBox}" Margin="0,0,8,0"
+                                             LostFocus="OnceReshowCommit" KeyDown="OnceReshowKey"/>
+                                </DockPanel>
+                            </StackPanel>
+                            <CheckBox x:Name="OnceCompleted" Style="{StaticResource DarkCheck}"
+                                      Content="Completed" Margin="0,12,0,0"
+                                      Checked="OnceFieldChanged" Unchecked="OnceFieldChanged"/>
+                            <TextBlock Text="Pin position" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                            <TextBox x:Name="OncePin" Style="{StaticResource DarkTextBox}"
+                                     ToolTip="0 = automatic. 1 = first in this folder, 3 = third."
+                                     TextChanged="OnceFieldChanged"/>
+                            <TextBlock Text="0 follows automatic sort. 1 always first in this folder, 3 always third. Other items still sort around it."
+                                       Foreground="#7A8088" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                            <TextBlock Text="Colors" Foreground="#8AB4F8" FontWeight="SemiBold" Margin="0,16,0,4"/>
+                            <TextBlock Text="Leave a row empty or press Default to use Settings. Only states this To Do can show."
+                                       Foreground="#7A8088" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                            <StackPanel x:Name="OnceColorHost"/>
+                            <TextBlock Text="A checkbox on the overlay. Check it when you're done."
+                                       Foreground="#7A8088" TextWrapping="Wrap" Margin="0,12,0,0"/>
+                        </StackPanel>
+                        <StackPanel x:Name="TodoEditor" IsEnabled="False" Visibility="Collapsed">
+                            <TextBlock Text="Type" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                            <TextBlock Text="Recurring" Foreground="#C5C9D0" Margin="0,0,0,8"/>
+                            <TextBlock Text="Title" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                            <TextBox x:Name="TodoTitle" Style="{StaticResource DarkTextBox}" TextChanged="TodoFieldChanged"/>
+                            <TextBlock Text="URL" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                            <TextBox x:Name="TodoUrl" Style="{StaticResource DarkTextBox}"
+                                     ToolTip="Optional. Click the task name on the overlay to open this URL, file, or program."
+                                     TextChanged="TodoFieldChanged"/>
+                            <TextBlock Text="Folder" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                            <ComboBox x:Name="TodoCategory" Style="{StaticResource DarkCombo}"
+                                      ItemTemplate="{StaticResource CategoryItemTemplate}" SelectionChanged="TodoFieldChanged"/>
+                            <TextBlock Text="When checked" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                            <ComboBox x:Name="TodoCheckRuleBox" Style="{StaticResource DarkCombo}"
+                                      SelectionChanged="TodoCheckRuleChanged"/>
+                            <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                       Text="Leave this on Use folder / Settings to follow the folder. Nested folders still apply when this is inherited."/>
+                            <StackPanel x:Name="TodoReshowRow" Visibility="Collapsed" Margin="0,10,0,0">
+                                <TextBlock Text="Show again this long before reset" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                <DockPanel>
+                                    <ComboBox x:Name="TodoReshowUnitBox" DockPanel.Dock="Right" Width="110"
+                                              Style="{StaticResource DarkCombo}"
+                                              SelectionChanged="TodoReshowUnitChanged">
+                                        <ComboBoxItem Content="Days"/>
+                                        <ComboBoxItem Content="Hours"/>
+                                    </ComboBox>
+                                    <TextBox x:Name="TodoReshowBox" Style="{StaticResource DarkTextBox}" Margin="0,0,8,0"
+                                             LostFocus="TodoReshowCommit" KeyDown="TodoReshowKey"/>
+                                </DockPanel>
+                            </StackPanel>
+
+                            <CheckBox x:Name="TodoUnknownDate" Style="{StaticResource DarkCheck}"
+                                      Content="Coming eventually — I don't know when"
+                                      Checked="TodoWatchChanged" Unchecked="TodoWatchChanged"/>
+                            <CheckBox x:Name="TodoEnabled" Style="{StaticResource DarkCheck}" Content="Enabled"
+                                      Checked="TodoFieldChanged" Unchecked="TodoFieldChanged"/>
+                            <TextBlock Text="Pin position" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                            <TextBox x:Name="TodoPin" Style="{StaticResource DarkTextBox}"
+                                     ToolTip="0 = automatic. 1 = first in this folder, 3 = third."
+                                     TextChanged="TodoFieldChanged"/>
+                            <TextBlock Text="0 follows automatic sort. 1 always first in this folder, 3 always third. Other items still sort around it."
+                                       Foreground="#7A8088" TextWrapping="Wrap" Margin="0,6,0,0"/>
+
+                            <StackPanel x:Name="TodoWatchFields" Visibility="Collapsed" Margin="0,10,0,0">
+                                <TextBlock x:Name="TodoLastChecked" Foreground="#8AB4F8" TextWrapping="Wrap"/>
+                                <Button Style="{StaticResource DarkButton}" Content="I checked this now"
+                                        HorizontalAlignment="Left" Margin="0,8,0,0" Click="MarkTodoCheckedNow"/>
+                                <TextBlock Text="Check every" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TodoCheckAmount" Style="{StaticResource DarkTextBox}"
+                                             TextChanged="TodoFieldChanged"/>
+                                    <ComboBox x:Name="TodoCheckUnit" Grid.Column="2" Style="{StaticResource DarkCombo}"
+                                              SelectionChanged="TodoFieldChanged"/>
+                                </Grid>
+                                <TextBlock Text="Late colors move up each time this interval passes without a ↻ check. The checkbox still completes the item."
+                                           Foreground="#7A8088" TextWrapping="Wrap" Margin="0,12,0,0"/>
+                            </StackPanel>
+
+                            <StackPanel x:Name="TodoScheduleFields">
+                            <TextBlock Text="Repeats" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                            <ComboBox x:Name="TodoKind" Style="{StaticResource DarkCombo}" SelectionChanged="TodoKindChanged"/>
+
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel x:Name="TimeRow">
+                                    <TextBlock Text="Time" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="TodoTime" Style="{StaticResource DarkTextBox}"
+                                             ToolTip="HH:mm, 24-hour. Empty = midnight. 2300 becomes 23:00."
+                                             MaxLength="5"
+                                             TextChanged="TodoFieldChanged"
+                                             LostFocus="TodoTimeLostFocus"/>
+                                </StackPanel>
+                                <StackPanel x:Name="IntervalRow" Grid.Column="2">
+                                    <TextBlock x:Name="IntervalLabel" Text="Every N" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="TodoInterval" Style="{StaticResource DarkTextBox}" TextChanged="TodoFieldChanged"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock x:Name="WeekdaysLabel" Text="Days" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                            <WrapPanel x:Name="WeekdaysPanel">
+                                <CheckBox x:Name="DaySun" Style="{StaticResource DarkCheck}" Content="Sun" Click="TodoFieldChanged"/>
+                                <CheckBox x:Name="DayMon" Style="{StaticResource DarkCheck}" Content="Mon" Click="TodoFieldChanged"/>
+                                <CheckBox x:Name="DayTue" Style="{StaticResource DarkCheck}" Content="Tue" Click="TodoFieldChanged"/>
+                                <CheckBox x:Name="DayWed" Style="{StaticResource DarkCheck}" Content="Wed" Click="TodoFieldChanged"/>
+                                <CheckBox x:Name="DayThu" Style="{StaticResource DarkCheck}" Content="Thu" Click="TodoFieldChanged"/>
+                                <CheckBox x:Name="DayFri" Style="{StaticResource DarkCheck}" Content="Fri" Click="TodoFieldChanged"/>
+                                <CheckBox x:Name="DaySat" Style="{StaticResource DarkCheck}" Content="Sat" Click="TodoFieldChanged"/>
+                            </WrapPanel>
+
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel x:Name="MonthDayRow">
+                                    <TextBlock Text="Day of month" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="TodoMonthDay" Style="{StaticResource DarkTextBox}" TextChanged="TodoFieldChanged"/>
+                                </StackPanel>
+                                <StackPanel x:Name="MonthRow" Grid.Column="2">
+                                    <TextBlock Text="Month (1-12)" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="TodoMonth" Style="{StaticResource DarkTextBox}" TextChanged="TodoFieldChanged"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel x:Name="NthRow">
+                                    <TextBlock Text="Which (1-4, or -1 = last)" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="TodoNth" Style="{StaticResource DarkTextBox}" TextChanged="TodoFieldChanged"/>
+                                </StackPanel>
+                                <StackPanel x:Name="WeekdayRow" Grid.Column="2">
+                                    <TextBlock Text="Weekday (0=Sun … 6=Sat)" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                    <ComboBox x:Name="TodoWeekday" Style="{StaticResource DarkCombo}" SelectionChanged="TodoFieldChanged"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock x:Name="TodoSummary" Foreground="#8AB4F8" Margin="0,16,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <TextBlock Text="Colors" Foreground="#8AB4F8" FontWeight="SemiBold" Margin="0,16,0,4"/>
+                            <TextBlock Text="Leave a row empty or press Default to use Settings. Only states this Recurring item can show."
+                                       Foreground="#7A8088" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                            <StackPanel x:Name="TodoColorHost"/>
+                        </StackPanel>
+
+                        <StackPanel x:Name="EventEditor" IsEnabled="False" Visibility="Collapsed">
+                            <TextBlock Text="Type" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                            <TextBlock Text="Scheduled" Foreground="#C5C9D0" Margin="0,0,0,8"/>
+                            <TextBlock Text="Title" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                            <TextBox x:Name="EventTitle" Style="{StaticResource DarkTextBox}" TextChanged="EventFieldChanged"/>
+                            <TextBlock Text="URL" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                            <TextBox x:Name="EventUrl" Style="{StaticResource DarkTextBox}"
+                                     ToolTip="Optional. Click the task name on the overlay to open this URL, file, or program."
+                                     TextChanged="EventFieldChanged"/>
+                            <TextBlock Text="Folder" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                            <ComboBox x:Name="EventCategory" Style="{StaticResource DarkCombo}"
+                                      ItemTemplate="{StaticResource CategoryItemTemplate}" SelectionChanged="EventFieldChanged"/>
+                            <TextBlock Text="When checked" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                            <ComboBox x:Name="EventCheckRuleBox" Style="{StaticResource DarkCombo}"
+                                      SelectionChanged="EventCheckRuleChanged"/>
+                            <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                       Text="Leave this on Use folder / Settings to follow the folder. Nested folders still apply when this is inherited."/>
+                            <StackPanel x:Name="EventReshowRow" Visibility="Collapsed" Margin="0,10,0,0">
+                                <TextBlock Text="Show again this long before reset" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                <DockPanel>
+                                    <ComboBox x:Name="EventReshowUnitBox" DockPanel.Dock="Right" Width="110"
+                                              Style="{StaticResource DarkCombo}"
+                                              SelectionChanged="EventReshowUnitChanged">
+                                        <ComboBoxItem Content="Days"/>
+                                        <ComboBoxItem Content="Hours"/>
+                                    </ComboBox>
+                                    <TextBox x:Name="EventReshowBox" Style="{StaticResource DarkTextBox}" Margin="0,0,8,0"
+                                             LostFocus="EventReshowCommit" KeyDown="EventReshowKey"/>
+                                </DockPanel>
+                            </StackPanel>
+                            <TextBlock Text="Pin position" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                            <TextBox x:Name="EventPin" Style="{StaticResource DarkTextBox}"
+                                     ToolTip="0 = automatic. 1 = first in this folder, 3 = third."
+                                     TextChanged="EventFieldChanged"/>
+                            <TextBlock Text="0 follows automatic sort. 1 always first in this folder, 3 always third. Other items still sort around it."
+                                       Foreground="#7A8088" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                            <CheckBox x:Name="EventUnknownDate" Style="{StaticResource DarkCheck}"
+                                      Content="Coming eventually — I don't know when"
+                                      Checked="EventUnknownChanged" Unchecked="EventUnknownChanged"/>
+                            <StackPanel x:Name="EventWatchFields" Visibility="Collapsed" Margin="0,10,0,0">
+                                <TextBlock x:Name="EventLastChecked" Foreground="#8AB4F8" TextWrapping="Wrap"/>
+                                <Button Style="{StaticResource DarkButton}" Content="I checked this now"
+                                        HorizontalAlignment="Left" Margin="0,8,0,0" Click="MarkEventCheckedNow"/>
+                                <TextBlock Text="Check every" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="EventCheckAmount" Style="{StaticResource DarkTextBox}"
+                                             TextChanged="EventFieldChanged"/>
+                                    <ComboBox x:Name="EventCheckUnit" Grid.Column="2" Style="{StaticResource DarkCombo}"
+                                              SelectionChanged="EventFieldChanged"/>
+                                </Grid>
+                                <TextBlock Text="Late colors move up each time this interval passes without a ↻ check. When you know the date, set it from the overlay (or uncheck Coming eventually here). Checking to dismiss only works after that time."
+                                           Foreground="#7A8088" TextWrapping="Wrap" Margin="0,12,0,0"/>
+                                <TextBlock Text="Only show after this long since last check" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                                <DockPanel>
+                                    <ComboBox x:Name="EventShowAfterUnitBox" DockPanel.Dock="Right" Width="110"
+                                              Style="{StaticResource DarkCombo}"
+                                              SelectionChanged="EventShowAfterUnitChanged">
+                                        <ComboBoxItem Content="Days"/>
+                                        <ComboBoxItem Content="Hours"/>
+                                    </ComboBox>
+                                    <TextBox x:Name="EventShowAfterBox" Style="{StaticResource DarkTextBox}" Margin="0,0,8,0"
+                                             LostFocus="EventShowAfterCommit" KeyDown="EventShowAfterKey"/>
+                                </DockPanel>
+                                <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                           Text="0 keeps it on the overlay. After ↻ or a link click it stays hidden until this many days or hours pass."/>
+                            </StackPanel>
+                            <StackPanel x:Name="EventWhenFields">
+                            <TextBlock Text="Date" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                            <DatePicker x:Name="EventDate" SelectedDateChanged="EventFieldChanged"/>
+                            <TextBlock Text="Time (HH:mm)" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                            <TextBox x:Name="EventTime" Style="{StaticResource DarkTextBox}"
+                                     ToolTip="HH:mm, 24-hour. 2300 becomes 23:00."
+                                     MaxLength="5"
+                                     TextChanged="EventFieldChanged"
+                                     LostFocus="EventTimeLostFocus"/>
+                            <TextBlock Text="Scheduled countdown. Turns the due color when the date and time arrive. The overlay checkbox appears after that, so you can dismiss it."
+                                       Foreground="#7A8088" TextWrapping="Wrap" Margin="0,16,0,0"/>
+                            <TextBlock Text="Only show this long before it happens" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                            <DockPanel>
+                                <ComboBox x:Name="EventShowBeforeUnitBox" DockPanel.Dock="Right" Width="110"
+                                          Style="{StaticResource DarkCombo}"
+                                          SelectionChanged="EventShowBeforeUnitChanged">
+                                    <ComboBoxItem Content="Days"/>
+                                    <ComboBoxItem Content="Hours"/>
+                                </ComboBox>
+                                <TextBox x:Name="EventShowBeforeBox" Style="{StaticResource DarkTextBox}" Margin="0,0,8,0"
+                                         LostFocus="EventShowBeforeCommit" KeyDown="EventShowBeforeKey"/>
+                            </DockPanel>
+                            <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                       Text="0 uses Settings. Farther out than this, it stays off the overlay until the window opens."/>
+                            </StackPanel>
+                            <TextBlock Text="Colors" Foreground="#8AB4F8" FontWeight="SemiBold" Margin="0,16,0,4"/>
+                            <TextBlock Text="Leave a row empty or press Default to use Settings. Only states this Scheduled item can show."
+                                       Foreground="#7A8088" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                            <StackPanel x:Name="EventColorHost"/>
+                        </StackPanel>
+
+                        <DockPanel x:Name="NoteEditor" IsEnabled="False" Visibility="Collapsed">
+                            <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+                                <CheckBox x:Name="NoteHidden" Style="{StaticResource DarkCheck}" Content="Hidden from overlay"
+                                          Checked="NoteFieldChanged" Unchecked="NoteFieldChanged"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Restore to overlay" HorizontalAlignment="Left"
+                                        Click="RestoreNote" Margin="0,4,0,0"/>
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="Type" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                <TextBlock Text="Note" Foreground="#C5C9D0" Margin="0,0,0,8"/>
+                                <TextBlock Text="Title" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                <TextBox x:Name="NoteTitle" Style="{StaticResource DarkTextBox}" TextChanged="NoteFieldChanged"/>
+                                <TextBlock Text="URL" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                                <TextBox x:Name="NoteUrl" Style="{StaticResource DarkTextBox}"
+                                         ToolTip="Optional. Click the task name on the overlay to open this URL, file, or program."
+                                         TextChanged="NoteFieldChanged"/>
+                                <TextBlock Text="Folder" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                                <ComboBox x:Name="NoteCategory" Style="{StaticResource DarkCombo}"
+                                          ItemTemplate="{StaticResource CategoryItemTemplate}" SelectionChanged="NoteFieldChanged"/>
+                                <TextBlock Text="Pin position" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                                <TextBox x:Name="NotePin" Style="{StaticResource DarkTextBox}"
+                                         ToolTip="0 = automatic. 1 = first in this folder, 3 = third."
+                                         TextChanged="NoteFieldChanged"/>
+                                <TextBlock Text="0 follows automatic sort. 1 always first in this folder, 3 always third. Other items still sort around it."
+                                           Foreground="#7A8088" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                <TextBlock Text="Body" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                                <TextBox x:Name="NoteBody" Style="{StaticResource DarkTextBox}" AcceptsReturn="True"
+                                         TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MinHeight="180"
+                                         TextChanged="NoteFieldChanged"/>
+                            </StackPanel>
+                        </DockPanel>
+                        </Grid>
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Categories" Visibility="Collapsed">
+                <Grid Margin="4,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="280"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <DockPanel>
+                        <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                            <Button Style="{StaticResource DarkButton}" Content="Add" Click="AddCategory"/>
+                            <Button Style="{StaticResource DarkButton}" Content="Add inside" Click="AddSubcategory"/>
+                            <Button Style="{StaticResource DarkButton}" Content="↑" Click="MoveCategoryUp" Width="36" Padding="0,6"/>
+                            <Button Style="{StaticResource DarkButton}" Content="↓" Click="MoveCategoryDown" Width="36" Padding="0,6"/>
+                            <Button Style="{StaticResource DarkButton}" Content="Delete" Click="DeleteCategory"/>
+                        </WrapPanel>
+                        <ListBox x:Name="CategoryList" Background="#FF2A2D34" Foreground="#E8EAED"
+                                 BorderBrush="#FF3A3D45"
+                                 SelectionChanged="CategorySelected">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding TreeLabel}"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"
+                                  Style="{StaticResource DarkScrollViewer}">
+                    <Grid x:Name="CategoryEditorHost">
+                    <StackPanel x:Name="CategoryEditor" IsEnabled="False">
+                        <TextBlock Text="Name" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                        <TextBox x:Name="CategoryName" Style="{StaticResource DarkTextBox}" TextChanged="CategoryFieldChanged"/>
+                        <TextBlock Text="Inside" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                        <ComboBox x:Name="CategoryParent" Style="{StaticResource DarkCombo}"
+                                  ItemTemplate="{StaticResource CategoryItemTemplate}"
+                                  SelectionChanged="CategoryFieldChanged"/>
+                        <CheckBox x:Name="CategoryPopped" Style="{StaticResource DarkCheck}"
+                                  Content="Pop out into its own window"
+                                  Checked="CategoryFieldChanged" Unchecked="CategoryFieldChanged"/>
+                        <CheckBox x:Name="CategoryDelayable" Style="{StaticResource DarkCheck}"
+                                  Content="Delayable — due items here don't block temporary hide"
+                                  Margin="0,8,0,0"
+                                  Checked="CategoryFieldChanged" Unchecked="CategoryFieldChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                   Text="Treat this folder as not important for the clock button. Nested folders inherit this. You can still check items here as usual."/>
+                        <TextBlock Text="When checked" Foreground="#9AA0A8" Margin="0,14,0,4"/>
+                        <ComboBox x:Name="CategoryCheckRuleBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="CategoryCheckRuleChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                   Text="Nested folders inherit unless they set their own rule. A task can override this. Unfiled items follow Settings unless the task sets a rule. Delete-on-check can be undone from the overlay while this program stays open."/>
+                        <StackPanel x:Name="CategoryReshowRow" Visibility="Collapsed" Margin="0,10,0,0">
+                            <TextBlock Text="Show again this long before reset" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                            <DockPanel>
+                                <ComboBox x:Name="CategoryReshowUnitBox" DockPanel.Dock="Right" Width="110"
+                                          Style="{StaticResource DarkCombo}"
+                                          SelectionChanged="CategoryReshowUnitChanged">
+                                    <ComboBoxItem Content="Days"/>
+                                    <ComboBoxItem Content="Hours"/>
+                                </ComboBox>
+                                <TextBox x:Name="CategoryReshowBox" Style="{StaticResource DarkTextBox}" Margin="0,0,8,0"
+                                         LostFocus="CategoryReshowCommit" KeyDown="CategoryReshowKey"/>
+                            </DockPanel>
+                            <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                       Text="Checked items stay hidden until this close to the next reset, then they come back on the overlay."/>
+                        </StackPanel>
+                        <TextBlock Text="Program pair" Foreground="#9AA0A8" Margin="0,14,0,4"/>
+                        <TextBlock x:Name="CategoryPairLabel" TextWrapping="Wrap" Foreground="#C5C9D0"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                            <Button Style="{StaticResource DarkButton}" Content="Pair to a running program…"
+                                    Click="PairCategoryProgram"/>
+                            <Button Style="{StaticResource DarkButton}" Content="Clear pairing"
+                                    Click="ClearCategoryPair"/>
+                        </StackPanel>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,8,0,0"
+                                   Text="Pops this folder while that program is running, even if another flagged app layout is active. Closing the program docks the folder only if this pairing opened it. For hide, lock, and window positions, flag the program on the Integration tab instead."/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,16,0,0"
+                                   Text="Folders can hold to-dos, recurring and scheduled tasks, and notes together. They nest like directories. Add inside creates a folder inside the selected one. Up/down move among siblings. Deleting a folder moves its tasks and child folders up one level (or leaves tasks unfiled). Overlay arrows collapse like Explorer."/>
+                    </StackPanel>
+                    </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
+            <TabItem x:Name="CompletedTab" Header="Completed">
+                <Grid Margin="4,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="#9AA0A8" Margin="0,0,0,8"
+                                   Text="Tasks you've checked off. Change the completion date or time to backdate them."/>
+                        <TextBlock DockPanel.Dock="Top" Text="Show" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                        <ComboBox x:Name="CompletedTypeBox" DockPanel.Dock="Top" Style="{StaticResource DarkCombo}"
+                                  Margin="0,0,0,8" SelectionChanged="CompletedFilterChanged"/>
+                        <Button DockPanel.Dock="Bottom" Style="{StaticResource DarkButton}" HorizontalAlignment="Left"
+                                Margin="0,8,0,0" Content="Delete" Click="CompletedDelete"/>
+                        <ListBox x:Name="CompletedList" Background="#FF2A2D34" Foreground="#E8EAED"
+                                 BorderBrush="#FF3A3D45"
+                                 SelectionChanged="CompletedSelected"
+                                 PreviewKeyDown="CompletedListKeyDown">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,2">
+                                        <TextBlock Text="{Binding Title}" Foreground="#E8EAED" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding SubLabel}" Foreground="#7A8088" FontSize="11"/>
+                                        <TextBlock Text="{Binding WhenLabel}" Foreground="#8AB4F8" FontSize="11"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"
+                                  Style="{StaticResource DarkScrollViewer}">
+                        <Grid>
+                            <TextBlock x:Name="CompletedHint" TextWrapping="Wrap" Foreground="#9AA0A8"
+                                       Text="No completed tasks yet. Check something off on the overlay, then it shows up here."/>
+                            <StackPanel x:Name="CompletedEditor" IsEnabled="False" Visibility="Collapsed">
+                                <TextBlock Text="Title" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                <TextBlock x:Name="CompletedTitle" Foreground="#E8EAED" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                <TextBlock Text="Type" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                <TextBlock x:Name="CompletedType" Foreground="#C5C9D0" Margin="0,0,0,8"/>
+                                <TextBlock Text="Folder" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                <TextBlock x:Name="CompletedFolder" Foreground="#C5C9D0" Margin="0,0,0,8"/>
+                                <TextBlock Text="Completed date" Foreground="#9AA0A8" Margin="0,4,0,4"/>
+                                <DatePicker x:Name="CompletedDate" SelectedDateChanged="CompletedWhenChanged"/>
+                                <TextBlock Text="Completed time (HH:mm)" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                                <TextBox x:Name="CompletedTime" Style="{StaticResource DarkTextBox}"
+                                         ToolTip="HH:mm, 24-hour. 2300 becomes 23:00."
+                                         MaxLength="5"
+                                         TextChanged="CompletedWhenChanged"
+                                         LostFocus="CompletedTimeLostFocus"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                    <Button Style="{StaticResource DarkButton}" Content="Set to now"
+                                            Click="CompletedSetNow"/>
+                                    <Button Style="{StaticResource DarkButton}" Content="Clear completion"
+                                            Click="CompletedClear"/>
+                                    <Button Style="{StaticResource DarkButton}" Content="Delete"
+                                            Click="CompletedDelete"/>
+                                </StackPanel>
+                                <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,16,0,0"
+                                           Text="To Dos and Scheduled stay done until you clear them. Recurring uses this time for the current cycle and for “after I complete it” schedules — backdating past the period start marks that cycle incomplete again."/>
+                            </StackPanel>
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
+            <TabItem x:Name="IntegrationTab" Header="Integration">
+                <Grid Margin="4,8,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="16"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="300"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="App layouts" Foreground="#E8EAED" Margin="0,0,0,4"/>
+                            <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="#9AA0A8" Margin="0,0,0,8"
+                                       Text="Flag a running program to give it its own overlay layout. Desktop is saved separately and comes back when none of these are running."/>
+                            <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                                <Button Style="{StaticResource DarkButton}" Content="Flag program…" Click="AddAppLayout"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Remove" Click="RemoveAppLayout"/>
+                            </WrapPanel>
+                            <ListBox x:Name="AppLayoutList" Background="#FF2A2D34" Foreground="#E8EAED"
+                                     BorderBrush="#FF3A3D45"
+                                     SelectionChanged="AppLayoutSelected">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,2">
+                                            <TextBlock Text="{Binding ExeName}" Foreground="#E8EAED"/>
+                                            <TextBlock Text="{Binding ExePath}" Foreground="#7A8088" FontSize="11"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                        <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"
+                                      Style="{StaticResource DarkScrollViewer}">
+                            <StackPanel>
+                                <TextBlock x:Name="AppLayoutHint" TextWrapping="Wrap" Foreground="#9AA0A8"
+                                           Text="Select a flagged program, or flag one that is running now."/>
+                                <StackPanel x:Name="AppLayoutEditor" IsEnabled="False">
+                                    <TextBlock Text="While this program is running" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                    <ComboBox x:Name="AppLayoutHideBox" Style="{StaticResource DarkCombo}"
+                                              SelectionChanged="AppLayoutFieldChanged"/>
+                                    <CheckBox x:Name="AppLayoutLockBox" Style="{StaticResource DarkCheck}"
+                                              Content="Lock overlay"
+                                              Margin="0,12,0,0"
+                                              Checked="AppLayoutFieldChanged" Unchecked="AppLayoutFieldChanged"/>
+                                    <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,16,0,0"
+                                               Text="Flag first, then launch the program and arrange overlays. Moves, pop in/out, and folder collapse save to this program. Hide and lock are set here. Tray hide and lock are frozen while this layout is in control. Closing the last flagged program restores desktop. Folder pairs still pop their folder on top if that program is not a full layout."/>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="Folder pairing — running" Foreground="#E8EAED" Margin="0,0,0,4"/>
+                            <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="#9AA0A8" Margin="0,0,0,8"
+                                       Text="Programs you can pair to a folder from Layout. Hide anything you will not pair."/>
+                            <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                                <Button Style="{StaticResource DarkButton}" Content="Refresh" Click="RefreshPairTargets"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Don't offer"
+                                        Click="HidePairTarget"/>
+                            </WrapPanel>
+                            <ListBox x:Name="PairAvailableList" Background="#FF2A2D34" Foreground="#E8EAED"
+                                     BorderBrush="#FF3A3D45"
+                                     ItemTemplate="{StaticResource PairExeTemplate}"
+                                     MouseDoubleClick="HidePairTarget"/>
+                        </DockPanel>
+                        <DockPanel Grid.Column="2">
+                            <TextBlock DockPanel.Dock="Top" Text="Folder pairing — hidden" Foreground="#E8EAED" Margin="0,0,0,4"/>
+                            <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="#9AA0A8" Margin="0,0,0,8"
+                                       Text="These stay off the pair picker. Double-click or Offer again to show them."/>
+                            <Button DockPanel.Dock="Bottom" Style="{StaticResource DarkButton}" HorizontalAlignment="Left"
+                                    Margin="0,8,0,0" Content="Offer again" Click="RestorePairTarget"/>
+                            <ListBox x:Name="PairHiddenList" Background="#FF2A2D34" Foreground="#E8EAED"
+                                     BorderBrush="#FF3A3D45"
+                                     ItemTemplate="{StaticResource PairExeTemplate}"
+                                     MouseDoubleClick="RestorePairTarget"/>
+                        </DockPanel>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Settings">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Style="{StaticResource DarkScrollViewer}">
+                    <StackPanel Margin="4,8,12,8">
+                        <Expander x:Name="SettingsOverlay" Style="{StaticResource SettingsExpander}"
+                                  Header="Overlay" Tag="overlay"
+                                  Expanded="SettingsSectionChanged" Collapsed="SettingsSectionChanged">
+                            <StackPanel>
+                                <CheckBox x:Name="ClickThroughBox" Style="{StaticResource DarkCheck}"
+                                          Content="Lock overlay — only checkboxes, ↻, and folder arrows receive clicks. Unlock to use the top bar, tasks, and folders; empty background still clicks through."
+                                          Checked="SettingsChanged" Unchecked="SettingsChanged"/>
+                            </StackPanel>
+                        </Expander>
+                        <Expander x:Name="SettingsTempHide" Style="{StaticResource SettingsExpander}"
+                                  Header="Temporary hide" Tag="temphide"
+                                  Expanded="SettingsSectionChanged" Collapsed="SettingsSectionChanged">
+                            <StackPanel>
+                        <TextBlock Text="Unlocked top bar clock hides the main overlay. It comes back when the next important upcoming item is this close, or when the hide runs out — whichever is first. Due items in delayable folders don't count. If something important is already due, the clock is crossed out; hold it to highlight those items and their folders. A small click-through countdown appears in a corner before the overlay returns."
+                                   Foreground="#7A8088" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                        <TextBlock Text="Show again this close to the next item" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                        <DockPanel>
+                            <ComboBox x:Name="TempHideLeadUnitBox" DockPanel.Dock="Right" Width="110"
+                                      Style="{StaticResource DarkCombo}"
+                                      SelectionChanged="TempHideLeadUnitChanged">
+                                <ComboBoxItem Content="Minutes"/>
+                                <ComboBoxItem Content="Hours"/>
+                            </ComboBox>
+                            <TextBox x:Name="TempHideLeadBox" Style="{StaticResource DarkTextBox}" Margin="0,0,8,0"
+                                     LostFocus="TempHideLeadCommit" KeyDown="TempHideLeadKey"/>
+                        </DockPanel>
+                        <TextBlock Text="Hide lasts at most" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                        <DockPanel>
+                            <ComboBox x:Name="TempHideMaxUnitBox" DockPanel.Dock="Right" Width="110"
+                                      Style="{StaticResource DarkCombo}"
+                                      SelectionChanged="TempHideMaxUnitChanged">
+                                <ComboBoxItem Content="Minutes"/>
+                                <ComboBoxItem Content="Hours"/>
+                            </ComboBox>
+                            <TextBox x:Name="TempHideMaxBox" Style="{StaticResource DarkTextBox}" Margin="0,0,8,0"
+                                     LostFocus="TempHideMaxCommit" KeyDown="TempHideMaxKey"/>
+                        </DockPanel>
+                        <TextBlock Text="Countdown appears this far before return" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                        <DockPanel>
+                            <ComboBox x:Name="TempHideWarnUnitBox" DockPanel.Dock="Right" Width="110"
+                                      Style="{StaticResource DarkCombo}"
+                                      SelectionChanged="TempHideWarnUnitChanged">
+                                <ComboBoxItem Content="Minutes"/>
+                                <ComboBoxItem Content="Hours"/>
+                            </ComboBox>
+                            <TextBox x:Name="TempHideWarnBox" Style="{StaticResource DarkTextBox}" Margin="0,0,8,0"
+                                     LostFocus="TempHideWarnCommit" KeyDown="TempHideWarnKey"/>
+                        </DockPanel>
+                        <TextBlock Text="Countdown corner" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                        <ComboBox x:Name="TempHideCornerBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="TempHideCornerChanged">
+                            <ComboBoxItem Content="Top left"/>
+                            <ComboBoxItem Content="Top right"/>
+                            <ComboBoxItem Content="Bottom left"/>
+                            <ComboBoxItem Content="Bottom right"/>
+                        </ComboBox>
+                        <TextBlock Text="Clock" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                        <TextBlock x:Name="TempHideStatusText" Foreground="#C5C9D0" TextWrapping="Wrap"/>
+                        <TextBlock Text="Next important upcoming" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                        <TextBlock x:Name="UpcomingScheduledList" Foreground="#C5C9D0" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Expander>
+                        <Expander x:Name="SettingsLook" Style="{StaticResource SettingsExpander}"
+                                  Header="Appearance" Tag="look"
+                                  Expanded="SettingsSectionChanged" Collapsed="SettingsSectionChanged">
+                            <StackPanel>
+                        <CheckBox x:Name="WindowBorderBox" Style="{StaticResource DarkCheck}"
+                                  Content="Window border"
+                                  Checked="SettingsChanged" Unchecked="SettingsChanged"/>
+
+                        <TextBlock Text="Panel opacity" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                        <DockPanel>
+                            <TextBlock x:Name="OpacityLabel" DockPanel.Dock="Right" Width="48" Foreground="#C5C9D0"/>
+                            <Slider x:Name="OpacitySlider" Minimum="0.2" Maximum="0.95"
+                                    SmallChange="0.01" LargeChange="0.05"
+                                    IsMoveToPointEnabled="True" IsSnapToTickEnabled="False"
+                                    PreviewMouseLeftButtonDown="SliderGoToClick"
+                                    MouseMove="SliderDrag"
+                                    MouseLeftButtonUp="SliderEndDrag"
+                                    LostMouseCapture="SliderEndDrag"
+                                    ValueChanged="OpacityChanged"/>
+                        </DockPanel>
+
+                        <TextBlock Text="Panel darkness" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                        <DockPanel>
+                            <TextBlock x:Name="DarknessLabel" DockPanel.Dock="Right" Width="48" Foreground="#C5C9D0"/>
+                            <Slider x:Name="DarknessSlider" Minimum="0" Maximum="1"
+                                    SmallChange="0.01" LargeChange="0.05"
+                                    IsMoveToPointEnabled="True" IsSnapToTickEnabled="False"
+                                    PreviewMouseLeftButtonDown="SliderGoToClick"
+                                    MouseMove="SliderDrag"
+                                    MouseLeftButtonUp="SliderEndDrag"
+                                    LostMouseCapture="SliderEndDrag"
+                                    ValueChanged="DarknessChanged"/>
+                        </DockPanel>
+
+                        <CheckBox x:Name="PanelDitherBox" Style="{StaticResource DarkCheck}"
+                                  Content="Black dither — faint grain so desktop detail doesn't read through"
+                                  Checked="SettingsChanged" Unchecked="SettingsChanged"/>
+                        <TextBlock Text="Dither amount" Foreground="#9AA0A8" Margin="0,8,0,4"/>
+                        <DockPanel>
+                            <TextBlock x:Name="DitherLabel" DockPanel.Dock="Right" Width="48" Foreground="#C5C9D0"/>
+                            <Slider x:Name="DitherSlider" Minimum="0" Maximum="0.75"
+                                    SmallChange="0.01" LargeChange="0.05"
+                                    IsMoveToPointEnabled="True" IsSnapToTickEnabled="False"
+                                    PreviewMouseLeftButtonDown="SliderGoToClick"
+                                    MouseMove="SliderDrag"
+                                    MouseLeftButtonUp="SliderEndDrag"
+                                    LostMouseCapture="SliderEndDrag"
+                                    ValueChanged="DitherChanged"/>
+                        </DockPanel>
+
+                        <CheckBox x:Name="TextBackdropBox" Style="{StaticResource DarkCheck}"
+                                  Content="Text backdrop — solid chip behind each item"
+                                  Checked="SettingsChanged" Unchecked="SettingsChanged"/>
+                        <TextBlock Text="Text backdrop opacity" Foreground="#9AA0A8" Margin="0,8,0,4"/>
+                        <DockPanel>
+                            <TextBlock x:Name="BackdropLabel" DockPanel.Dock="Right" Width="48" Foreground="#C5C9D0"/>
+                            <Slider x:Name="BackdropSlider" Minimum="0.2" Maximum="1"
+                                    SmallChange="0.01" LargeChange="0.05"
+                                    IsMoveToPointEnabled="True" IsSnapToTickEnabled="False"
+                                    PreviewMouseLeftButtonDown="SliderGoToClick"
+                                    MouseMove="SliderDrag"
+                                    MouseLeftButtonUp="SliderEndDrag"
+                                    LostMouseCapture="SliderEndDrag"
+                                    ValueChanged="BackdropChanged"/>
+                        </DockPanel>
+
+                        <TextBlock Text="Font size" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                        <DockPanel>
+                            <TextBlock x:Name="FontLabel" DockPanel.Dock="Right" Width="48" Foreground="#C5C9D0"/>
+                            <Slider x:Name="FontSlider" Minimum="10" Maximum="22" TickFrequency="1"
+                                    SmallChange="1" LargeChange="2"
+                                    IsMoveToPointEnabled="True" IsSnapToTickEnabled="True"
+                                    PreviewMouseLeftButtonDown="SliderGoToClick"
+                                    MouseMove="SliderDrag"
+                                    MouseLeftButtonUp="SliderEndDrag"
+                                    LostMouseCapture="SliderEndDrag"
+                                    ValueChanged="FontChanged"/>
+                        </DockPanel>
+                        <CheckBox x:Name="BoldTextBox" Style="{StaticResource DarkCheck}"
+                                  Content="Bold overlay text"
+                                  Checked="SettingsChanged" Unchecked="SettingsChanged"/>
+                            </StackPanel>
+                        </Expander>
+                        <Expander x:Name="SettingsColors" Style="{StaticResource SettingsExpander}"
+                                  Header="Task colors" Tag="colors"
+                                  Expanded="SettingsSectionChanged" Collapsed="SettingsSectionChanged">
+                            <StackPanel>
+                        <TextBlock Text="Defaults for overlay text. Each task on Layout can override the states that apply to it."
+                                   Foreground="#7A8088" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                        <local:ColorRow x:Name="ColorTodoRow"/>
+                        <local:ColorRow x:Name="ColorRecurringRow"/>
+                        <local:ColorRow x:Name="ColorScheduledRow"/>
+                        <local:ColorRow x:Name="ColorDueRow"/>
+                        <local:ColorRow x:Name="ColorLate1Row"/>
+                        <local:ColorRow x:Name="ColorLate2Row"/>
+                        <local:ColorRow x:Name="ColorLate3Row"/>
+                        <local:ColorRow x:Name="ColorCompletedRow"/>
+                            </StackPanel>
+                        </Expander>
+                        <Expander x:Name="SettingsList" Style="{StaticResource SettingsExpander}"
+                                  Header="List" Tag="list"
+                                  Expanded="SettingsSectionChanged" Collapsed="SettingsSectionChanged">
+                            <StackPanel>
+                        <CheckBox x:Name="HideCompletedOnceBox" Style="{StaticResource DarkCheck}"
+                                  Content="Hide completed To Dos"
+                                  Checked="SettingsChanged" Unchecked="SettingsChanged"/>
+                        <CheckBox x:Name="HideCompletedRecurringBox" Style="{StaticResource DarkCheck}"
+                                  Content="Hide completed Recurring"
+                                  Checked="SettingsChanged" Unchecked="SettingsChanged"/>
+                        <CheckBox x:Name="HideCompletedScheduledBox" Style="{StaticResource DarkCheck}"
+                                  Content="Hide completed Scheduled"
+                                  Checked="SettingsChanged" Unchecked="SettingsChanged"/>
+                        <TextBlock Text="Completed Recurring stay on the overlay with a countdown to the next reset unless you hide them. A folder can override this under Layout."
+                                   Foreground="#7A8088" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                        <CheckBox x:Name="HideEmptyFoldersBox" Style="{StaticResource DarkCheck}"
+                                  Content="Hide folder if all contents are hidden"
+                                  Checked="SettingsChanged" Unchecked="SettingsChanged"/>
+                        <CheckBox x:Name="FolderCountsBox" Style="{StaticResource DarkCheck}"
+                                  Content="Show uncompleted count on folders"
+                                  Checked="SettingsChanged" Unchecked="SettingsChanged"/>
+                        <TextBlock Text="Counts items in the folder and nested folders. Completed tasks and hidden notes are not counted."
+                                   Foreground="#7A8088" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                        <CheckBox x:Name="ManualSortBox" Style="{StaticResource DarkCheck}"
+                                  Content="Manual sort — overlay and Layout follow ↑↓"
+                                  Checked="SettingsChanged" Unchecked="SettingsChanged"/>
+                        <TextBlock Text="Automatic sort matches the overlay: dated items by due time, to-dos without a date in the order they were added. A pin on an item (1 = first in its folder, 3 = third) holds that slot while everything else still sorts automatically. Manual sort starts from add order and uses Layout ↑↓; pins still apply."
+                                   Foreground="#7A8088" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                        <TextBlock Text="Folder indent" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                        <DockPanel>
+                            <TextBlock x:Name="IndentLabel" DockPanel.Dock="Right" Width="48" Foreground="#C5C9D0"/>
+                            <Slider x:Name="IndentSlider" Minimum="0" Maximum="40" TickFrequency="1"
+                                    SmallChange="1" LargeChange="4"
+                                    IsMoveToPointEnabled="True" IsSnapToTickEnabled="True"
+                                    PreviewMouseLeftButtonDown="SliderGoToClick"
+                                    MouseMove="SliderDrag"
+                                    MouseLeftButtonUp="SliderEndDrag"
+                                    LostMouseCapture="SliderEndDrag"
+                                    ValueChanged="IndentChanged"/>
+                        </DockPanel>
+                        <CheckBox x:Name="HorizonHoursBox" Style="{StaticResource DarkCheck}"
+                                  Content="Count upcoming window in hours instead of days"
+                                  Checked="HorizonUnitChanged" Unchecked="HorizonUnitChanged"/>
+                        <TextBlock x:Name="RecurringHorizonCaption"
+                                   Text="Only show Recurring within this many days (0 = all)"
+                                   Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                        <DockPanel>
+                            <TextBlock x:Name="RecurringHorizonLabel" DockPanel.Dock="Right" Width="48" Foreground="#C5C9D0"/>
+                            <Slider x:Name="RecurringHorizonSlider" Minimum="0" Maximum="180" TickFrequency="1"
+                                    SmallChange="1" LargeChange="7"
+                                    IsMoveToPointEnabled="True" IsSnapToTickEnabled="True"
+                                    PreviewMouseLeftButtonDown="SliderGoToClick"
+                                    MouseMove="SliderDrag"
+                                    MouseLeftButtonUp="SliderEndDrag"
+                                    LostMouseCapture="SliderEndDrag"
+                                    ValueChanged="RecurringHorizonChanged"/>
+                        </DockPanel>
+                        <TextBlock x:Name="HorizonCaption"
+                                   Text="Only show Scheduled within this many days (0 = all). A task can set its own window on Layout."
+                                   Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                        <DockPanel>
+                            <TextBlock x:Name="HorizonLabel" DockPanel.Dock="Right" Width="48" Foreground="#C5C9D0"/>
+                            <Slider x:Name="HorizonSlider" Minimum="0" Maximum="180" TickFrequency="1"
+                                    SmallChange="1" LargeChange="7"
+                                    IsMoveToPointEnabled="True" IsSnapToTickEnabled="True"
+                                    PreviewMouseLeftButtonDown="SliderGoToClick"
+                                    MouseMove="SliderDrag"
+                                    MouseLeftButtonUp="SliderEndDrag"
+                                    LostMouseCapture="SliderEndDrag"
+                                    ValueChanged="HorizonChanged"/>
+                        </DockPanel>
+                            </StackPanel>
+                        </Expander>
+                        <Expander x:Name="SettingsSystem" Style="{StaticResource SettingsExpander}"
+                                  Header="System" Tag="system"
+                                  Expanded="SettingsSectionChanged" Collapsed="SettingsSectionChanged">
+                            <StackPanel>
+                        <CheckBox x:Name="AutostartBox" Style="{StaticResource DarkCheck}"
+                                  Content="Start with Windows (this user)"
+                                  Checked="SettingsChanged" Unchecked="SettingsChanged"/>
+                        <CheckBox x:Name="NotifyBox" Style="{StaticResource DarkCheck}"
+                                  Content="Windows notifications when something becomes due (off by default)"
+                                  Checked="SettingsChanged" Unchecked="SettingsChanged"/>
+
+                        <TextBlock Text="Data file" Foreground="#9AA0A8" Margin="0,16,0,4"/>
+                        <TextBox x:Name="DataPath" Style="{StaticResource DarkTextBox}" IsReadOnly="True"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <Button Style="{StaticResource DarkButton}" Content="Open JSON" Click="OpenJson"/>
+                            <Button Style="{StaticResource DarkButton}" Content="Open folder" Click="OpenFolder"/>
+                        </StackPanel>
+
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,20,0,0"
+                                   Text="Minimize hides overlay windows to the notification area. Close (✕) quits the app. Unlock the overlay to drag, resize, use + to add entries, and the gear to configure. Drag items onto a folder to move them. Drag a folder onto another to nest it, onto the top or bottom of a header to reorder, or onto @FutureMe to make it top-level."/>
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

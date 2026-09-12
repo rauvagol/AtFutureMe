@@ -1,0 +1,30 @@
+<Window x:Class="AtFutureMe.Windows.SetEventWhenWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Set date and time"
+        Style="{StaticResource DarkWindow}"
+        Width="360" SizeToContent="Height"
+        MinWidth="300"
+        WindowStartupLocation="CenterOwner"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize">
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Style="{StaticResource DarkButton}" Content="Cancel" IsCancel="True" Click="OnCancel"/>
+            <Button Style="{StaticResource DarkButton}" Content="Save" IsDefault="True" Click="OnSave" Margin="0"/>
+        </StackPanel>
+        <StackPanel>
+            <TextBlock x:Name="TitleLabel" Foreground="#E8EAED" TextWrapping="Wrap" Margin="0,0,0,12"/>
+            <TextBlock Text="Date" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+            <DatePicker x:Name="WhenDate"/>
+            <TextBlock Text="Time (HH:mm)" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+            <TextBox x:Name="WhenTime" Style="{StaticResource DarkTextBox}"
+                     ToolTip="HH:mm, 24-hour. 2300 becomes 23:00."
+                     MaxLength="5"
+                     Text="09:00"
+                     TextChanged="TimeChanged"
+                     LostFocus="TimeLostFocus"/>
+        </StackPanel>
+    </DockPanel>
+</Window>

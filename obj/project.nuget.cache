@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "Ka+OveKvkmM=",
+  "success": true,
+  "projectFilePath": "C:\\testestes\\AtFutureMe\\AtFutureMe.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\adam\\AppData\\Local\\Temp\\cursor-sandbox-cache\\b5edcf3a6e06123353e30f5749e5be42\\nuget\\microsoft.net.illink.tasks\\10.0.10\\microsoft.net.illink.tasks.10.0.10.nupkg.sha512",
+    "C:\\Users\\adam\\AppData\\Local\\Temp\\cursor-sandbox-cache\\b5edcf3a6e06123353e30f5749e5be42\\nuget\\microsoft.netcore.app.runtime.win-x64\\10.0.10\\microsoft.netcore.app.runtime.win-x64.10.0.10.nupkg.sha512",
+    "C:\\Users\\adam\\AppData\\Local\\Temp\\cursor-sandbox-cache\\b5edcf3a6e06123353e30f5749e5be42\\nuget\\microsoft.windowsdesktop.app.runtime.win-x64\\10.0.10\\microsoft.windowsdesktop.app.runtime.win-x64.10.0.10.nupkg.sha512",
+    "C:\\Users\\adam\\AppData\\Local\\Temp\\cursor-sandbox-cache\\b5edcf3a6e06123353e30f5749e5be42\\nuget\\microsoft.aspnetcore.app.runtime.win-x64\\10.0.10\\microsoft.aspnetcore.app.runtime.win-x64.10.0.10.nupkg.sha512"
+  ],
+  "logs": []
+}

@@ -1,0 +1,957 @@
+2026-09-06 19:57:32 Starting
+2026-09-06 19:57:32 Started
+2026-09-06 20:01:17 Starting
+2026-09-06 20:01:17 Started
+2026-09-06 20:09:44 Starting
+2026-09-06 20:09:45 Started
+2026-09-06 20:13:59 Starting
+2026-09-06 20:14:00 Started
+2026-09-06 20:27:16 Starting
+2026-09-06 20:27:16 Started
+2026-09-06 20:27:28 Dispatcher: System.Windows.Markup.XamlParseException: Set property 'System.Windows.Controls.ItemsControl.ItemTemplate' threw an exception.
+ ---> System.InvalidOperationException: Cannot set both DisplayMemberPath and ItemTemplate.
+   at System.Windows.Controls.ItemsControl.CheckTemplateSource()
+   at System.Windows.Controls.ItemsControl.OnItemTemplateChanged(DataTemplate oldItemTemplate, DataTemplate newItemTemplate)
+   at System.Windows.FrameworkElement.OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+   at System.Windows.DependencyObject.NotifyPropertyChange(DependencyPropertyChangedEventArgs args)
+   at System.Windows.DependencyObject.UpdateEffectiveValue(EntryIndex entryIndex, DependencyProperty dp, PropertyMetadata metadata, EffectiveValueEntry oldEntry, EffectiveValueEntry& newEntry, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType)
+   at System.Windows.DependencyObject.SetValue(DependencyProperty dp, Object value)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.SetValue(Object inst, XamlMember property, Object value)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.AddEntryWindow.InitializeComponent()
+   at AtFutureMe.Windows.AddEntryWindow..ctor(String categoryId)
+   at AtFutureMe.AppHost.OpenAddEntry(String categoryId)
+   at AtFutureMe.Windows.RemindersOverlay.OnAddToCategory(Object sender, RoutedEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Controls.Primitives.ButtonBase.OnClick()
+   at System.Windows.Controls.Button.OnClick()
+   at System.Windows.Controls.Primitives.ButtonBase.OnMouseLeftButtonUp(MouseButtonEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.ReRaiseEventAs(DependencyObject sender, RoutedEventArgs args, RoutedEvent newEvent)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.UIElement.RaiseTrustedEvent(RoutedEventArgs args)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Input.InputProviderSite.ReportInput(InputReport inputReport)
+   at System.Windows.Interop.HwndMouseInputProvider.ReportInput(IntPtr hwnd, InputMode mode, Int32 timestamp, RawMouseActions actions, Int32 x, Int32 y, Int32 wheel)
+   at System.Windows.Interop.HwndMouseInputProvider.FilterMessage(IntPtr hwnd, WindowMessage msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.InputFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at MS.Win32.HwndWrapper.WndProc(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 20:27:31 Dispatcher: System.Windows.Markup.XamlParseException: Set property 'System.Windows.Controls.ItemsControl.ItemTemplate' threw an exception.
+ ---> System.InvalidOperationException: Cannot set both DisplayMemberPath and ItemTemplate.
+   at System.Windows.Controls.ItemsControl.CheckTemplateSource()
+   at System.Windows.Controls.ItemsControl.OnItemTemplateChanged(DataTemplate oldItemTemplate, DataTemplate newItemTemplate)
+   at System.Windows.FrameworkElement.OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+   at System.Windows.DependencyObject.NotifyPropertyChange(DependencyPropertyChangedEventArgs args)
+   at System.Windows.DependencyObject.UpdateEffectiveValue(EntryIndex entryIndex, DependencyProperty dp, PropertyMetadata metadata, EffectiveValueEntry oldEntry, EffectiveValueEntry& newEntry, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType)
+   at System.Windows.DependencyObject.SetValueCommon(DependencyProperty dp, Object value, PropertyMetadata metadata, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType, Boolean isInternal)
+   at System.Windows.Baml2006.WpfKnownMemberInvoker.SetValue(Object instance, Object value)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.SetValue(Object inst, XamlMember property, Object value)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.AddEntryWindow.InitializeComponent()
+   at AtFutureMe.Windows.AddEntryWindow..ctor(String categoryId)
+   at AtFutureMe.AppHost.OpenAddEntry(String categoryId)
+   at AtFutureMe.Windows.RemindersOverlay.OnAddToCategory(Object sender, RoutedEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Controls.Primitives.ButtonBase.OnClick()
+   at System.Windows.Controls.Button.OnClick()
+   at System.Windows.Controls.Primitives.ButtonBase.OnMouseLeftButtonUp(MouseButtonEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.ReRaiseEventAs(DependencyObject sender, RoutedEventArgs args, RoutedEvent newEvent)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Interop.HwndMouseInputProvider.ReportInput(IntPtr hwnd, InputMode mode, Int32 timestamp, RawMouseActions actions, Int32 x, Int32 y, Int32 wheel)
+   at System.Windows.Interop.HwndMouseInputProvider.FilterMessage(IntPtr hwnd, WindowMessage msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.InputFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at MS.Win32.HwndWrapper.WndProc(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 20:28:00 Dispatcher: System.Windows.Markup.XamlParseException: Set property 'System.Windows.Controls.ItemsControl.ItemTemplate' threw an exception.
+ ---> System.InvalidOperationException: Cannot set both DisplayMemberPath and ItemTemplate.
+   at System.Windows.Controls.ItemsControl.CheckTemplateSource()
+   at System.Windows.Controls.ItemsControl.OnItemTemplateChanged(DataTemplate oldItemTemplate, DataTemplate newItemTemplate)
+   at System.Windows.FrameworkElement.OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+   at System.Windows.DependencyObject.NotifyPropertyChange(DependencyPropertyChangedEventArgs args)
+   at System.Windows.DependencyObject.UpdateEffectiveValue(EntryIndex entryIndex, DependencyProperty dp, PropertyMetadata metadata, EffectiveValueEntry oldEntry, EffectiveValueEntry& newEntry, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.SetValue(Object inst, XamlMember property, Object value)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.AddEntryWindow.InitializeComponent()
+   at AtFutureMe.Windows.AddEntryWindow..ctor(String categoryId)
+   at AtFutureMe.AppHost.OpenAddEntry(String categoryId)
+   at AtFutureMe.Windows.RemindersOverlay.OnAdd(Object sender, RoutedEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Controls.Primitives.ButtonBase.OnClick()
+   at System.Windows.Controls.Button.OnClick()
+   at System.Windows.Controls.Primitives.ButtonBase.OnMouseLeftButtonUp(MouseButtonEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.ReRaiseEventAs(DependencyObject sender, RoutedEventArgs args, RoutedEvent newEvent)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Interop.HwndMouseInputProvider.ReportInput(IntPtr hwnd, InputMode mode, Int32 timestamp, RawMouseActions actions, Int32 x, Int32 y, Int32 wheel)
+   at System.Windows.Interop.HwndMouseInputProvider.FilterMessage(IntPtr hwnd, WindowMessage msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.InputFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at MS.Win32.HwndWrapper.WndProc(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 20:28:17 Starting
+2026-09-06 20:28:17 Started
+2026-09-06 20:28:19 Dispatcher: System.Windows.Markup.XamlParseException: Set property 'System.Windows.Controls.ItemsControl.ItemTemplate' threw an exception.
+ ---> System.InvalidOperationException: Cannot set both DisplayMemberPath and ItemTemplate.
+   at System.Windows.Controls.ItemsControl.CheckTemplateSource()
+   at System.Windows.Controls.ItemsControl.OnItemTemplateChanged(DataTemplate oldItemTemplate, DataTemplate newItemTemplate)
+   at System.Windows.FrameworkElement.OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+   at System.Windows.DependencyObject.NotifyPropertyChange(DependencyPropertyChangedEventArgs args)
+   at System.Windows.DependencyObject.UpdateEffectiveValue(EntryIndex entryIndex, DependencyProperty dp, PropertyMetadata metadata, EffectiveValueEntry oldEntry, EffectiveValueEntry& newEntry, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType)
+   at System.Windows.DependencyObject.SetValueCommon(DependencyProperty dp, Object value, PropertyMetadata metadata, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType, Boolean isInternal)
+   at System.Windows.DependencyObject.SetValue(DependencyProperty dp, Object value)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.SetValue(Object inst, XamlMember property, Object value)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.AddEntryWindow.InitializeComponent()
+   at AtFutureMe.Windows.AddEntryWindow..ctor(String categoryId)
+   at AtFutureMe.AppHost.OpenAddEntry(String categoryId)
+   at AtFutureMe.Windows.RemindersOverlay.OnAddToCategory(Object sender, RoutedEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Controls.Primitives.ButtonBase.OnClick()
+   at System.Windows.Controls.Button.OnClick()
+   at System.Windows.Controls.Primitives.ButtonBase.OnMouseLeftButtonUp(MouseButtonEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.ReRaiseEventAs(DependencyObject sender, RoutedEventArgs args, RoutedEvent newEvent)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.UIElement.RaiseTrustedEvent(RoutedEventArgs args)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Input.InputProviderSite.ReportInput(InputReport inputReport)
+   at System.Windows.Interop.HwndMouseInputProvider.ReportInput(IntPtr hwnd, InputMode mode, Int32 timestamp, RawMouseActions actions, Int32 x, Int32 y, Int32 wheel)
+   at System.Windows.Interop.HwndMouseInputProvider.FilterMessage(IntPtr hwnd, WindowMessage msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.InputFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 20:28:30 Dispatcher: System.Windows.Markup.XamlParseException: Set property 'System.Windows.Controls.ItemsControl.ItemTemplate' threw an exception.
+ ---> System.InvalidOperationException: Cannot set both DisplayMemberPath and ItemTemplate.
+   at System.Windows.Controls.ItemsControl.CheckTemplateSource()
+   at System.Windows.Controls.ItemsControl.OnItemTemplateChanged(DataTemplate oldItemTemplate, DataTemplate newItemTemplate)
+   at System.Windows.FrameworkElement.OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+   at System.Windows.DependencyObject.UpdateEffectiveValue(EntryIndex entryIndex, DependencyProperty dp, PropertyMetadata metadata, EffectiveValueEntry oldEntry, EffectiveValueEntry& newEntry, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType)
+   at System.Windows.DependencyObject.SetValueCommon(DependencyProperty dp, Object value, PropertyMetadata metadata, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType, Boolean isInternal)
+   at System.Windows.Baml2006.WpfKnownMemberInvoker.SetValue(Object instance, Object value)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.SetValue(Object inst, XamlMember property, Object value)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.AddEntryWindow.InitializeComponent()
+   at AtFutureMe.Windows.AddEntryWindow..ctor(String categoryId)
+   at AtFutureMe.AppHost.OpenAddEntry(String categoryId)
+   at AtFutureMe.Windows.RemindersOverlay.OnAddToCategory(Object sender, RoutedEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Controls.Primitives.ButtonBase.OnClick()
+   at System.Windows.Controls.Button.OnClick()
+   at System.Windows.Controls.Primitives.ButtonBase.OnMouseLeftButtonUp(MouseButtonEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.ReRaiseEventAs(DependencyObject sender, RoutedEventArgs args, RoutedEvent newEvent)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Interop.HwndMouseInputProvider.ReportInput(IntPtr hwnd, InputMode mode, Int32 timestamp, RawMouseActions actions, Int32 x, Int32 y, Int32 wheel)
+   at System.Windows.Interop.HwndMouseInputProvider.FilterMessage(IntPtr hwnd, WindowMessage msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.InputFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 20:28:30 Dispatcher: System.Windows.Markup.XamlParseException: Set property 'System.Windows.Controls.ItemsControl.ItemTemplate' threw an exception.
+ ---> System.InvalidOperationException: Cannot set both DisplayMemberPath and ItemTemplate.
+   at System.Windows.Controls.ItemsControl.CheckTemplateSource()
+   at System.Windows.Controls.ItemsControl.OnItemTemplateChanged(DataTemplate oldItemTemplate, DataTemplate newItemTemplate)
+   at System.Windows.FrameworkElement.OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+   at System.Windows.DependencyObject.UpdateEffectiveValue(EntryIndex entryIndex, DependencyProperty dp, PropertyMetadata metadata, EffectiveValueEntry oldEntry, EffectiveValueEntry& newEntry, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType)
+   at System.Windows.DependencyObject.SetValueCommon(DependencyProperty dp, Object value, PropertyMetadata metadata, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType, Boolean isInternal)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.SetValue(Object inst, XamlMember property, Object value)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.AddEntryWindow.InitializeComponent()
+   at AtFutureMe.Windows.AddEntryWindow..ctor(String categoryId)
+   at AtFutureMe.AppHost.OpenAddEntry(String categoryId)
+   at AtFutureMe.Windows.RemindersOverlay.OnAddToCategory(Object sender, RoutedEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Controls.Primitives.ButtonBase.OnClick()
+   at System.Windows.Controls.Button.OnClick()
+   at System.Windows.Controls.Primitives.ButtonBase.OnMouseLeftButtonUp(MouseButtonEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.ReRaiseEventAs(DependencyObject sender, RoutedEventArgs args, RoutedEvent newEvent)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Interop.HwndMouseInputProvider.ReportInput(IntPtr hwnd, InputMode mode, Int32 timestamp, RawMouseActions actions, Int32 x, Int32 y, Int32 wheel)
+   at System.Windows.Interop.HwndMouseInputProvider.FilterMessage(IntPtr hwnd, WindowMessage msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.InputFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 20:29:44 Starting
+2026-09-06 20:29:45 Started
+2026-09-06 20:29:52 Dispatcher: System.Windows.Markup.XamlParseException: Set property 'System.Windows.Controls.ItemsControl.ItemTemplate' threw an exception.
+ ---> System.InvalidOperationException: Cannot set both DisplayMemberPath and ItemTemplate.
+   at System.Windows.Controls.ItemsControl.CheckTemplateSource()
+   at System.Windows.Controls.ItemsControl.OnItemTemplateChanged(DataTemplate oldItemTemplate, DataTemplate newItemTemplate)
+   at System.Windows.FrameworkElement.OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+   at System.Windows.DependencyObject.UpdateEffectiveValue(EntryIndex entryIndex, DependencyProperty dp, PropertyMetadata metadata, EffectiveValueEntry oldEntry, EffectiveValueEntry& newEntry, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType)
+   at System.Windows.DependencyObject.SetValue(DependencyProperty dp, Object value)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.SetValue(Object inst, XamlMember property, Object value)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.AddEntryWindow.InitializeComponent()
+   at AtFutureMe.Windows.AddEntryWindow..ctor(String categoryId)
+   at AtFutureMe.AppHost.OpenAddEntry(String categoryId)
+   at AtFutureMe.Windows.RemindersOverlay.OnAddToCategory(Object sender, RoutedEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Controls.Primitives.ButtonBase.OnClick()
+   at System.Windows.Controls.Button.OnClick()
+   at System.Windows.Controls.Primitives.ButtonBase.OnMouseLeftButtonUp(MouseButtonEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.ReRaiseEventAs(DependencyObject sender, RoutedEventArgs args, RoutedEvent newEvent)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Input.InputProviderSite.ReportInput(InputReport inputReport)
+   at System.Windows.Interop.HwndMouseInputProvider.ReportInput(IntPtr hwnd, InputMode mode, Int32 timestamp, RawMouseActions actions, Int32 x, Int32 y, Int32 wheel)
+   at System.Windows.Interop.HwndMouseInputProvider.FilterMessage(IntPtr hwnd, WindowMessage msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.InputFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at MS.Win32.HwndWrapper.WndProc(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 20:29:53 Dispatcher: System.Windows.Markup.XamlParseException: Set property 'System.Windows.Controls.ItemsControl.ItemTemplate' threw an exception.
+ ---> System.InvalidOperationException: Cannot set both DisplayMemberPath and ItemTemplate.
+   at System.Windows.Controls.ItemsControl.CheckTemplateSource()
+   at System.Windows.Controls.ItemsControl.OnItemTemplateChanged(DataTemplate oldItemTemplate, DataTemplate newItemTemplate)
+   at System.Windows.FrameworkElement.OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+   at System.Windows.DependencyObject.UpdateEffectiveValue(EntryIndex entryIndex, DependencyProperty dp, PropertyMetadata metadata, EffectiveValueEntry oldEntry, EffectiveValueEntry& newEntry, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType)
+   at System.Windows.DependencyObject.SetValueCommon(DependencyProperty dp, Object value, PropertyMetadata metadata, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType, Boolean isInternal)
+   at System.Windows.Baml2006.WpfKnownMemberInvoker.SetValue(Object instance, Object value)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.SetValue(Object inst, XamlMember property, Object value)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.AddEntryWindow.InitializeComponent()
+   at AtFutureMe.Windows.AddEntryWindow..ctor(String categoryId)
+   at AtFutureMe.AppHost.OpenAddEntry(String categoryId)
+   at AtFutureMe.Windows.RemindersOverlay.OnAddToCategory(Object sender, RoutedEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Controls.Primitives.ButtonBase.OnClick()
+   at System.Windows.Controls.Button.OnClick()
+   at System.Windows.Controls.Primitives.ButtonBase.OnMouseLeftButtonUp(MouseButtonEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.ReRaiseEventAs(DependencyObject sender, RoutedEventArgs args, RoutedEvent newEvent)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Interop.HwndMouseInputProvider.ReportInput(IntPtr hwnd, InputMode mode, Int32 timestamp, RawMouseActions actions, Int32 x, Int32 y, Int32 wheel)
+   at System.Windows.Interop.HwndMouseInputProvider.FilterMessage(IntPtr hwnd, WindowMessage msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.InputFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at MS.Win32.HwndWrapper.WndProc(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 20:29:53 Dispatcher: System.Windows.Markup.XamlParseException: Set property 'System.Windows.Controls.ItemsControl.ItemTemplate' threw an exception.
+ ---> System.InvalidOperationException: Cannot set both DisplayMemberPath and ItemTemplate.
+   at System.Windows.Controls.ItemsControl.CheckTemplateSource()
+   at System.Windows.Controls.ItemsControl.OnItemTemplateChanged(DataTemplate oldItemTemplate, DataTemplate newItemTemplate)
+   at System.Windows.FrameworkElement.OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+   at System.Windows.DependencyObject.UpdateEffectiveValue(EntryIndex entryIndex, DependencyProperty dp, PropertyMetadata metadata, EffectiveValueEntry oldEntry, EffectiveValueEntry& newEntry, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType)
+   at System.Windows.DependencyObject.SetValueCommon(DependencyProperty dp, Object value, PropertyMetadata metadata, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType, Boolean isInternal)
+   at System.Windows.Baml2006.WpfKnownMemberInvoker.SetValue(Object instance, Object value)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.SetValue(Object inst, XamlMember property, Object value)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.AddEntryWindow.InitializeComponent()
+   at AtFutureMe.Windows.AddEntryWindow..ctor(String categoryId)
+   at AtFutureMe.AppHost.OpenAddEntry(String categoryId)
+   at AtFutureMe.Windows.RemindersOverlay.OnAddToCategory(Object sender, RoutedEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Controls.Primitives.ButtonBase.OnClick()
+   at System.Windows.Controls.Button.OnClick()
+   at System.Windows.Controls.Primitives.ButtonBase.OnMouseLeftButtonUp(MouseButtonEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.ReRaiseEventAs(DependencyObject sender, RoutedEventArgs args, RoutedEvent newEvent)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Interop.HwndMouseInputProvider.ReportInput(IntPtr hwnd, InputMode mode, Int32 timestamp, RawMouseActions actions, Int32 x, Int32 y, Int32 wheel)
+   at System.Windows.Interop.HwndMouseInputProvider.FilterMessage(IntPtr hwnd, WindowMessage msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.InputFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at MS.Win32.HwndWrapper.WndProc(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 20:29:54 Dispatcher: System.Windows.Markup.XamlParseException: Set property 'System.Windows.Controls.ItemsControl.ItemTemplate' threw an exception.
+ ---> System.InvalidOperationException: Cannot set both DisplayMemberPath and ItemTemplate.
+   at System.Windows.Controls.ItemsControl.CheckTemplateSource()
+   at System.Windows.Controls.ItemsControl.OnItemTemplateChanged(DataTemplate oldItemTemplate, DataTemplate newItemTemplate)
+   at System.Windows.FrameworkElement.OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+   at System.Windows.DependencyObject.UpdateEffectiveValue(EntryIndex entryIndex, DependencyProperty dp, PropertyMetadata metadata, EffectiveValueEntry oldEntry, EffectiveValueEntry& newEntry, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType)
+   at System.Windows.DependencyObject.SetValueCommon(DependencyProperty dp, Object value, PropertyMetadata metadata, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType, Boolean isInternal)
+   at System.Windows.Baml2006.WpfKnownMemberInvoker.SetValue(Object instance, Object value)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.SetValue(Object inst, XamlMember property, Object value)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.AddEntryWindow.InitializeComponent()
+   at AtFutureMe.Windows.AddEntryWindow..ctor(String categoryId)
+   at AtFutureMe.AppHost.OpenAddEntry(String categoryId)
+   at AtFutureMe.Windows.RemindersOverlay.OnAddToCategory(Object sender, RoutedEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Controls.Primitives.ButtonBase.OnClick()
+   at System.Windows.Controls.Button.OnClick()
+   at System.Windows.Controls.Primitives.ButtonBase.OnMouseLeftButtonUp(MouseButtonEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.ReRaiseEventAs(DependencyObject sender, RoutedEventArgs args, RoutedEvent newEvent)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Interop.HwndMouseInputProvider.ReportInput(IntPtr hwnd, InputMode mode, Int32 timestamp, RawMouseActions actions, Int32 x, Int32 y, Int32 wheel)
+   at System.Windows.Interop.HwndMouseInputProvider.FilterMessage(IntPtr hwnd, WindowMessage msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.InputFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at MS.Win32.HwndWrapper.WndProc(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 20:29:54 Dispatcher: System.Windows.Markup.XamlParseException: Set property 'System.Windows.Controls.ItemsControl.ItemTemplate' threw an exception.
+ ---> System.InvalidOperationException: Cannot set both DisplayMemberPath and ItemTemplate.
+   at System.Windows.Controls.ItemsControl.CheckTemplateSource()
+   at System.Windows.Controls.ItemsControl.OnItemTemplateChanged(DataTemplate oldItemTemplate, DataTemplate newItemTemplate)
+   at System.Windows.FrameworkElement.OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+   at System.Windows.DependencyObject.UpdateEffectiveValue(EntryIndex entryIndex, DependencyProperty dp, PropertyMetadata metadata, EffectiveValueEntry oldEntry, EffectiveValueEntry& newEntry, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType)
+   at System.Windows.DependencyObject.SetValueCommon(DependencyProperty dp, Object value, PropertyMetadata metadata, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType, Boolean isInternal)
+   at System.Windows.Baml2006.WpfKnownMemberInvoker.SetValue(Object instance, Object value)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.SetValue(Object inst, XamlMember property, Object value)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.AddEntryWindow.InitializeComponent()
+   at AtFutureMe.Windows.AddEntryWindow..ctor(String categoryId)
+   at AtFutureMe.AppHost.OpenAddEntry(String categoryId)
+   at AtFutureMe.Windows.RemindersOverlay.OnAddToCategory(Object sender, RoutedEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Controls.Primitives.ButtonBase.OnClick()
+   at System.Windows.Controls.Button.OnClick()
+   at System.Windows.Controls.Primitives.ButtonBase.OnMouseLeftButtonUp(MouseButtonEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.ReRaiseEventAs(DependencyObject sender, RoutedEventArgs args, RoutedEvent newEvent)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Interop.HwndMouseInputProvider.ReportInput(IntPtr hwnd, InputMode mode, Int32 timestamp, RawMouseActions actions, Int32 x, Int32 y, Int32 wheel)
+   at System.Windows.Interop.HwndMouseInputProvider.FilterMessage(IntPtr hwnd, WindowMessage msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.InputFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at MS.Win32.HwndWrapper.WndProc(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 20:30:05 Dispatcher: System.Windows.Markup.XamlParseException: Set property 'System.Windows.Controls.ItemsControl.ItemTemplate' threw an exception.
+ ---> System.InvalidOperationException: Cannot set both DisplayMemberPath and ItemTemplate.
+   at System.Windows.Controls.ItemsControl.CheckTemplateSource()
+   at System.Windows.Controls.ItemsControl.OnItemTemplateChanged(DataTemplate oldItemTemplate, DataTemplate newItemTemplate)
+   at System.Windows.FrameworkElement.OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+   at System.Windows.DependencyObject.UpdateEffectiveValue(EntryIndex entryIndex, DependencyProperty dp, PropertyMetadata metadata, EffectiveValueEntry oldEntry, EffectiveValueEntry& newEntry, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType)
+   at System.Windows.DependencyObject.SetValueCommon(DependencyProperty dp, Object value, PropertyMetadata metadata, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType, Boolean isInternal)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.SetValue(Object inst, XamlMember property, Object value)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.AddEntryWindow.InitializeComponent()
+   at AtFutureMe.Windows.AddEntryWindow..ctor(String categoryId)
+   at AtFutureMe.AppHost.OpenAddEntry(String categoryId)
+   at AtFutureMe.Windows.RemindersOverlay.OnAddToCategory(Object sender, RoutedEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Controls.Primitives.ButtonBase.OnClick()
+   at System.Windows.Controls.Button.OnClick()
+   at System.Windows.Controls.Primitives.ButtonBase.OnMouseLeftButtonUp(MouseButtonEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.ReRaiseEventAs(DependencyObject sender, RoutedEventArgs args, RoutedEvent newEvent)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Interop.HwndMouseInputProvider.ReportInput(IntPtr hwnd, InputMode mode, Int32 timestamp, RawMouseActions actions, Int32 x, Int32 y, Int32 wheel)
+   at System.Windows.Interop.HwndMouseInputProvider.FilterMessage(IntPtr hwnd, WindowMessage msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.InputFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at MS.Win32.HwndWrapper.WndProc(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 20:30:06 Dispatcher: System.Windows.Markup.XamlParseException: Set property 'System.Windows.Controls.ItemsControl.ItemTemplate' threw an exception.
+ ---> System.InvalidOperationException: Cannot set both DisplayMemberPath and ItemTemplate.
+   at System.Windows.Controls.ItemsControl.CheckTemplateSource()
+   at System.Windows.Controls.ItemsControl.OnItemTemplateChanged(DataTemplate oldItemTemplate, DataTemplate newItemTemplate)
+   at System.Windows.FrameworkElement.OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+   at System.Windows.DependencyObject.UpdateEffectiveValue(EntryIndex entryIndex, DependencyProperty dp, PropertyMetadata metadata, EffectiveValueEntry oldEntry, EffectiveValueEntry& newEntry, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType)
+   at System.Windows.DependencyObject.SetValueCommon(DependencyProperty dp, Object value, PropertyMetadata metadata, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType, Boolean isInternal)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.SetValue(Object inst, XamlMember property, Object value)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.AddEntryWindow.InitializeComponent()
+   at AtFutureMe.Windows.AddEntryWindow..ctor(String categoryId)
+   at AtFutureMe.AppHost.OpenAddEntry(String categoryId)
+   at AtFutureMe.Windows.RemindersOverlay.OnAddToCategory(Object sender, RoutedEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Controls.Primitives.ButtonBase.OnClick()
+   at System.Windows.Controls.Button.OnClick()
+   at System.Windows.Controls.Primitives.ButtonBase.OnMouseLeftButtonUp(MouseButtonEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.ReRaiseEventAs(DependencyObject sender, RoutedEventArgs args, RoutedEvent newEvent)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Interop.HwndMouseInputProvider.ReportInput(IntPtr hwnd, InputMode mode, Int32 timestamp, RawMouseActions actions, Int32 x, Int32 y, Int32 wheel)
+   at System.Windows.Interop.HwndMouseInputProvider.FilterMessage(IntPtr hwnd, WindowMessage msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.InputFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at MS.Win32.HwndWrapper.WndProc(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 20:30:06 Dispatcher: System.Windows.Markup.XamlParseException: Set property 'System.Windows.Controls.ItemsControl.ItemTemplate' threw an exception.
+ ---> System.InvalidOperationException: Cannot set both DisplayMemberPath and ItemTemplate.
+   at System.Windows.Controls.ItemsControl.CheckTemplateSource()
+   at System.Windows.Controls.ItemsControl.OnItemTemplateChanged(DataTemplate oldItemTemplate, DataTemplate newItemTemplate)
+   at System.Windows.FrameworkElement.OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+   at System.Windows.DependencyObject.UpdateEffectiveValue(EntryIndex entryIndex, DependencyProperty dp, PropertyMetadata metadata, EffectiveValueEntry oldEntry, EffectiveValueEntry& newEntry, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType)
+   at System.Windows.DependencyObject.SetValueCommon(DependencyProperty dp, Object value, PropertyMetadata metadata, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType, Boolean isInternal)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.SetValue(Object inst, XamlMember property, Object value)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.AddEntryWindow.InitializeComponent()
+   at AtFutureMe.Windows.AddEntryWindow..ctor(String categoryId)
+   at AtFutureMe.AppHost.OpenAddEntry(String categoryId)
+   at AtFutureMe.Windows.RemindersOverlay.OnAddToCategory(Object sender, RoutedEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Controls.Primitives.ButtonBase.OnClick()
+   at System.Windows.Controls.Button.OnClick()
+   at System.Windows.Controls.Primitives.ButtonBase.OnMouseLeftButtonUp(MouseButtonEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.ReRaiseEventAs(DependencyObject sender, RoutedEventArgs args, RoutedEvent newEvent)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Interop.HwndMouseInputProvider.ReportInput(IntPtr hwnd, InputMode mode, Int32 timestamp, RawMouseActions actions, Int32 x, Int32 y, Int32 wheel)
+   at System.Windows.Interop.HwndMouseInputProvider.FilterMessage(IntPtr hwnd, WindowMessage msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.InputFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at MS.Win32.HwndWrapper.WndProc(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 20:30:07 Dispatcher: System.Windows.Markup.XamlParseException: Set property 'System.Windows.Controls.ItemsControl.ItemTemplate' threw an exception.
+ ---> System.InvalidOperationException: Cannot set both DisplayMemberPath and ItemTemplate.
+   at System.Windows.Controls.ItemsControl.CheckTemplateSource()
+   at System.Windows.Controls.ItemsControl.OnItemTemplateChanged(DataTemplate oldItemTemplate, DataTemplate newItemTemplate)
+   at System.Windows.FrameworkElement.OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+   at System.Windows.DependencyObject.UpdateEffectiveValue(EntryIndex entryIndex, DependencyProperty dp, PropertyMetadata metadata, EffectiveValueEntry oldEntry, EffectiveValueEntry& newEntry, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType)
+   at System.Windows.DependencyObject.SetValueCommon(DependencyProperty dp, Object value, PropertyMetadata metadata, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType, Boolean isInternal)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.SetValue(Object inst, XamlMember property, Object value)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.AddEntryWindow.InitializeComponent()
+   at AtFutureMe.Windows.AddEntryWindow..ctor(String categoryId)
+   at AtFutureMe.AppHost.OpenAddEntry(String categoryId)
+   at AtFutureMe.Windows.RemindersOverlay.OnAddToCategory(Object sender, RoutedEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Controls.Primitives.ButtonBase.OnClick()
+   at System.Windows.Controls.Button.OnClick()
+   at System.Windows.Controls.Primitives.ButtonBase.OnMouseLeftButtonUp(MouseButtonEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.ReRaiseEventAs(DependencyObject sender, RoutedEventArgs args, RoutedEvent newEvent)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Interop.HwndMouseInputProvider.ReportInput(IntPtr hwnd, InputMode mode, Int32 timestamp, RawMouseActions actions, Int32 x, Int32 y, Int32 wheel)
+   at System.Windows.Interop.HwndMouseInputProvider.FilterMessage(IntPtr hwnd, WindowMessage msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.InputFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at MS.Win32.HwndWrapper.WndProc(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 20:30:07 Dispatcher: System.Windows.Markup.XamlParseException: Set property 'System.Windows.Controls.ItemsControl.ItemTemplate' threw an exception.
+ ---> System.InvalidOperationException: Cannot set both DisplayMemberPath and ItemTemplate.
+   at System.Windows.Controls.ItemsControl.CheckTemplateSource()
+   at System.Windows.Controls.ItemsControl.OnItemTemplateChanged(DataTemplate oldItemTemplate, DataTemplate newItemTemplate)
+   at System.Windows.FrameworkElement.OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+   at System.Windows.DependencyObject.UpdateEffectiveValue(EntryIndex entryIndex, DependencyProperty dp, PropertyMetadata metadata, EffectiveValueEntry oldEntry, EffectiveValueEntry& newEntry, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType)
+   at System.Windows.DependencyObject.SetValueCommon(DependencyProperty dp, Object value, PropertyMetadata metadata, Boolean coerceWithDeferredReference, Boolean coerceWithCurrentValue, OperationType operationType, Boolean isInternal)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.SetValue(Object inst, XamlMember property, Object value)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.AddEntryWindow.InitializeComponent()
+   at AtFutureMe.Windows.AddEntryWindow..ctor(String categoryId)
+   at AtFutureMe.AppHost.OpenAddEntry(String categoryId)
+   at AtFutureMe.Windows.RemindersOverlay.OnAdd(Object sender, RoutedEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Controls.Primitives.ButtonBase.OnClick()
+   at System.Windows.Controls.Button.OnClick()
+   at System.Windows.Controls.Primitives.ButtonBase.OnMouseLeftButtonUp(MouseButtonEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.ReRaiseEventAs(DependencyObject sender, RoutedEventArgs args, RoutedEvent newEvent)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Interop.HwndMouseInputProvider.ReportInput(IntPtr hwnd, InputMode mode, Int32 timestamp, RawMouseActions actions, Int32 x, Int32 y, Int32 wheel)
+   at System.Windows.Interop.HwndMouseInputProvider.FilterMessage(IntPtr hwnd, WindowMessage msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.InputFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at MS.Win32.HwndWrapper.WndProc(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 20:33:22 Starting
+2026-09-06 20:33:22 Started
+2026-09-06 20:39:48 Starting
+2026-09-06 20:39:49 Started
+2026-09-06 20:44:08 Starting
+2026-09-06 20:44:09 Started
+2026-09-06 20:44:41 Starting
+2026-09-06 20:44:41 Started
+2026-09-06 20:47:07 Starting
+2026-09-06 20:47:07 Started
+2026-09-06 20:58:18 Starting
+2026-09-06 20:58:19 Started
+2026-09-06 21:02:41 Starting
+2026-09-06 21:02:41 Started
+2026-09-06 21:06:42 Starting
+2026-09-06 21:06:43 Started
+2026-09-06 21:07:31 Starting
+2026-09-06 21:07:32 Started
+2026-09-06 21:08:47 Starting
+2026-09-06 21:08:47 Started
+2026-09-06 21:19:57 Starting
+2026-09-06 21:19:57 Started
+2026-09-06 21:20:10 Starting
+2026-09-06 21:20:11 Started
+2026-09-06 21:21:55 Starting
+2026-09-06 21:21:56 Started
+2026-09-06 21:29:24 Starting
+2026-09-06 21:29:24 Started
+2026-09-06 21:31:26 Starting
+2026-09-06 21:31:27 Started
+2026-09-06 21:47:40 Starting
+2026-09-06 21:47:40 Started
+2026-09-06 21:49:32 Starting
+2026-09-06 21:49:32 Started
+2026-09-06 22:02:58 Starting
+2026-09-06 22:02:59 Started
+2026-09-06 22:05:17 Starting
+2026-09-06 22:05:17 Started
+2026-09-06 22:11:25 Starting
+2026-09-06 22:11:25 Started
+2026-09-06 22:13:34 Starting
+2026-09-06 22:13:35 Started
+2026-09-06 22:20:12 Starting
+2026-09-06 22:20:12 Started
+2026-09-06 22:22:32 Starting
+2026-09-06 22:22:33 Started
+2026-09-06 22:31:37 Starting
+2026-09-06 22:31:38 Started
+2026-09-06 22:31:57 Starting
+2026-09-06 22:31:57 Started
+2026-09-06 22:35:49 Starting
+2026-09-06 22:35:50 Started
+2026-09-06 23:15:11 Starting
+2026-09-06 23:15:11 Started
+2026-09-06 23:15:52 Dispatcher: System.InvalidOperationException: Cannot set Visibility or call Show, ShowDialog, or WindowInteropHelper.EnsureHandle after a Window has closed.
+   at System.Windows.Window.VerifyCanShow()
+   at System.Windows.Window.Show()
+   at AtFutureMe.AppHost.SyncCategoryWindows()
+   at AtFutureMe.AppHost.RefreshOverlayItems()
+   at AtFutureMe.AppHost.RequestSave()
+   at AtFutureMe.Windows.ConfigWindow.Flush()
+   at AtFutureMe.Windows.ConfigWindow.<.ctor>b__4_0(Object _, EventArgs _)
+   at System.Windows.Window.WmDestroy()
+   at System.Windows.Window.WindowFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.PublicHooksFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at MS.Win32.HwndWrapper.WndProc(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 23:17:19 Starting
+2026-09-06 23:17:20 Started
+2026-09-06 23:19:04 Starting
+2026-09-06 23:19:05 Started
+2026-09-06 23:21:31 Starting
+2026-09-06 23:21:32 Started
+2026-09-06 23:24:28 Starting
+2026-09-06 23:24:28 Started
+2026-09-06 23:27:09 Dispatcher: System.InvalidOperationException: Cannot set Visibility or call Show, ShowDialog, or WindowInteropHelper.EnsureHandle after a Window has closed.
+   at System.Windows.Window.VerifyCanShow()
+   at System.Windows.Window.Show()
+   at AtFutureMe.AppHost.SyncCategoryWindows()
+   at AtFutureMe.AppHost.RefreshOverlayItems()
+   at AtFutureMe.AppHost.RequestSave()
+   at AtFutureMe.Windows.ConfigWindow.Flush()
+   at AtFutureMe.Windows.ConfigWindow.<.ctor>b__4_0(Object _, EventArgs _)
+   at System.Windows.Window.WmDestroy()
+   at System.Windows.Window.WindowFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.PublicHooksFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 23:30:44 Starting
+2026-09-06 23:30:45 Started
+2026-09-06 23:30:50 OpenConfig failed: System.Windows.Markup.XamlParseException: Provide value on 'System.Windows.StaticResourceExtension' threw an exception.
+ ---> System.Exception: Cannot find resource named 'CategoryItemTemplate'. Resource names are case sensitive.
+   at System.Windows.StaticResourceExtension.ProvideValueInternal(IServiceProvider serviceProvider, Boolean allowDeferredReference)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.CallProvideValue(MarkupExtension me, IServiceProvider serviceProvider)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.ConfigWindow.InitializeComponent()
+   at AtFutureMe.Windows.ConfigWindow..ctor()
+   at AtFutureMe.AppHost.OpenConfigFor(String itemKind, String id)
+2026-09-06 23:31:12 Starting
+2026-09-06 23:31:13 Started
+2026-09-06 23:31:14 OpenConfig failed: System.Windows.Markup.XamlParseException: Provide value on 'System.Windows.StaticResourceExtension' threw an exception.
+ ---> System.Exception: Cannot find resource named 'CategoryItemTemplate'. Resource names are case sensitive.
+   at System.Windows.StaticResourceExtension.ProvideValueInternal(IServiceProvider serviceProvider, Boolean allowDeferredReference)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.CallProvideValue(MarkupExtension me, IServiceProvider serviceProvider)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.LoadBaml(XamlReader xamlReader, Boolean skipJournaledProperties, Object rootObject, XamlAccessLevel accessLevel, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.ConfigWindow.InitializeComponent()
+   at AtFutureMe.Windows.ConfigWindow..ctor()
+   at AtFutureMe.AppHost.OpenConfigFor(String itemKind, String id)
+2026-09-06 23:32:03 Starting
+2026-09-06 23:32:03 Started
+2026-09-06 23:33:51 Dispatcher: System.InvalidOperationException: Cannot set Visibility or call Show, ShowDialog, or WindowInteropHelper.EnsureHandle after a Window has closed.
+   at System.Windows.Window.VerifyCanShow()
+   at System.Windows.Window.Show()
+   at AtFutureMe.AppHost.SyncCategoryWindows()
+   at AtFutureMe.AppHost.RefreshOverlayItems()
+   at AtFutureMe.AppHost.RequestSave()
+   at AtFutureMe.Windows.ConfigWindow.Flush()
+   at AtFutureMe.Windows.ConfigWindow.<.ctor>b__4_0(Object _, EventArgs _)
+   at System.Windows.Window.WmDestroy()
+   at System.Windows.Window.WindowFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.PublicHooksFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at MS.Win32.HwndSubclass.DispatcherCallbackOperation(Object o)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+2026-09-06 23:33:57 Starting
+2026-09-06 23:33:57 Started
+2026-09-06 23:44:54 Starting
+2026-09-06 23:44:54 Started
+2026-09-06 23:47:07 Starting
+2026-09-06 23:47:07 Started
+2026-09-06 23:50:18 Starting
+2026-09-06 23:50:19 Started
+2026-09-06 23:55:46 Starting
+2026-09-06 23:55:46 Started
+2026-09-06 23:56:14 Starting
+2026-09-06 23:56:14 Started
+2026-09-07 00:00:50 Starting
+2026-09-07 00:00:51 Started
+2026-09-07 00:02:46 Starting
+2026-09-07 00:02:46 Started
+2026-09-07 00:09:56 Starting
+2026-09-07 00:09:56 Started
+2026-09-07 00:18:00 Starting
+2026-09-07 00:18:00 Started
+2026-09-07 00:32:59 Starting
+2026-09-07 00:32:59 Started
+2026-09-07 11:53:29 Starting
+2026-09-07 11:53:30 Started
+2026-09-07 14:15:42 Starting
+2026-09-07 14:15:43 Started
+2026-09-07 14:32:35 Starting
+2026-09-07 14:32:36 Started
+2026-09-07 14:37:25 Starting
+2026-09-07 14:37:26 Started
+2026-09-07 14:44:11 Starting
+2026-09-07 14:44:12 Started
+2026-09-07 14:48:35 Starting
+2026-09-07 14:48:36 Started
+2026-09-07 14:52:42 Starting
+2026-09-07 14:52:42 Started
+2026-09-07 14:53:44 Starting
+2026-09-07 14:53:45 Started
+2026-09-07 14:54:16 Starting
+2026-09-07 14:54:17 Started
+2026-09-07 14:57:38 Starting
+2026-09-07 14:57:39 Started
+2026-09-07 19:15:23 Starting
+2026-09-07 19:15:24 Started
+2026-09-07 19:17:00 OpenConfig failed: System.Windows.Markup.XamlParseException: Provide value on 'System.Windows.StaticResourceExtension' threw an exception.
+ ---> System.InvalidOperationException: Must have non-null value for 'Binding'.
+   at System.Windows.Condition.Seal(ValueLookupType type)
+   at System.Windows.ConditionCollection.Seal(ValueLookupType type)
+   at System.Windows.MultiDataTrigger.Seal()
+   at System.Windows.TriggerCollection.Seal()
+   at System.Windows.StyleHelper.SealTemplate(FrameworkTemplate frameworkTemplate, Boolean& isSealed, FrameworkElementFactory templateRoot, TriggerCollection triggers, ResourceDictionary resources, HybridDictionary childIndexFromChildID, FrugalStructList`1& childRecordFromChildIndex, FrugalStructList`1& triggerSourceRecordFromChildIndex, FrugalStructList`1& containerDependents, FrugalStructList`1& resourceDependents, ItemStructList`1& eventDependents, HybridDictionary& triggerActions, HybridDictionary& dataTriggerRecordFromBinding, Boolean& hasInstanceValues, EventHandlersStore& eventHandlersStore)
+   at System.Windows.FrameworkTemplate.Seal()
+   at System.Windows.Setter.Seal()
+   at System.Windows.SetterBaseCollection.Seal()
+   at System.Windows.Style.Seal()
+   at System.Windows.ResourceDictionary.OnGettingValue(Object key, Object& value, Boolean& canCache)
+   at System.Windows.ResourceDictionary.GetValueWithoutLock(Object key, Boolean& canCache)
+   at System.Windows.ResourceDictionary.GetValue(Object key, Boolean& canCache)
+   at System.Windows.ResourceDictionary.FetchResource(Object resourceKey, Boolean allowDeferredResourceReference, Boolean mustReturnDeferredResourceReference, Boolean canCacheAsThemeResource, Boolean& canCache)
+   at System.Windows.FrameworkElement.FindResourceInternal(FrameworkElement fe, FrameworkContentElement fce, DependencyProperty dp, Object resourceKey, Object unlinkedParent, Boolean allowDeferredResourceReference, Boolean mustReturnDeferredResourceReference, DependencyObject boundaryElement, Boolean isImplicitStyleLookup, Object& source)
+   at System.Windows.StaticResourceExtension.FindResourceInAppOrSystem(IServiceProvider serviceProvider, Boolean allowDeferredReference, Boolean mustReturnDeferredResourceReference)
+   at System.Windows.StaticResourceExtension.FindResourceInEnviroment(IServiceProvider serviceProvider, Boolean allowDeferredReference, Boolean mustReturnDeferredResourceReference)
+   at System.Windows.StaticResourceExtension.TryProvideValueImpl(IServiceProvider serviceProvider, Boolean allowDeferredReference, Boolean mustReturnDeferredResourceReference)
+   at System.Windows.StaticResourceExtension.ProvideValueInternal(IServiceProvider serviceProvider, Boolean allowDeferredReference)
+   at MS.Internal.Xaml.Runtime.ClrObjectRuntime.CallProvideValue(MarkupExtension me, IServiceProvider serviceProvider)
+   --- End of inner exception stack trace ---
+   at System.Windows.Markup.XamlReader.RewrapException(Exception e, IXamlLineInfo lineInfo, Uri baseUri)
+   at System.Windows.Markup.WpfXamlLoader.Load(XamlReader xamlReader, IXamlObjectWriterFactory writerFactory, Boolean skipJournaledProperties, Object rootObject, XamlObjectWriterSettings settings, Uri baseUri)
+   at System.Windows.Markup.XamlReader.LoadBaml(Stream stream, ParserContext parserContext, Object parent, Boolean closeStream)
+   at System.Windows.Application.LoadComponent(Object component, Uri resourceLocator)
+   at AtFutureMe.Windows.ConfigWindow.InitializeComponent()
+   at AtFutureMe.Windows.ConfigWindow..ctor()
+   at AtFutureMe.AppHost.OpenConfigFor(String itemKind, String id)
+2026-09-07 19:18:46 Starting
+2026-09-07 19:18:47 Started
+2026-09-07 19:25:12 Starting
+2026-09-07 19:25:14 Started
+2026-09-07 19:29:27 Starting
+2026-09-07 19:29:28 Started
+2026-09-07 19:38:10 Starting
+2026-09-07 19:38:11 Started
+2026-09-07 19:43:39 Starting
+2026-09-07 19:43:40 Started
+2026-09-07 19:49:07 Starting
+2026-09-07 19:49:08 Started
+2026-09-07 19:52:20 Starting
+2026-09-07 19:52:21 Started
+2026-09-07 19:56:05 Starting
+2026-09-07 19:56:06 Started
+2026-09-07 19:57:21 Starting
+2026-09-07 19:57:22 Started
+2026-09-07 20:00:17 Starting
+2026-09-07 20:00:18 Started
+2026-09-07 20:02:32 Starting
+2026-09-07 20:02:33 Started
+2026-09-07 20:04:22 Starting
+2026-09-07 20:04:23 Started
+2026-09-07 20:07:26 Starting
+2026-09-07 20:07:27 Started
+2026-09-07 20:09:35 Starting
+2026-09-07 20:09:36 Started
+2026-09-07 20:12:32 Starting
+2026-09-07 20:12:33 Started
+2026-09-07 20:28:50 Starting
+2026-09-07 20:28:51 Started
+2026-09-07 20:29:54 Starting
+2026-09-07 20:29:54 Started
+2026-09-07 20:33:45 Starting
+2026-09-07 20:33:46 Started
+2026-09-07 20:35:58 Starting
+2026-09-07 20:35:59 Started
+2026-09-07 20:40:15 Starting
+2026-09-07 20:40:16 Started
+2026-09-07 20:40:24 Starting
+2026-09-07 20:40:25 Started
+2026-09-07 20:40:38 Starting
+2026-09-07 20:40:39 Started
+2026-09-07 20:40:43 Starting
+2026-09-07 20:40:44 Started
+2026-09-07 20:47:49 Starting
+2026-09-07 20:47:50 Started
+2026-09-07 22:00:43 Starting
+2026-09-07 22:00:44 Started
+2026-09-07 23:18:26 Starting
+2026-09-07 23:18:28 Started
+2026-09-07 23:26:53 Starting
+2026-09-07 23:26:54 Started
+2026-09-07 23:28:10 Starting
+2026-09-07 23:28:11 Started
+2026-09-07 23:30:30 Starting
+2026-09-07 23:30:31 Started
+2026-09-07 23:48:43 Starting
+2026-09-07 23:48:44 Started
+2026-09-07 23:50:49 Starting
+2026-09-07 23:50:50 Started
+2026-09-07 23:57:19 Starting
+2026-09-07 23:57:20 Started
+2026-09-08 00:03:16 Starting
+2026-09-08 00:03:16 Started
+2026-09-08 00:07:14 Starting
+2026-09-08 00:07:15 Started
+2026-09-08 00:09:37 Starting
+2026-09-08 00:09:38 Started
+2026-09-08 01:09:33 Starting
+2026-09-08 01:09:34 Started
+2026-09-08 01:14:17 Starting
+2026-09-08 01:14:17 Started
+2026-09-08 01:18:39 Starting
+2026-09-08 01:18:40 Started
+2026-09-08 01:46:56 Starting
+2026-09-08 01:46:57 Started
+2026-09-08 01:49:57 Starting
+2026-09-08 01:49:58 Started
+2026-09-08 02:02:21 Starting
+2026-09-08 02:02:22 Started
+2026-09-08 02:02:43 Starting
+2026-09-08 02:02:44 Started
+2026-09-08 02:05:06 Starting
+2026-09-08 02:05:07 Started
+2026-09-08 02:06:08 Starting
+2026-09-08 02:06:09 Started
+2026-09-08 02:07:07 Starting
+2026-09-08 02:07:08 Started
+2026-09-08 02:23:53 Starting
+2026-09-08 02:23:54 Started
+2026-09-08 02:34:18 Starting
+2026-09-08 02:34:18 Started
+2026-09-08 02:43:54 Starting
+2026-09-08 02:43:55 Started
+2026-09-08 14:08:13 Starting
+2026-09-08 14:08:14 Started
+2026-09-08 14:36:23 Starting
+2026-09-08 14:36:23 Started
+2026-09-08 14:46:16 Starting
+2026-09-08 14:46:17 Started
+2026-09-08 17:30:51 Starting
+2026-09-08 17:30:52 Started
+2026-09-08 20:27:18 Starting
+2026-09-08 20:27:19 Started
+2026-09-08 21:16:39 Starting
+2026-09-08 21:16:40 Started
+2026-09-09 11:53:26 Starting
+2026-09-09 11:53:27 Started
+2026-09-09 12:16:06 Starting
+2026-09-09 12:16:07 Started
+2026-09-09 12:30:41 Starting
+2026-09-09 12:30:42 Started
+2026-09-09 12:39:14 Starting
+2026-09-09 12:39:15 Started
+2026-09-09 12:55:02 Starting
+2026-09-09 12:55:03 Started
+2026-09-09 12:59:54 Starting
+2026-09-09 12:59:55 Started
+2026-09-09 13:06:54 Starting
+2026-09-09 13:07:54 Starting
+2026-09-09 13:07:55 Started
+2026-09-09 13:15:16 Starting
+2026-09-09 13:15:16 Started
+2026-09-09 13:18:28 Starting
+2026-09-09 13:18:29 Started
+2026-09-09 13:34:24 Starting
+2026-09-09 13:34:24 Started
+2026-09-09 13:38:14 Starting
+2026-09-09 13:38:15 Started
+2026-09-09 14:05:39 Starting
+2026-09-09 14:05:40 Started
+2026-09-09 14:16:11 Starting
+2026-09-09 14:16:11 Started
+2026-09-09 14:22:53 Starting
+2026-09-09 14:22:53 Started
+2026-09-09 14:33:43 Starting
+2026-09-09 14:33:44 Started
+2026-09-09 14:43:36 Starting
+2026-09-09 14:43:36 Started
+2026-09-09 14:56:28 Starting
+2026-09-09 14:56:29 Started
+2026-09-09 15:03:24 Starting
+2026-09-09 15:03:25 Started
+2026-09-10 02:06:35 Starting
+2026-09-10 02:06:36 Started
+2026-09-10 02:09:13 Starting
+2026-09-10 02:09:13 Started
+2026-09-10 02:24:53 Starting
+2026-09-10 02:24:53 Started
+2026-09-10 11:49:15 Starting
+2026-09-10 11:49:16 Started
+2026-09-10 13:27:28 Starting
+2026-09-10 13:27:28 Started
+2026-09-10 13:31:34 Starting
+2026-09-10 13:31:34 Started
+2026-09-10 13:35:32 Starting
+2026-09-10 13:35:32 Started
+2026-09-10 13:50:46 Starting
+2026-09-10 13:50:46 Started
+2026-09-10 13:51:53 Starting
+2026-09-10 13:51:54 Started
+2026-09-10 13:56:24 Starting
+2026-09-10 13:56:25 Started
+2026-09-10 13:59:15 Starting
+2026-09-10 13:59:16 Started
+2026-09-10 14:02:09 Starting
+2026-09-10 14:02:10 Started
+2026-09-10 14:04:53 Starting
+2026-09-10 14:04:54 Started
+2026-09-10 14:06:38 Starting
+2026-09-10 14:06:39 Started
+2026-09-10 14:09:52 Starting
+2026-09-10 14:09:53 Started
+2026-09-11 11:55:58 Starting
+2026-09-11 11:55:59 Started
+2026-09-12 11:50:38 Starting
+2026-09-12 11:50:39 Started

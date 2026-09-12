@@ -1,0 +1,63 @@
+<UserControl x:Class="AtFutureMe.Windows.CategorySectionBlock"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:AtFutureMe.Windows">
+    <StackPanel Margin="{Binding BlockMargin}">
+        <Grid Margin="0,0,0,2">
+            <Border Background="#66FFD24D" CornerRadius="4" IsHitTestVisible="False"
+                    Opacity="{Binding AttentionGlow}"/>
+            <Border Background="#338AB4F8" CornerRadius="4" IsHitTestVisible="False"
+                    Visibility="{Binding DropHighlight}"/>
+            <DockPanel Tag="drop"
+                       AllowDrop="True"
+                       PreviewMouseLeftButtonDown="OnDragDown"
+                       PreviewMouseMove="OnDragMove"
+                       PreviewMouseLeftButtonUp="OnDragUp"
+                       DragOver="OnDragOver"
+                       DragLeave="OnDragLeave"
+                       Drop="OnDrop">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ShowButtons}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <Button Style="{StaticResource ChromeButton}" Content="+" Width="24"
+                        ToolTip="Add an item in this folder" Click="OnAdd"/>
+                <Button Style="{StaticResource ChromeFolderButton}"
+                        ToolTip="Add a folder in this folder" Click="OnAddFolder"/>
+                <Button Style="{StaticResource ChromeButton}" Content="⧉" Width="24"
+                        ToolTip="Pop this category into its own window" Click="OnPop"/>
+            </StackPanel>
+            <Button DockPanel.Dock="Left" Content="{Binding ExpandGlyph}" Click="OnToggle"
+                    Width="18" Padding="0" Margin="0,0,2,0"
+                    ToolTip="Expand or collapse" Tag="hit"
+                    Visibility="{Binding ExpandVisibility}"
+                    Style="{StaticResource ChromeButton}"/>
+            <TextBlock Text="{Binding Name}" Style="{StaticResource OverlayCaption}"
+                       FontSize="11" VerticalAlignment="Center"/>
+            </DockPanel>
+        </Grid>
+        <StackPanel Visibility="{Binding BodyVisibility}">
+            <ItemsControl ItemsSource="{Binding Items}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <local:OverlayItemRow/>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <ItemsControl ItemsSource="{Binding Children}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <local:CategorySectionBlock/>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </StackPanel>
+</UserControl>
