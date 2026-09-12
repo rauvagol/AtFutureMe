@@ -183,7 +183,9 @@ public partial class AddEntryWindow : Window
         {
             Kind = kind,
             Time = clock,
-            Interval = ParseInt(RepeatInterval.Text, 1, 1, hours ? 8760 : 3650),
+            Interval = hours
+                ? ParseDouble(RepeatInterval.Text, 1, 1.0 / 60, 8760)
+                : ParseInt(RepeatInterval.Text, 1, 1, 3650),
             Weekdays = ReadDays(),
             MonthDay = ParseInt(RepeatMonthDay.Text, 1, 1, 31),
             Month = ParseInt(RepeatMonth.Text, 1, 1, 12),
@@ -208,6 +210,19 @@ public partial class AddEntryWindow : Window
 
     static int ParseInt(string text, int fallback, int min, int max) =>
         int.TryParse(text, out var v) ? Math.Clamp(v, min, max) : fallback;
+
+    // auto model
+    static double ParseDouble(string text, double fallback, double min, double max)
+    {
+        if (!double.TryParse(text.Trim(), System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.CurrentCulture, out var v)
+            && !double.TryParse(text.Trim(), System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out v))
+            return fallback;
+        if (double.IsNaN(v) || double.IsInfinity(v))
+            return fallback;
+        return Math.Clamp(v, min, max);
+    }
 
     bool ApplyClockBox(TextBox box, bool allowShort, bool emptyIsMidnight, out string clock)
     {

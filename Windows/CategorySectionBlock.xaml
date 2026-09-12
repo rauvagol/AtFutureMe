@@ -44,20 +44,8 @@
             </DockPanel>
         </Grid>
         <StackPanel Visibility="{Binding BodyVisibility}">
-            <ItemsControl ItemsSource="{Binding Items}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <local:OverlayItemRow/>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            <ItemsControl ItemsSource="{Binding Children}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <local:CategorySectionBlock/>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <!-- auto model -->
+            <ItemsControl x:Name="EntryList" ItemsSource="{Binding Entries}"/>
         </StackPanel>
     </StackPanel>
 </UserControl>

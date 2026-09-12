@@ -15,20 +15,8 @@
                           VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled"
                           Style="{StaticResource DarkScrollViewer}">
                 <StackPanel>
-                    <ItemsControl x:Name="ItemList">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <local:OverlayItemRow/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <ItemsControl x:Name="ChildList">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <local:CategorySectionBlock/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <!-- auto model -->
+                    <ItemsControl x:Name="BoardList"/>
                 </StackPanel>
             </ScrollViewer>
             <Border x:Name="ChromeBar" Grid.Row="0" VerticalAlignment="Top" Padding="10,8,10,6"

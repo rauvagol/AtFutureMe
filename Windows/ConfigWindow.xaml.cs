@@ -633,11 +633,7 @@ public partial class ConfigWindow : Window
         var keep = _layoutSelection.Count > 0
             ? _layoutSelection.ToList()
             : WalkLayout().Where(n => n.IsSelected).Select(n => (n.Kind, n.Id)).ToList();
-        var data = AppHost.Instance.Data;
-        var roots = new List<LayoutNode>();
-        roots.AddRange(ItemsIn(""));
-        foreach (var category in CategoryTree.ChildrenOf(data.Categories, null))
-            roots.Add(FolderNode(category));
+        var roots = MixedChildren(null);
 
         var wasLoading = _loading;
         _loading = true;
@@ -828,11 +824,6 @@ public partial class ConfigWindow : Window
 
     LayoutNode FolderNode(Category category)
     {
-        var children = new List<LayoutNode>();
-        children.AddRange(ItemsIn(category.Id));
-        foreach (var child in CategoryTree.ChildrenOf(AppHost.Instance.Data.Categories, category.Id))
-            children.Add(FolderNode(child));
-
         var extra = new List<string>();
         if (category.PoppedOut)
             extra.Add("popped out");
@@ -845,8 +836,26 @@ public partial class ConfigWindow : Window
             Id = category.Id,
             Title = category.Name,
             Meta = string.Join(" · ", extra),
-            Children = children
+            // auto model
+            Children = MixedChildren(category.Id)
         };
+    }
+
+    // auto model
+    List<LayoutNode> MixedChildren(string? parentId)
+    {
+        var folderId = parentId ?? "";
+        var tasks = ItemsIn(folderId);
+        var folders = CategoryTree.ChildrenOf(AppHost.Instance.Data.Categories, parentId)
+            .Select(FolderNode)
+            .ToList();
+        if (!AppHost.Instance.Data.Settings.ManualSort)
+            return tasks.Concat(folders).ToList();
+
+        var all = tasks.Concat(folders).ToList();
+        all.Sort((a, b) => AppHost.Instance.CompareOverlayOrder(a.Kind, a.Id, a.Title, b.Kind, b.Id, b.Title));
+        AppHost.ApplyPinnedOrder(all, n => n.PinSlot, n => n.Title);
+        return all;
     }
 
     List<LayoutNode> ItemsIn(string categoryId)
@@ -1026,6 +1035,8 @@ public partial class ConfigWindow : Window
             foreach (var child in CategoryTree.ChildrenOf(data.Categories, item.Id).ToList())
                 child.ParentId = item.ParentId;
             AppHost.Instance.ForgetPairing(item.Id);
+            // auto model
+            AppHost.Instance.UntrackTask("category", item.Id);
             data.Categories.Remove(item);
         }
 
@@ -1048,12 +1059,71 @@ public partial class ConfigWindow : Window
     {
         var kind = _layoutKind;
         var id = _layoutId;
+        if (kind == null || id == null)
+            return;
         var from = FindVisualChild<ScrollViewer>(LayoutTree)?.VerticalOffset ?? 0;
-        if (kind is "once" or "todo" or "event" or "note")
-            MoveTaskAmongSiblings(delta);
-        else if (kind == "category")
-            MoveSelectedCategory(delta);
+        // auto model — tasks and folders share one sibling list under Manual sort
+        if (kind is "once" or "todo" or "event" or "note" or "category")
+            MoveAmongSiblings(kind, id, delta);
         CenterLayoutOn(kind, id, from);
+    }
+
+    void MoveAmongSiblings(string kind, string id, int delta)
+    {
+        string? parentId = null;
+        if (kind == "category")
+        {
+            var folder = AppHost.Instance.Data.Categories.FirstOrDefault(c => c.Id == id);
+            if (folder == null)
+                return;
+            parentId = folder.ParentId;
+        }
+        else
+        {
+            var folderId = CurrentFolderId();
+            parentId = folderId.Length == 0 ? null : folderId;
+        }
+
+        var siblings = MixedChildren(parentId);
+        var index = siblings.FindIndex(n => n.Kind == kind && n.Id == id);
+        var next = index + delta;
+        if (index < 0 || next < 0 || next >= siblings.Count)
+            return;
+        var other = siblings[next];
+        AppHost.Instance.Data.Settings.ManualSort = true;
+        if (ManualSortBox != null)
+            ManualSortBox.IsChecked = true;
+        AppHost.Instance.SwapTaskOrder(kind, id, other.Kind, other.Id);
+        if (kind == "category" && other.Kind == "category")
+            CategoryTree.MoveSibling(AppHost.Instance.Data.Categories,
+                AppHost.Instance.Data.Categories.First(c => c.Id == id), delta);
+        else if (kind == other.Kind && kind is "once" or "todo" or "event" or "note")
+        {
+            var data = AppHost.Instance.Data;
+            switch (kind)
+            {
+                case "once":
+                    SwapById(data.Once, t => t.Id, id, other.Id);
+                    break;
+                case "todo":
+                    SwapById(data.Todos, t => t.Id, id, other.Id);
+                    break;
+                case "event":
+                    SwapById(data.Events, t => t.Id, id, other.Id);
+                    break;
+                case "note":
+                    SwapById(data.Notes, t => t.Id, id, other.Id);
+                    break;
+            }
+        }
+
+        BindLists();
+        SelectLayout(kind, id);
+        if (kind != "category")
+            SelectTask(kind, id);
+        else if (AppHost.Instance.Data.Categories.FirstOrDefault(c => c.Id == id) is Category cat)
+            CategoryList.SelectedItem = cat;
+        FlushOverlay();
     }
 
     void MoveTaskAmongSiblings(int delta)
@@ -1061,39 +1131,7 @@ public partial class ConfigWindow : Window
         var task = SelectedTask();
         if (task == null)
             return;
-        var siblings = ItemsIn(CurrentFolderId());
-        var index = siblings.FindIndex(n => n.Kind == task.Kind && n.Id == task.Id);
-        var next = index + delta;
-        if (index < 0 || next < 0 || next >= siblings.Count)
-            return;
-        var other = siblings[next];
-        if (other.Kind is not ("once" or "todo" or "event" or "note"))
-            return;
-        AppHost.Instance.SwapTaskOrder(task.Kind, task.Id, other.Kind, other.Id);
-        if (task.Kind == other.Kind)
-        {
-            var data = AppHost.Instance.Data;
-            switch (task.Kind)
-            {
-                case "once":
-                    SwapById(data.Once, t => t.Id, task.Id, other.Id);
-                    break;
-                case "todo":
-                    SwapById(data.Todos, t => t.Id, task.Id, other.Id);
-                    break;
-                case "event":
-                    SwapById(data.Events, t => t.Id, task.Id, other.Id);
-                    break;
-                case "note":
-                    SwapById(data.Notes, t => t.Id, task.Id, other.Id);
-                    break;
-            }
-        }
-
-        BindLists();
-        SelectLayout(task.Kind, task.Id);
-        SelectTask(task.Kind, task.Id);
-        FlushOverlay();
+        MoveAmongSiblings(task.Kind, task.Id, delta);
     }
 
     OnceItem? SelectedOnce()
@@ -1827,11 +1865,18 @@ public partial class ConfigWindow : Window
         TodoUrl.Text = item.Url ?? "";
         SelectCategory(TodoCategory, item.CategoryId);
         TodoEnabled.IsChecked = item.Enabled;
+        // auto model
+        TodoImportant.IsChecked = item.Important;
+        FillOptionalHours(TodoImportantLeadBox, TodoImportantUnitBox, item.ImportantLeadHours <= 0 ? 1 : item.ImportantLeadHours, item.ImportantLeadInHours);
+        if (TodoImportantLeadRow != null)
+            TodoImportantLeadRow.Visibility = item.Important ? Visibility.Visible : Visibility.Collapsed;
         TodoUnknownDate.IsChecked = item.UnknownDate;
         TodoLastChecked.Text = "Last checked " + RecurrenceEngine.DescribeLastChecked(RecurrenceEngine.LastChecked(item), DateTime.Now);
         TodoKind.SelectedIndex = Math.Max(0, Array.FindIndex(Kinds, k => k.Kind == item.Recurrence.Kind));
         TodoTime.Text = item.Recurrence.Time;
-        TodoInterval.Text = item.Recurrence.Interval.ToString();
+        TodoInterval.Text = item.Recurrence.Kind == RecurrenceKind.AfterCompletionHours
+            ? item.Recurrence.Interval.ToString("0.###", CultureInfo.CurrentCulture)
+            : ((int)Math.Round(item.Recurrence.Interval)).ToString(CultureInfo.CurrentCulture);
         SetDays(item.Recurrence.Weekdays);
         TodoMonthDay.Text = item.Recurrence.MonthDay.ToString();
         TodoMonth.Text = item.Recurrence.Month.ToString();
@@ -1858,6 +1903,10 @@ public partial class ConfigWindow : Window
         var folderChanged = item.CategoryId != folder;
         item.CategoryId = folder;
         item.Enabled = TodoEnabled.IsChecked == true;
+        // auto model
+        item.Important = TodoImportant.IsChecked == true;
+        if (TodoImportantLeadRow != null)
+            TodoImportantLeadRow.Visibility = item.Important ? Visibility.Visible : Visibility.Collapsed;
         var watch = TodoUnknownDate.IsChecked == true;
         if (watch && !item.UnknownDate)
             item.LastCheckedAt = DateTime.Now;
@@ -1867,8 +1916,10 @@ public partial class ConfigWindow : Window
             item.Recurrence.Kind = Kinds[TodoKind.SelectedIndex].Kind;
         if (ApplyClockBox(TodoTime, false, true, out var clock))
             item.Recurrence.Time = clock;
-        item.Recurrence.Interval = ParseInt(TodoInterval.Text, 1, 1,
-            item.Recurrence.Kind == RecurrenceKind.AfterCompletionHours ? 8760 : 3650);
+        // auto model
+        item.Recurrence.Interval = item.Recurrence.Kind == RecurrenceKind.AfterCompletionHours
+            ? ParseDouble(TodoInterval.Text, 1, 1.0 / 60, 8760)
+            : ParseInt(TodoInterval.Text, 1, 1, 3650);
         item.Recurrence.Weekdays = ReadDays();
         item.Recurrence.MonthDay = ParseInt(TodoMonthDay.Text, 1, 1, 31);
         item.Recurrence.Month = ParseInt(TodoMonth.Text, 1, 1, 12);
@@ -1983,6 +2034,11 @@ public partial class ConfigWindow : Window
         EventDate.SelectedDate = item.At?.Date;
         EventTime.Text = item.At?.ToString("HH:mm") ?? "09:00";
         EventPin.Text = item.PinSlot.ToString();
+        // auto model
+        EventImportant.IsChecked = item.Important;
+        FillOptionalHours(EventImportantLeadBox, EventImportantUnitBox, item.ImportantLeadHours <= 0 ? 1 : item.ImportantLeadHours, item.ImportantLeadInHours);
+        if (EventImportantLeadRow != null)
+            EventImportantLeadRow.Visibility = item.Important ? Visibility.Visible : Visibility.Collapsed;
         LoadItemCheckRule(item, EventCheckRuleBox, EventReshowRow, EventReshowBox, EventReshowUnitBox);
         FillOptionalHours(EventShowBeforeBox, EventShowBeforeUnitBox, item.ShowBeforeHours, item.ShowBeforeInHours);
         FillOptionalHours(EventShowAfterBox, EventShowAfterUnitBox, item.ShowAfterCheckHours, item.ShowAfterCheckInHours);
@@ -2054,6 +2110,10 @@ public partial class ConfigWindow : Window
         var pin = ReadPin(EventPin);
         var pinChanged = item.PinSlot != pin;
         item.PinSlot = pin;
+        // auto model
+        item.Important = EventImportant.IsChecked == true;
+        if (EventImportantLeadRow != null)
+            EventImportantLeadRow.Visibility = item.Important ? Visibility.Visible : Visibility.Collapsed;
         ReadItemCheckRule(item, EventCheckRuleBox);
         UpdateReshowRow(EventReshowRow, EventCheckRuleBox);
         if (SelectedTask() is ConfigTask row)
@@ -2651,6 +2711,8 @@ public partial class ConfigWindow : Window
         var item = new Category { Name = "New category" };
         AppHost.Instance.Data.Categories.Add(item);
         CategoryTree.Rebuild(AppHost.Instance.Data.Categories);
+        // auto model
+        AppHost.Instance.TrackTask("category", item.Id);
         _layoutKind = "category";
         _layoutId = item.Id;
         BindLists();
@@ -2671,6 +2733,8 @@ public partial class ConfigWindow : Window
         var item = new Category { Name = "New category", ParentId = parent.Id };
         AppHost.Instance.Data.Categories.Add(item);
         CategoryTree.Rebuild(AppHost.Instance.Data.Categories);
+        // auto model
+        AppHost.Instance.TrackTask("category", item.Id);
         _layoutKind = "category";
         _layoutId = item.Id;
         BindLists();
@@ -2699,6 +2763,8 @@ public partial class ConfigWindow : Window
             child.ParentId = item.ParentId;
 
         AppHost.Instance.ForgetPairing(item.Id);
+        // auto model
+        AppHost.Instance.UntrackTask("category", item.Id);
         data.Categories.Remove(item);
         CategoryTree.Rebuild(data.Categories);
         if (string.IsNullOrEmpty(fallback))
@@ -2731,13 +2797,8 @@ public partial class ConfigWindow : Window
     {
         if (SelectedCategory() is not Category item)
             return;
-        CategoryTree.MoveSibling(AppHost.Instance.Data.Categories, item, delta);
-        _layoutKind = "category";
-        _layoutId = item.Id;
-        BindLists();
-        CategoryList.SelectedItem = item;
-        SelectLayout("category", item.Id);
-        FlushOverlay();
+        // auto model
+        MoveAmongSiblings("category", item.Id, delta);
     }
 
     void CategorySelected(object sender, SelectionChangedEventArgs e) => LoadCategoryEditor();
@@ -3074,6 +3135,81 @@ public partial class ConfigWindow : Window
 
     static int ParseInt(string text, int fallback, int min, int max) =>
         int.TryParse(text, out var v) ? Math.Clamp(v, min, max) : fallback;
+
+    // auto model
+    static double ParseDouble(string text, double fallback, double min, double max)
+    {
+        if (!double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.CurrentCulture, out var v)
+            && !double.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out v))
+            return fallback;
+        if (double.IsNaN(v) || double.IsInfinity(v))
+            return fallback;
+        return Math.Clamp(v, min, max);
+    }
+
+    // auto model
+    void TodoImportantChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading || SelectedTodo() is not TodoItem item)
+            return;
+        item.Important = TodoImportant.IsChecked == true;
+        if (TodoImportantLeadRow != null)
+            TodoImportantLeadRow.Visibility = item.Important ? Visibility.Visible : Visibility.Collapsed;
+        FlushOverlay();
+    }
+
+    void EventImportantChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading || SelectedEvent() is not EventItem item)
+            return;
+        item.Important = EventImportant.IsChecked == true;
+        if (EventImportantLeadRow != null)
+            EventImportantLeadRow.Visibility = item.Important ? Visibility.Visible : Visibility.Collapsed;
+        FlushOverlay();
+    }
+
+    void TodoImportantUnitChanged(object sender, SelectionChangedEventArgs e) =>
+        CommitImportantLead(SelectedTodo(), TodoImportantLeadBox, TodoImportantUnitBox, true);
+
+    void EventImportantUnitChanged(object sender, SelectionChangedEventArgs e) =>
+        CommitImportantLead(SelectedEvent(), EventImportantLeadBox, EventImportantUnitBox, true);
+
+    void TodoImportantLeadCommit(object sender, RoutedEventArgs e) =>
+        CommitImportantLead(SelectedTodo(), TodoImportantLeadBox, TodoImportantUnitBox, true);
+
+    void EventImportantLeadCommit(object sender, RoutedEventArgs e) =>
+        CommitImportantLead(SelectedEvent(), EventImportantLeadBox, EventImportantUnitBox, true);
+
+    void TodoImportantLeadKey(object sender, KeyEventArgs e) =>
+        DurationKey(e, () => TodoImportantLeadCommit(sender, e));
+
+    void EventImportantLeadKey(object sender, KeyEventArgs e) =>
+        DurationKey(e, () => EventImportantLeadCommit(sender, e));
+
+    void CommitImportantLead(object? target, TextBox? box, ComboBox? unit, bool rewrite)
+    {
+        if (_loading || box == null || unit == null)
+            return;
+        var hoursUnit = unit.SelectedIndex == 1;
+        if (!TryParseOptionalHours(box.Text, hoursUnit, out var hours) || hours <= 0)
+            hours = hoursUnit ? 1 : 24;
+        hours = Math.Clamp(hours, 1.0 / 60, 720 * 24);
+        if (target is TodoItem todo)
+        {
+            todo.ImportantLeadHours = hours;
+            todo.ImportantLeadInHours = hoursUnit;
+        }
+        else if (target is EventItem ev)
+        {
+            ev.ImportantLeadHours = hours;
+            ev.ImportantLeadInHours = hoursUnit;
+        }
+        else
+            return;
+        if (rewrite)
+            FillOptionalHours(box, unit, hours, hoursUnit);
+        FlushOverlay();
+    }
 
     bool ApplyClockBox(TextBox box, bool allowShort, bool emptyIsMidnight, out string clock)
     {

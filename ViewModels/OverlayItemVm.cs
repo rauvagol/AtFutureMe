@@ -229,6 +229,8 @@ public sealed class CategorySectionVm : INotifyPropertyChanged
 
     public System.Collections.ObjectModel.ObservableCollection<OverlayItemVm> Items { get; } = [];
     public System.Collections.ObjectModel.ObservableCollection<CategorySectionVm> Children { get; } = [];
+    // auto model — mixed tasks + nested folders when Manual sort is on
+    public System.Collections.ObjectModel.ObservableCollection<object> Entries { get; } = [];
 
     int _depth;
     public int Depth

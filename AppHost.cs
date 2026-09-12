@@ -25,6 +25,8 @@ public sealed partial class AppHost : IDisposable
 
     public ObservableCollection<CategorySectionVm> DockedCategories { get; } = [];
     public ObservableCollection<OverlayItemVm> UncategorizedItems { get; } = [];
+    // auto model
+    public ObservableCollection<object> RootBoard { get; } = [];
 
     public event Action? UiChanged;
 
@@ -312,6 +314,8 @@ public sealed partial class AppHost : IDisposable
         };
         Data.Categories.Add(item);
         CategoryTree.Rebuild(Data.Categories);
+        // auto model
+        TrackTask("category", item.Id);
         RequestSave();
         ApplyOverlayVisibility();
         return item;
@@ -506,12 +510,13 @@ public sealed partial class AppHost : IDisposable
         if (LayoutSceneActive)
             return TempHideKind.Layout;
         var items = UpcomingItems(now);
-        if (items.Any(item => item.Active && !item.Delayable))
+        // auto model
+        if (items.Any(item => item.Active && HideAware(item)))
             return TempHideKind.HasActive;
-        var next = items.Where(item => !item.Delayable && !item.Active).Select(item => (DateTime?)item.At).FirstOrDefault();
-        if (next == null)
+        var next = items.FirstOrDefault(item => HideAware(item) && !item.Active);
+        if (next.Title == null)
             return TempHideKind.CanHide;
-        return next.Value - now > TempHideLead() ? TempHideKind.CanHide : TempHideKind.TooSoon;
+        return next.At - now > next.Lead ? TempHideKind.CanHide : TempHideKind.TooSoon;
     }
 
     public bool TempHideWouldHold(DateTime now)
@@ -523,10 +528,11 @@ public sealed partial class AppHost : IDisposable
         if (Data.Settings.TempHideUntil is DateTime until && now >= until)
             return false;
         var items = UpcomingItems(now);
-        if (items.Any(item => item.Active && !item.Delayable))
+        // auto model
+        if (items.Any(item => item.Active && HideAware(item)))
             return false;
-        var next = items.FirstOrDefault(item => !item.Delayable && !item.Active);
-        if (next.Title != null && next.At - now <= TempHideLead())
+        var next = items.FirstOrDefault(item => HideAware(item) && !item.Active);
+        if (next.Title != null && next.At - now <= next.Lead)
             return false;
         return true;
     }
@@ -534,48 +540,83 @@ public sealed partial class AppHost : IDisposable
     public IReadOnlyList<(string Title, DateTime At, string Remain)> UpcomingScheduled(DateTime now, int take)
     {
         return UpcomingItems(now)
-            .Where(item => !item.Delayable)
+            .Where(HideAware)
             .Take(take)
             .Select(item => (item.Title, item.At, RemainLabel(item, now)))
             .ToList();
     }
 
-    static string RemainLabel((string Title, DateTime At, bool Active, bool Delayable, string Kind, string Id, string CategoryId) item, DateTime now)
+    static string RemainLabel((string Title, DateTime At, bool Active, bool Delayable, bool Important, TimeSpan Lead, string Kind, string Id, string CategoryId) item, DateTime now)
     {
         var remain = item.Active ? "now" : RecurrenceEngine.FormatRemainingLong(item.At, now);
-        return item.Delayable ? remain + " · delayable" : remain;
+        if (item.Important)
+            remain += " · important";
+        else if (item.Delayable)
+            remain += " · delayable";
+        return remain;
     }
 
-    List<(string Title, DateTime At, bool Active, bool Delayable, string Kind, string Id, string CategoryId)> UpcomingItems(DateTime now)
+    // auto model
+    static bool HideAware((string Title, DateTime At, bool Active, bool Delayable, bool Important, TimeSpan Lead, string Kind, string Id, string CategoryId) item) =>
+        item.Important || !item.Delayable;
+
+    List<(string Title, DateTime At, bool Active, bool Delayable, bool Important, TimeSpan Lead, string Kind, string Id, string CategoryId)> UpcomingItems(DateTime now)
     {
-        var rows = new List<(string Title, DateTime At, bool Active, bool Delayable, string Kind, string Id, string CategoryId)>();
+        var rows = new List<(string Title, DateTime At, bool Active, bool Delayable, bool Important, TimeSpan Lead, string Kind, string Id, string CategoryId)>();
+        var defaultLead = TempHideLead();
         foreach (var item in Data.Once)
         {
             if (item.CompletedAt == null)
-                rows.Add((item.Title, now, true, FolderIsDelayable(item.CategoryId), "once", item.Id, item.CategoryId));
+                rows.Add((item.Title, now, true, FolderIsDelayable(item.CategoryId), false, defaultLead, "once", item.Id, item.CategoryId));
         }
 
         foreach (var todo in Data.Todos)
         {
             if (!RecurrenceEngine.TryTimeline(todo, now, out var at, out var active))
                 continue;
-            rows.Add((todo.Title, at, active, FolderIsDelayable(todo.CategoryId), "todo", todo.Id, todo.CategoryId));
+            // auto model
+            var important = todo.Important;
+            var lead = important ? ImportantLead(todo.ImportantLeadHours) : defaultLead;
+            rows.Add((todo.Title, at, active, FolderIsDelayable(todo.CategoryId), important, lead, "todo", todo.Id, todo.CategoryId));
         }
 
         foreach (var ev in Data.Events)
         {
-            if (HideEventFromOverlay(ev, now))
+            if (ev.CompletedAt != null)
                 continue;
             if (!RecurrenceEngine.TryTimeline(ev, now, out var at, out var active))
                 continue;
-            rows.Add((ev.Title, at, active, FolderIsDelayable(ev.CategoryId), "event", ev.Id, ev.CategoryId));
+            // auto model: important items still wake hide before they are eligible for the overlay
+            var hidden = HideEventFromOverlay(ev, now);
+            if (hidden && !ev.Important)
+                continue;
+            var important = ev.Important;
+            var lead = important ? ImportantLead(ev.ImportantLeadHours) : defaultLead;
+            var wakeAt = at;
+            if (ev.At is DateTime when)
+            {
+                var window = EventShowBeforeWindow(ev);
+                var appearAt = window > TimeSpan.Zero ? when - window : when;
+                wakeAt = important ? appearAt : when;
+                active = now >= when;
+            }
+
+            rows.Add((ev.Title, wakeAt, active, FolderIsDelayable(ev.CategoryId), important, lead, "event", ev.Id, ev.CategoryId));
         }
 
         return rows
-            .OrderBy(row => row.Active && !row.Delayable ? 0 : row.Active ? 1 : 2)
+            .OrderBy(row => row.Active && HideAware(row) ? 0 : row.Active ? 1 : 2)
             .ThenBy(row => row.At)
             .ThenBy(row => row.Title, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
+    }
+
+    // auto model
+    static TimeSpan ImportantLead(double hours)
+    {
+        if (hours <= 0)
+            hours = 1;
+        return TimeSpan.FromHours(Math.Clamp(hours, 1.0 / 60, 720 * 24));
     }
 
     bool FolderIsDelayable(string? categoryId)
@@ -970,10 +1011,11 @@ public sealed partial class AppHost : IDisposable
         if (!TempHideWouldHold(now))
             return null;
         DateTime? wake = Data.Settings.TempHideUntil;
-        var next = UpcomingItems(now).FirstOrDefault(item => !item.Delayable && !item.Active);
+        // auto model
+        var next = UpcomingItems(now).FirstOrDefault(item => HideAware(item) && !item.Active);
         if (next.Title != null)
         {
-            var byItem = next.At - TempHideLead();
+            var byItem = next.At - next.Lead;
             if (wake == null || byItem < wake)
                 wake = byItem;
         }
@@ -1315,6 +1357,9 @@ public sealed partial class AppHost : IDisposable
     {
         if (TickTempHide() | TickPairings() | TickLayouts())
             Save();
+        // auto model: keep temp-hide armed so overlay can re-hide after an important task completes
+        else if (Data.Settings.TempHideMain)
+            ApplyOverlayVisibility();
         RefreshOverlayItems();
         UpdateTempHideCountdown();
         MaybeNotify();
@@ -1324,7 +1369,9 @@ public sealed partial class AppHost : IDisposable
     {
         if (!Data.Settings.TempHideMain)
             return false;
-        if (TempHideWouldHold(DateTime.Now))
+        var now = DateTime.Now;
+        // auto model: only expire on max duration; near/due important items just unhide temporarily
+        if (Data.Settings.TempHideUntil is not DateTime until || now < until)
             return false;
         Data.Settings.TempHideMain = false;
         Data.Settings.TempHideUntil = null;
@@ -1578,6 +1625,8 @@ public sealed partial class AppHost : IDisposable
         AddAll("todo", Data.Todos.Select(t => t.Id));
         AddAll("event", Data.Events.Select(t => t.Id));
         AddAll("note", Data.Notes.Select(t => t.Id));
+        // auto model
+        AddAll("category", Data.Categories.Select(c => c.Id));
         Data.Settings.TaskOrder.RemoveAll(key => !known.Contains(key));
     }
 
@@ -1589,9 +1638,22 @@ public sealed partial class AppHost : IDisposable
             return byOrder != 0 ? byOrder : string.Compare(titleA, titleB, StringComparison.OrdinalIgnoreCase);
         }
 
+        // auto model: To Do (once) sorts after Recurring/Scheduled unless pinned
+        var byKind = AutoSortTier(kindA).CompareTo(AutoSortTier(kindB));
+        if (byKind != 0)
+            return byKind;
         var byTime = OverlaySortAtFor(kindA, idA).CompareTo(OverlaySortAtFor(kindB, idB));
         return byTime != 0 ? byTime : string.Compare(titleA, titleB, StringComparison.OrdinalIgnoreCase);
     }
+
+    // auto model
+    static int AutoSortTier(string kind) =>
+        kind switch
+        {
+            "todo" or "event" => 0,
+            "once" => 1,
+            _ => 2
+        };
 
     DateTime OverlaySortAtFor(string kind, string id)
     {
@@ -1827,6 +1889,13 @@ public sealed partial class AppHost : IDisposable
                 docked.Add(section);
         }
 
+        // auto model
+        if (Data.Settings.ManualSort)
+            docked = docked
+                .OrderBy(s => TaskOrderIndex("category", s.Id))
+                .ThenBy(s => s.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
         for (var i = 0; i < docked.Count; i++)
         {
             if (i < DockedCategories.Count)
@@ -1844,11 +1913,78 @@ public sealed partial class AppHost : IDisposable
             DockedCategories.RemoveAt(DockedCategories.Count - 1);
 
         Sync(UncategorizedItems, grouped.GetValueOrDefault("") ?? []);
+        // auto model
+        SyncRootBoard(UncategorizedItems, DockedCategories);
         SyncCategoryWindows();
         if (_dueHighlight)
             FillDueHighlight(DateTime.Now);
         ApplyDueHighlight();
         UiChanged?.Invoke();
+    }
+
+    // auto model
+    void SyncRootBoard(IReadOnlyList<OverlayItemVm> loose, IReadOnlyList<CategorySectionVm> folders)
+    {
+        var fresh = new List<object>();
+        if (Data.Settings.ManualSort)
+        {
+            foreach (var key in Data.Settings.TaskOrder)
+            {
+                var sep = key.IndexOf(':');
+                if (sep <= 0)
+                    continue;
+                var kind = key[..sep];
+                var id = key[(sep + 1)..];
+                if (kind == "category")
+                {
+                    var section = folders.FirstOrDefault(f => f.Id == id);
+                    if (section != null)
+                        fresh.Add(section);
+                }
+                else
+                {
+                    var item = loose.FirstOrDefault(t => t.ItemKind == kind && t.Id == id);
+                    if (item != null)
+                        fresh.Add(item);
+                }
+            }
+
+            foreach (var item in loose)
+            {
+                if (!fresh.Contains(item))
+                    fresh.Add(item);
+            }
+
+            foreach (var section in folders)
+            {
+                if (!fresh.Contains(section))
+                    fresh.Add(section);
+            }
+        }
+        else
+        {
+            fresh.AddRange(loose);
+            fresh.AddRange(folders);
+        }
+
+        SyncObjects(RootBoard, fresh);
+    }
+
+    static void SyncObjects(ObservableCollection<object> target, List<object> fresh)
+    {
+        for (var i = 0; i < fresh.Count; i++)
+        {
+            if (i < target.Count)
+            {
+                if (!ReferenceEquals(target[i], fresh[i]))
+                    target[i] = fresh[i];
+            }
+            else
+                target.Add(fresh[i]);
+        }
+
+        while (target.Count > fresh.Count)
+            target.RemoveAt(target.Count - 1);
     }
 
     public void ToggleCategoryCollapsed(string id)
@@ -1875,11 +2011,66 @@ public sealed partial class AppHost : IDisposable
             .Select(c => _sections[c.Id])
             .Where(s => ShowSection(s, !Data.Settings.ClickThrough))
             .ToList();
+        // auto model
+        if (Data.Settings.ManualSort)
+            childSections = childSections
+                .OrderBy(s => TaskOrderIndex("category", s.Id))
+                .ThenBy(s => s.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
         section.Depth = depth;
         section.Indent = Math.Clamp(Data.Settings.FolderIndent, 0, 40);
         section.HasChildren = childSections.Count > 0 || section.Items.Count > 0;
         section.IsExpanded = !category.Collapsed;
         SyncSections(section.Children, childSections);
+        SyncSectionEntries(section, childSections);
+    }
+
+    // auto model
+    void SyncSectionEntries(CategorySectionVm section, List<CategorySectionVm> childSections)
+    {
+        var fresh = new List<object>();
+        if (Data.Settings.ManualSort)
+        {
+            foreach (var key in Data.Settings.TaskOrder)
+            {
+                var sep = key.IndexOf(':');
+                if (sep <= 0)
+                    continue;
+                var kind = key[..sep];
+                var id = key[(sep + 1)..];
+                if (kind == "category")
+                {
+                    var child = childSections.FirstOrDefault(c => c.Id == id);
+                    if (child != null)
+                        fresh.Add(child);
+                }
+                else
+                {
+                    var item = section.Items.FirstOrDefault(t => t.ItemKind == kind && t.Id == id);
+                    if (item != null)
+                        fresh.Add(item);
+                }
+            }
+
+            foreach (var item in section.Items)
+            {
+                if (!fresh.Contains(item))
+                    fresh.Add(item);
+            }
+
+            foreach (var child in childSections)
+            {
+                if (!fresh.Contains(child))
+                    fresh.Add(child);
+            }
+        }
+        else
+        {
+            fresh.AddRange(section.Items);
+            fresh.AddRange(childSections);
+        }
+
+        SyncObjects(section.Entries, fresh);
     }
 
     static bool SectionVisible(CategorySectionVm section) =>
@@ -2402,7 +2593,9 @@ public sealed partial class AppHost : IDisposable
     }
 
     bool OverlayHidden =>
-        _hiddenAll || _hiddenWindows.Count > 0 || Data.Settings.TempHideMain;
+        _hiddenAll || _hiddenWindows.Count > 0
+        // auto model
+        || (Data.Settings.TempHideMain && TempHideWouldHold(DateTime.Now));
 
     void UpdateTrayChecks()
     {
@@ -2475,12 +2668,24 @@ public sealed partial class AppHost : IDisposable
         foreach (var item in Data.Once)
             NormalizeCheckRule(item);
         foreach (var item in Data.Todos)
+        {
             NormalizeCheckRule(item);
+            // auto model
+            if (item.ImportantLeadHours <= 0)
+                item.ImportantLeadHours = 1;
+            item.ImportantLeadHours = Math.Clamp(item.ImportantLeadHours, 1.0 / 60, 720 * 24);
+            if (item.Recurrence.Interval <= 0)
+                item.Recurrence.Interval = 1;
+        }
         foreach (var item in Data.Events)
         {
             NormalizeCheckRule(item);
             item.ShowBeforeHours = RecurrenceEngine.ClampShowHours(item.ShowBeforeHours, true);
             item.ShowAfterCheckHours = RecurrenceEngine.ClampShowHours(item.ShowAfterCheckHours, true);
+            // auto model
+            if (item.ImportantLeadHours <= 0)
+                item.ImportantLeadHours = 1;
+            item.ImportantLeadHours = Math.Clamp(item.ImportantLeadHours, 1.0 / 60, 720 * 24);
         }
         MigrateHideMainPairs();
         EnsureTaskOrder();

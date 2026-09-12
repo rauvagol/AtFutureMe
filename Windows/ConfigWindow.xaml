@@ -201,6 +201,25 @@
                                       Checked="TodoWatchChanged" Unchecked="TodoWatchChanged"/>
                             <CheckBox x:Name="TodoEnabled" Style="{StaticResource DarkCheck}" Content="Enabled"
                                       Checked="TodoFieldChanged" Unchecked="TodoFieldChanged"/>
+                            <!-- auto model -->
+                            <CheckBox x:Name="TodoImportant" Style="{StaticResource DarkCheck}"
+                                      Content="Important — force overlay out of temporary hide"
+                                      Checked="TodoImportantChanged" Unchecked="TodoImportantChanged"/>
+                            <StackPanel x:Name="TodoImportantLeadRow" Visibility="Collapsed" Margin="0,6,0,0">
+                                <TextBlock Text="Show overlay this long before it is due" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                <DockPanel>
+                                    <ComboBox x:Name="TodoImportantUnitBox" DockPanel.Dock="Right" Width="110"
+                                              Style="{StaticResource DarkCombo}"
+                                              SelectionChanged="TodoImportantUnitChanged">
+                                        <ComboBoxItem Content="Days"/>
+                                        <ComboBoxItem Content="Hours"/>
+                                    </ComboBox>
+                                    <TextBox x:Name="TodoImportantLeadBox" Style="{StaticResource DarkTextBox}" Margin="0,0,8,0"
+                                             LostFocus="TodoImportantLeadCommit" KeyDown="TodoImportantLeadKey"/>
+                                </DockPanel>
+                                <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                           Text="While temporary hide is on, the overlay comes back for this window until the task is completed, then hide resumes."/>
+                            </StackPanel>
                             <TextBlock Text="Pin position" Foreground="#9AA0A8" Margin="0,12,0,4"/>
                             <TextBox x:Name="TodoPin" Style="{StaticResource DarkTextBox}"
                                      ToolTip="0 = automatic. 1 = first in this folder, 3 = third."
@@ -339,6 +358,26 @@
                                      TextChanged="EventFieldChanged"/>
                             <TextBlock Text="0 follows automatic sort. 1 always first in this folder, 3 always third. Other items still sort around it."
                                        Foreground="#7A8088" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                            <!-- auto model -->
+                            <CheckBox x:Name="EventImportant" Style="{StaticResource DarkCheck}"
+                                      Content="Important — force overlay out of temporary hide"
+                                      Margin="0,12,0,0"
+                                      Checked="EventImportantChanged" Unchecked="EventImportantChanged"/>
+                            <StackPanel x:Name="EventImportantLeadRow" Visibility="Collapsed" Margin="0,6,0,0">
+                                <TextBlock Text="Show overlay this long before it shows up" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                <DockPanel>
+                                    <ComboBox x:Name="EventImportantUnitBox" DockPanel.Dock="Right" Width="110"
+                                              Style="{StaticResource DarkCombo}"
+                                              SelectionChanged="EventImportantUnitChanged">
+                                        <ComboBoxItem Content="Days"/>
+                                        <ComboBoxItem Content="Hours"/>
+                                    </ComboBox>
+                                    <TextBox x:Name="EventImportantLeadBox" Style="{StaticResource DarkTextBox}" Margin="0,0,8,0"
+                                             LostFocus="EventImportantLeadCommit" KeyDown="EventImportantLeadKey"/>
+                                </DockPanel>
+                                <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                           Text="While temporary hide is on, the overlay comes back for this window until the task is completed, then hide resumes."/>
+                            </StackPanel>
                             <CheckBox x:Name="EventUnknownDate" Style="{StaticResource DarkCheck}"
                                       Content="Coming eventually — I don't know when"
                                       Checked="EventUnknownChanged" Unchecked="EventUnknownChanged"/>
@@ -870,7 +909,7 @@
                         <CheckBox x:Name="ManualSortBox" Style="{StaticResource DarkCheck}"
                                   Content="Manual sort — overlay and Layout follow ↑↓"
                                   Checked="SettingsChanged" Unchecked="SettingsChanged"/>
-                        <TextBlock Text="Automatic sort matches the overlay: dated items by due time, to-dos without a date in the order they were added. A pin on an item (1 = first in its folder, 3 = third) holds that slot while everything else still sorts automatically. Manual sort starts from add order and uses Layout ↑↓; pins still apply."
+                        <TextBlock Text="Automatic sort: Recurring and Scheduled by due time, then To Dos at the bottom, then notes. A pin on an item (1 = first in its folder, 3 = third) holds that slot while everything else still sorts automatically. Manual sort starts from add order and uses Layout ↑↓ — including moving folders past tasks; pins still apply."
                                    Foreground="#7A8088" TextWrapping="Wrap" Margin="0,4,0,0"/>
                         <TextBlock Text="Folder indent" Foreground="#9AA0A8" Margin="0,12,0,4"/>
                         <DockPanel>

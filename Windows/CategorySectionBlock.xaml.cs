@@ -13,6 +13,8 @@ public partial class CategorySectionBlock : UserControl
     public CategorySectionBlock()
     {
         InitializeComponent();
+        // auto model
+        EntryList.ItemTemplateSelector = RemindersOverlay.CreateBoardSelector();
     }
 
     void OnToggle(object sender, RoutedEventArgs e)

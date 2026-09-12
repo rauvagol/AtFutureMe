@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using AtFutureMe.ViewModels;
@@ -17,11 +18,23 @@ public partial class RemindersOverlay : OverlayWindowBase
         return brush;
     }
 
+    // auto model
+    public static DataTemplateSelector CreateBoardSelector()
+    {
+        var factoryItem = new FrameworkElementFactory(typeof(OverlayItemRow));
+        var factorySection = new FrameworkElementFactory(typeof(CategorySectionBlock));
+        return new BoardTemplateSelector
+        {
+            ItemTemplate = new DataTemplate { VisualTree = factoryItem },
+            SectionTemplate = new DataTemplate { VisualTree = factorySection }
+        };
+    }
+
     public RemindersOverlay()
     {
         InitializeComponent();
-        LooseList.ItemsSource = AppHost.Instance.UncategorizedItems;
-        CategoryList.ItemsSource = AppHost.Instance.DockedCategories;
+        BoardList.ItemTemplateSelector = CreateBoardSelector();
+        BoardList.ItemsSource = AppHost.Instance.RootBoard;
         LocationChanged += (_, _) => AppHost.Instance.ScheduleBoundsSave();
         SizeChanged += (_, _) => AppHost.Instance.ScheduleBoundsSave();
         AppHost.Instance.UiChanged += ApplyChrome;
@@ -37,10 +50,8 @@ public partial class RemindersOverlay : OverlayWindowBase
     {
         var host = AppHost.Instance;
         ApplyDragChrome(ChromeBar, ChromeActions, ChromeTitle, ChromeRow, BodyScroll);
-        LooseList.FontSize = host.Data.Settings.FontSize;
-        LooseList.FontWeight = host.OverlayChromeWeight();
-        CategoryList.FontSize = host.Data.Settings.FontSize;
-        CategoryList.FontWeight = host.OverlayChromeWeight();
+        BoardList.FontSize = host.Data.Settings.FontSize;
+        BoardList.FontWeight = host.OverlayChromeWeight();
         EmptyHint.FontWeight = host.OverlayChromeWeight();
         ChromeTitle.FontWeight = host.OverlayChromeWeight();
         var now = DateTime.Now;
@@ -56,7 +67,7 @@ public partial class RemindersOverlay : OverlayWindowBase
         UndoButton.IsEnabled = host.CanUndoDelete;
         UndoButton.ToolTip = host.UndoDeleteTip;
         ApplyPanelChrome(PanelBorder, DitherLayer);
-        EmptyHint.Visibility = host.UncategorizedItems.Count == 0 && host.DockedCategories.Count == 0
+        EmptyHint.Visibility = host.RootBoard.Count == 0
             ? Visibility.Visible : Visibility.Collapsed;
     }
 

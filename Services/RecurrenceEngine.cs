@@ -10,6 +10,14 @@ public readonly record struct TodoEvaluation(
 
 public static class RecurrenceEngine
 {
+    // auto model
+    public static int IntervalUnits(Recurrence r) =>
+        Math.Max(1, (int)Math.Round(r.Interval <= 0 ? 1 : r.Interval));
+
+    // auto model
+    public static double IntervalHoursValue(Recurrence r) =>
+        r.Interval > 0 ? r.Interval : 1;
+
     public static TimeSpan GetTime(Recurrence r)
     {
         if (TimeSpan.TryParse(r.Time, out var t) && t >= TimeSpan.Zero && t < TimeSpan.FromDays(1))
@@ -289,7 +297,8 @@ public static class RecurrenceEngine
     public static string Describe(Recurrence r)
     {
         var time = FormatTime(GetTime(r));
-        var n = Math.Max(1, r.Interval);
+        var n = IntervalUnits(r);
+        var hours = IntervalHoursValue(r);
         return r.Kind switch
         {
             RecurrenceKind.Daily => $"Daily at {time}",
@@ -301,14 +310,22 @@ public static class RecurrenceEngine
             RecurrenceKind.NthWeekday => $"{NthLabel(r.Nth)} {DayName(r.Weekday)} at {time}",
             RecurrenceKind.Yearly => $"Yearly on {MonthName(r.Month)} {r.MonthDay} at {time}",
             RecurrenceKind.AfterCompletion => n == 1 ? $"1 day after completion at {time}" : $"{n} days after completion at {time}",
-            RecurrenceKind.AfterCompletionHours => n == 1 ? "1 hour after completion" : $"{n} hours after completion",
+            // auto model
+            RecurrenceKind.AfterCompletionHours => FormatHoursAfter(hours),
             _ => "Recurring"
         };
     }
 
+    // auto model
+    static string FormatHoursAfter(double hours)
+    {
+        var text = hours.ToString("0.###", System.Globalization.CultureInfo.CurrentCulture);
+        return hours == 1 ? "1 hour after completion" : $"{text} hours after completion";
+    }
+
     static TodoEvaluation EvaluateAfterCompletion(TodoItem todo, DateTime now)
     {
-        var interval = Math.Max(1, todo.Recurrence.Interval);
+        var interval = IntervalUnits(todo.Recurrence);
         var time = GetTime(todo.Recurrence);
 
         DateTime currentDue;
@@ -361,8 +378,9 @@ public static class RecurrenceEngine
 
     static TodoEvaluation EvaluateAfterCompletionHours(TodoItem todo, DateTime now)
     {
-        var hours = Math.Max(1, todo.Recurrence.Interval);
-        var interval = TimeSpan.FromHours(hours);
+        // auto model
+        var hours = IntervalHoursValue(todo.Recurrence);
+        var interval = TimeSpan.FromHours(Math.Clamp(hours, 1.0 / 60, 8760 * 24));
 
         if (todo.CompletedAt is DateTime done)
         {
@@ -409,7 +427,7 @@ public static class RecurrenceEngine
     {
         var r = todo.Recurrence;
         var time = GetTime(r);
-        var interval = Math.Max(1, r.Interval);
+        var interval = IntervalUnits(r);
 
         switch (r.Kind)
         {
@@ -439,7 +457,7 @@ public static class RecurrenceEngine
     {
         var r = todo.Recurrence;
         var time = GetTime(r);
-        var interval = Math.Max(1, r.Interval);
+        var interval = IntervalUnits(r);
 
         DateTime? previous = r.Kind switch
         {

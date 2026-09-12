@@ -24,8 +24,9 @@ public sealed class Recurrence
     /// <summary>Clock time as HH:mm (local). Empty means midnight.</summary>
     public string Time { get; set; } = "00:00";
 
-    /// <summary>N for every-N-days, every-N-weeks, N days after completion, or N hours after completion.</summary>
-    public int Interval { get; set; } = 1;
+    /// <summary>N for every-N-days, every-N-weeks, N days after completion, or N hours after completion (fractional hours allowed).</summary>
+    // auto model
+    public double Interval { get; set; } = 1;
 
     /// <summary>0 = Sunday … 6 = Saturday. Used by Weekly / Weekdays / EveryNWeeks / NthWeekday.</summary>
     public List<int> Weekdays { get; set; } = [];
@@ -132,6 +133,13 @@ public sealed class TodoItem : IHasCheckRule
     public FolderCheckRule CheckRule { get; set; } = FolderCheckRule.Inherit;
     public double CheckReshowHours { get; set; } = 24;
     public bool CheckReshowInHours { get; set; }
+
+    /// <summary>When true, forces the overlay out of temporary hide this long before the item is due, until it is completed.</summary>
+    // auto model
+    public bool Important { get; set; }
+    public double ImportantLeadHours { get; set; } = 1;
+    public bool ImportantLeadInHours { get; set; } = true;
+
     public TaskColors? Colors { get; set; }
 }
 
@@ -175,6 +183,12 @@ public sealed class EventItem : IHasCheckRule
     /// <summary>Hours after last check before an unknown-date event appears. 0 means always show.</summary>
     public double ShowAfterCheckHours { get; set; }
     public bool ShowAfterCheckInHours { get; set; }
+
+    /// <summary>When true, forces the overlay out of temporary hide this long before the item is due, until it is completed.</summary>
+    // auto model
+    public bool Important { get; set; }
+    public double ImportantLeadHours { get; set; } = 1;
+    public bool ImportantLeadInHours { get; set; } = true;
 
     public TaskColors? Colors { get; set; }
 }

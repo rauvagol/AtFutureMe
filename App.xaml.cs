@@ -22,7 +22,7 @@ public partial class App : System.Windows.Application
         }
         catch
         {
-            // Ignore logging failures.
+            // Ignore logging failure.
         }
     }
 

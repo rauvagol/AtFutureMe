@@ -23,8 +23,9 @@ public partial class CategoryOverlay : OverlayWindowBase
     public void BindSection()
     {
         var section = AppHost.Instance.SectionFor(CategoryId);
-        ItemList.ItemsSource = section?.Items;
-        ChildList.ItemsSource = section?.Children;
+        // auto model
+        BoardList.ItemTemplateSelector ??= RemindersOverlay.CreateBoardSelector();
+        BoardList.ItemsSource = section?.Entries;
         TitleText.Text = section?.Name ?? "Category";
         Title = TitleText.Text;
     }
@@ -33,10 +34,8 @@ public partial class CategoryOverlay : OverlayWindowBase
     {
         var host = AppHost.Instance;
         ApplyDragChrome(ChromeBar, ChromeActions, TitleText, ChromeRow, BodyScroll);
-        ItemList.FontSize = host.Data.Settings.FontSize;
-        ItemList.FontWeight = host.OverlayChromeWeight();
-        ChildList.FontSize = host.Data.Settings.FontSize;
-        ChildList.FontWeight = host.OverlayChromeWeight();
+        BoardList.FontSize = host.Data.Settings.FontSize;
+        BoardList.FontWeight = host.OverlayChromeWeight();
         TitleText.FontWeight = host.OverlayChromeWeight();
         UndoButton.IsEnabled = host.CanUndoDelete;
         UndoButton.ToolTip = host.UndoDeleteTip;
