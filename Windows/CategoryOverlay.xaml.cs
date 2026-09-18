@@ -37,7 +37,6 @@ public partial class CategoryOverlay : OverlayWindowBase
         BoardList.FontWeight = host.OverlayChromeWeight();
         TitleText.FontWeight = host.OverlayChromeWeight();
         UndoButton.IsEnabled = host.CanUndoDelete;
-        UndoButton.ToolTip = host.UndoDeleteTip;
         ApplyPanelChrome(PanelBorder, DitherLayer);
         BindSection();
         ResizeMode = host.Data.Settings.ClickThrough ? ResizeMode.NoResize : ResizeMode.CanResizeWithGrip;

@@ -63,10 +63,8 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </StackPanel.Style>
-                                            <Button Style="{StaticResource ChromeButton}" Content="+" Width="22"
-                                                    ToolTip="Add an item in this folder" Click="LayoutAddItem"/>
-                                            <Button Style="{StaticResource ChromeFolderButton}" Width="22"
-                                                    ToolTip="Add a folder in this folder" Click="LayoutAddFolder"/>
+                                            <Button Style="{StaticResource ChromeButton}" Content="+" Width="22" Click="LayoutAddItem"/>
+                                            <Button Style="{StaticResource ChromeFolderButton}" Width="22" Click="LayoutAddFolder"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </HierarchicalDataTemplate>
@@ -126,7 +124,6 @@
                             <TextBox x:Name="OnceTitle" Style="{StaticResource DarkTextBox}" TextChanged="OnceFieldChanged"/>
                             <TextBlock Text="URL" Foreground="#9AA0A8" Margin="0,10,0,4"/>
                             <TextBox x:Name="OnceUrl" Style="{StaticResource DarkTextBox}"
-                                     ToolTip="Optional. Click the task name on the overlay to open this URL, file, or program."
                                      TextChanged="OnceFieldChanged"/>
                             <TextBlock Text="Folder" Foreground="#9AA0A8" Margin="0,10,0,4"/>
                             <ComboBox x:Name="OnceCategory" Style="{StaticResource DarkCombo}"
@@ -154,7 +151,6 @@
                                       Checked="OnceFieldChanged" Unchecked="OnceFieldChanged"/>
                             <TextBlock Text="Pin position" Foreground="#9AA0A8" Margin="0,12,0,4"/>
                             <TextBox x:Name="OncePin" Style="{StaticResource DarkTextBox}"
-                                     ToolTip="0 = automatic. 1 = first in this folder, 3 = third."
                                      TextChanged="OnceFieldChanged"/>
                             <CheckBox x:Name="OnceHoldPin" Style="{StaticResource DarkCheck}"
                                       Content="Hold pin when hidden"
@@ -176,7 +172,6 @@
                             <TextBox x:Name="TodoTitle" Style="{StaticResource DarkTextBox}" TextChanged="TodoFieldChanged"/>
                             <TextBlock Text="URL" Foreground="#9AA0A8" Margin="0,10,0,4"/>
                             <TextBox x:Name="TodoUrl" Style="{StaticResource DarkTextBox}"
-                                     ToolTip="Optional. Click the task name on the overlay to open this URL, file, or program."
                                      TextChanged="TodoFieldChanged"/>
                             <TextBlock Text="Folder" Foreground="#9AA0A8" Margin="0,10,0,4"/>
                             <ComboBox x:Name="TodoCategory" Style="{StaticResource DarkCombo}"
@@ -226,7 +221,6 @@
                             </StackPanel>
                             <TextBlock Text="Pin position" Foreground="#9AA0A8" Margin="0,12,0,4"/>
                             <TextBox x:Name="TodoPin" Style="{StaticResource DarkTextBox}"
-                                     ToolTip="0 = automatic. 1 = first in this folder, 3 = third."
                                      TextChanged="TodoFieldChanged"/>
                             <CheckBox x:Name="TodoHoldPin" Style="{StaticResource DarkCheck}"
                                       Content="Hold pin when hidden"
@@ -268,7 +262,6 @@
                                 <StackPanel x:Name="TimeRow">
                                     <TextBlock Text="Time" Foreground="#9AA0A8" Margin="0,0,0,4"/>
                                     <TextBox x:Name="TodoTime" Style="{StaticResource DarkTextBox}"
-                                             ToolTip="HH:mm, 24-hour. Empty = midnight. 2300 becomes 23:00."
                                              MaxLength="5"
                                              TextChanged="TodoFieldChanged"
                                              LostFocus="TodoTimeLostFocus"/>
@@ -337,7 +330,6 @@
                             <TextBox x:Name="EventTitle" Style="{StaticResource DarkTextBox}" TextChanged="EventFieldChanged"/>
                             <TextBlock Text="URL" Foreground="#9AA0A8" Margin="0,10,0,4"/>
                             <TextBox x:Name="EventUrl" Style="{StaticResource DarkTextBox}"
-                                     ToolTip="Optional. Click the task name on the overlay to open this URL, file, or program."
                                      TextChanged="EventFieldChanged"/>
                             <TextBlock Text="Folder" Foreground="#9AA0A8" Margin="0,12,0,4"/>
                             <ComboBox x:Name="EventCategory" Style="{StaticResource DarkCombo}"
@@ -362,7 +354,6 @@
                             </StackPanel>
                             <TextBlock Text="Pin position" Foreground="#9AA0A8" Margin="0,12,0,4"/>
                             <TextBox x:Name="EventPin" Style="{StaticResource DarkTextBox}"
-                                     ToolTip="0 = automatic. 1 = first in this folder, 3 = third."
                                      TextChanged="EventFieldChanged"/>
                             <CheckBox x:Name="EventHoldPin" Style="{StaticResource DarkCheck}"
                                       Content="Hold pin when hidden"
@@ -430,7 +421,6 @@
                             <DatePicker x:Name="EventDate" SelectedDateChanged="EventFieldChanged"/>
                             <TextBlock Text="Time (HH:mm)" Foreground="#9AA0A8" Margin="0,12,0,4"/>
                             <TextBox x:Name="EventTime" Style="{StaticResource DarkTextBox}"
-                                     ToolTip="HH:mm, 24-hour. 2300 becomes 23:00."
                                      MaxLength="5"
                                      TextChanged="EventFieldChanged"
                                      LostFocus="EventTimeLostFocus"/>
@@ -470,14 +460,12 @@
                                 <TextBox x:Name="NoteTitle" Style="{StaticResource DarkTextBox}" TextChanged="NoteFieldChanged"/>
                                 <TextBlock Text="URL" Foreground="#9AA0A8" Margin="0,10,0,4"/>
                                 <TextBox x:Name="NoteUrl" Style="{StaticResource DarkTextBox}"
-                                         ToolTip="Optional. Click the task name on the overlay to open this URL, file, or program."
                                          TextChanged="NoteFieldChanged"/>
                                 <TextBlock Text="Folder" Foreground="#9AA0A8" Margin="0,12,0,4"/>
                                 <ComboBox x:Name="NoteCategory" Style="{StaticResource DarkCombo}"
                                           ItemTemplate="{StaticResource CategoryItemTemplate}" SelectionChanged="NoteFieldChanged"/>
                                 <TextBlock Text="Pin position" Foreground="#9AA0A8" Margin="0,12,0,4"/>
                                 <TextBox x:Name="NotePin" Style="{StaticResource DarkTextBox}"
-                                         ToolTip="0 = automatic. 1 = first in this folder, 3 = third."
                                          TextChanged="NoteFieldChanged"/>
                                 <CheckBox x:Name="NoteHoldPin" Style="{StaticResource DarkCheck}"
                                           Content="Hold pin when hidden"
@@ -633,7 +621,6 @@
                                 <DatePicker x:Name="CompletedDate" SelectedDateChanged="CompletedWhenChanged"/>
                                 <TextBlock Text="Completed time (HH:mm)" Foreground="#9AA0A8" Margin="0,12,0,4"/>
                                 <TextBox x:Name="CompletedTime" Style="{StaticResource DarkTextBox}"
-                                         ToolTip="HH:mm, 24-hour. 2300 becomes 23:00."
                                          MaxLength="5"
                                          TextChanged="CompletedWhenChanged"
                                          LostFocus="CompletedTimeLostFocus"/>

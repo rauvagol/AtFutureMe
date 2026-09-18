@@ -32,13 +32,6 @@ public sealed class OverlayItemVm : INotifyPropertyChanged
 
     public Thickness RowMargin => new(_contentIndent, 1, 0, 1);
 
-    string _checkTip = "";
-    public string CheckTip
-    {
-        get => _checkTip;
-        set { _checkTip = value; OnPropertyChanged(); }
-    }
-
     string _title = "";
     public string Title
     {
@@ -57,14 +50,12 @@ public sealed class OverlayItemVm : INotifyPropertyChanged
             _url = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(HasLink));
-            OnPropertyChanged(nameof(LinkTip));
             OnPropertyChanged(nameof(HitTag));
             OnPropertyChanged(nameof(Decorations));
         }
     }
 
     public bool HasLink => !string.IsNullOrWhiteSpace(_url);
-    public string? LinkTip => HasLink ? _url : null;
     public string? HitTag => HasLink ? "hit" : null;
 
     string _meta = "";

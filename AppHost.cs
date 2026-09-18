@@ -776,11 +776,6 @@ public sealed partial class AppHost : IDisposable
 
     public int UndoDeleteCount => _deleted.Count;
 
-    public string UndoDeleteTip =>
-        CanUndoDelete
-            ? UndoDeleteCount == 1 ? "Undo delete" : $"Undo delete ({UndoDeleteCount})"
-            : "Undo delete — nothing to undo this session";
-
     public void UndoLastDelete()
     {
         if (_deleted.Count == 0)
@@ -879,18 +874,6 @@ public sealed partial class AppHost : IDisposable
             TempHideKind.TooSoon => NextUpcomingTip(now, $"Blocked — next important item is already within {TempHideLeadLabel()}."),
             _ => NextUpcomingTip(now, $"Ready — hides until the next important item is within {TempHideLeadLabel()}, or for {TempHideMaxLabel()}, whichever is first.")
         };
-
-    public string TempHideButtonTip(DateTime now)
-    {
-        var lead = TempHideLeadLabel();
-        return ReadTempHideState(now) switch
-        {
-            TempHideKind.Layout => "App layout is hiding overlays. Important due items still show the main overlay.",
-            TempHideKind.HasActive => "Something important is already due. Hold to highlight those items and their folders.",
-            TempHideKind.TooSoon => NextUpcomingTip(now, $"Next upcoming item is already within {lead}."),
-            _ => NextUpcomingTip(now, $"Hide until the next important item is within {lead}, or for at most {TempHideMaxLabel()}.")
-        };
-    }
 
     string NextUpcomingTip(DateTime now, string prefix)
     {
@@ -2181,8 +2164,7 @@ public sealed partial class AppHost : IDisposable
                 BackdropBrush = TextBackdropBrush(),
                 SortAt = RecurrenceEngine.OverlaySortAt(item),
                 PinSlot = item.PinSlot,
-                ContentIndent = categoryId.Length == 0 ? 0 : inFolderIndent,
-                CheckTip = "Mark complete"
+                ContentIndent = categoryId.Length == 0 ? 0 : inFolderIndent
             });
         }
 
@@ -2219,8 +2201,7 @@ public sealed partial class AppHost : IDisposable
                 BackdropBrush = TextBackdropBrush(),
                 SortAt = RecurrenceEngine.OverlaySortAt(todo, now, state),
                 PinSlot = todo.PinSlot,
-                ContentIndent = categoryId.Length == 0 ? 0 : inFolderIndent,
-                CheckTip = "Mark complete"
+                ContentIndent = categoryId.Length == 0 ? 0 : inFolderIndent
             });
         }
 
@@ -2276,10 +2257,7 @@ public sealed partial class AppHost : IDisposable
                 BackdropBrush = TextBackdropBrush(),
                 SortAt = RecurrenceEngine.OverlaySortAt(ev),
                 PinSlot = ev.PinSlot,
-                ContentIndent = categoryId.Length == 0 ? 0 : inFolderIndent,
-                CheckTip = complete || EventCanComplete(ev, now)
-                    ? "Mark complete"
-                    : "Available after the scheduled time"
+                ContentIndent = categoryId.Length == 0 ? 0 : inFolderIndent
             });
         }
 
@@ -2727,7 +2705,6 @@ public sealed partial class AppHost : IDisposable
                 row.TitleWeight = src.TitleWeight;
                 row.ShowBackdrop = src.ShowBackdrop;
                 row.BackdropBrush = src.BackdropBrush;
-                row.CheckTip = src.CheckTip;
                 row.AttentionGlow = src.AttentionGlow;
                 row.ContentIndent = src.ContentIndent;
             }

@@ -35,8 +35,7 @@
                           Width="14" Height="14" Margin="0"
                           IsChecked="{Binding IsChecked, Mode=OneWay}"
                           IsEnabled="{Binding CheckEnabled}"
-                          Click="OnCheck"
-                          ToolTip="{Binding CheckTip}">
+                          Click="OnCheck">
                     <CheckBox.Style>
                         <Style TargetType="CheckBox" BasedOn="{StaticResource OverlayCheck}">
                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -49,7 +48,7 @@
                         </Style>
                     </CheckBox.Style>
                 </CheckBox>
-                <Button Click="OnSetWhen" ToolTip="Set date and time"
+                <Button Click="OnSetWhen"
                         Width="14" Height="14" Padding="0" Margin="0"
                         HorizontalAlignment="Left" VerticalAlignment="Center">
                     <Button.Style>
@@ -59,7 +58,6 @@
                             <Setter Property="Height" Value="14"/>
                             <Setter Property="Padding" Value="0"/>
                             <Setter Property="Margin" Value="0"/>
-                            <Setter Property="ToolTip" Value="Set date and time"/>
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="Button">
@@ -99,7 +97,6 @@
                        TextWrapping="Wrap"
                        VerticalAlignment="Center"
                        Tag="{Binding HitTag}"
-                       ToolTip="{Binding LinkTip}"
                        MouseLeftButtonUp="OnTitleUp"
                        SnapsToDevicePixels="True"
                        TextOptions.TextFormattingMode="Display">
@@ -117,11 +114,10 @@
 
             <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
                         Margin="8,0,0,0">
-                <Button Content="↻" Click="OnCheckedNow" ToolTip="I checked this now">
+                <Button Content="↻" Click="OnCheckedNow">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource HitButton}">
                             <Setter Property="Visibility" Value="Collapsed"/>
-                            <Setter Property="ToolTip" Value="I checked this now"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding ShowCheckIn}" Value="True">
                                     <Setter Property="Visibility" Value="Visible"/>

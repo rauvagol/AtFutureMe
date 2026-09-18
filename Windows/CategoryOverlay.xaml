@@ -25,15 +25,13 @@
                     <StackPanel x:Name="ChromeActions" DockPanel.Dock="Right" Orientation="Horizontal">
                         <Button Style="{StaticResource ChromeButton}"
                                 FontFamily="Segoe MDL2 Assets" FontSize="12" Content="&#xE713;"
-                                Click="OnOpenConfig" ToolTip="Configure"/>
-                        <Button Style="{StaticResource ChromeButton}" Content="+" Click="OnAdd" ToolTip="Add an item"/>
-                        <Button Style="{StaticResource ChromeFolderButton}" Click="OnAddFolder"
-                                ToolTip="Add a folder in this category"/>
+                                Click="OnOpenConfig"/>
+                        <Button Style="{StaticResource ChromeButton}" Content="+" Click="OnAdd"/>
+                        <Button Style="{StaticResource ChromeFolderButton}" Click="OnAddFolder"/>
                         <Button x:Name="UndoButton" Style="{StaticResource ChromeButton}"
                                 FontFamily="Segoe MDL2 Assets" FontSize="12" Content="&#xE7A7;"
-                                Click="OnUndoDelete" ToolTip="Undo delete"/>
-                        <Button Style="{StaticResource ChromeButton}" Content="⧈" Click="OnDock"
-                                ToolTip="Dock this category back into reminders"/>
+                                Click="OnUndoDelete"/>
+                        <Button Style="{StaticResource ChromeButton}" Content="⧈" Click="OnDock"/>
                     </StackPanel>
                     <TextBlock x:Name="TitleText" Style="{StaticResource OverlayCaption}"
                                Margin="6,0,8,0"

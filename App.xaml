@@ -81,7 +81,6 @@
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Width" Value="24"/>
             <Setter Property="Content" Value="&#xE8F4;"/>
-            <Setter Property="ToolTip" Value="Add a folder"/>
         </Style>
 
         <Style x:Key="HitButton" TargetType="Button" BasedOn="{StaticResource ChromeButton}">
@@ -89,7 +88,6 @@
             <Setter Property="Width" Value="22"/>
             <Setter Property="Height" Value="22"/>
             <Setter Property="Foreground" Value="#9AA0A8"/>
-            <Setter Property="ToolTip" Value="Hide note"/>
         </Style>
 
         <Style x:Key="DeleteButton" TargetType="Button" BasedOn="{StaticResource ChromeButton}">
@@ -97,7 +95,6 @@
             <Setter Property="Height" Value="22"/>
             <Setter Property="Tag" Value="hit"/>
             <Setter Property="Foreground" Value="#C57A7A"/>
-            <Setter Property="ToolTip" Value="Remove"/>
             <Setter Property="FontSize" Value="11"/>
         </Style>
 

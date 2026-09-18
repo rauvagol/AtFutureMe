@@ -39,13 +39,12 @@
                     <StackPanel x:Name="ChromeActions" DockPanel.Dock="Right" Orientation="Horizontal">
                         <Button x:Name="GearButton" Style="{StaticResource ChromeButton}"
                                 FontFamily="Segoe MDL2 Assets" FontSize="12" Content="&#xE713;"
-                                Click="OnOpenConfig" ToolTip="Configure"/>
-                        <Button Style="{StaticResource ChromeButton}" Content="+" Click="OnAdd" ToolTip="Add an item"/>
-                        <Button Style="{StaticResource ChromeFolderButton}" Click="OnAddFolder"
-                                ToolTip="Add a folder"/>
+                                Click="OnOpenConfig"/>
+                        <Button Style="{StaticResource ChromeButton}" Content="+" Click="OnAdd"/>
+                        <Button Style="{StaticResource ChromeFolderButton}" Click="OnAddFolder"/>
                         <Button x:Name="UndoButton" Style="{StaticResource ChromeButton}"
                                 FontFamily="Segoe MDL2 Assets" FontSize="12" Content="&#xE7A7;"
-                                Click="OnUndoDelete" ToolTip="Undo delete"/>
+                                Click="OnUndoDelete"/>
                         <Button x:Name="SnoozeButton" Style="{StaticResource ChromeButton}"
                                 PreviewMouseLeftButtonDown="OnTempHideDown"
                                 PreviewMouseLeftButtonUp="OnTempHideUp"
@@ -60,14 +59,13 @@
                                       Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                             </Grid>
                         </Button>
-                        <Button Style="{StaticResource ChromeButton}" Content="—" Click="OnMinimize" ToolTip="Hide this window"/>
-                        <Button Style="{StaticResource ChromeButton}" Content="✕" Click="OnClose" ToolTip="Quit AtFutureMe"/>
+                        <Button Style="{StaticResource ChromeButton}" Content="—" Click="OnMinimize"/>
+                        <Button Style="{StaticResource ChromeButton}" Content="✕" Click="OnClose"/>
                     </StackPanel>
                     <TextBlock x:Name="ChromeTitle" Text="@FutureMe" Style="{StaticResource OverlayCaption}"
                                Margin="6,0,8,0"
                                AllowDrop="True" Tag="drop"
-                               DragOver="OnRootDragOver" Drop="OnRootDrop"
-                               ToolTip="Drop a folder here to move it to the top level"/>
+                               DragOver="OnRootDragOver" Drop="OnRootDrop"/>
                 </DockPanel>
             </Border>
         </Grid>

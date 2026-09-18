@@ -20,7 +20,6 @@
             <DatePicker x:Name="WhenDate"/>
             <TextBlock Text="Time (HH:mm)" Foreground="#9AA0A8" Margin="0,12,0,4"/>
             <TextBox x:Name="WhenTime" Style="{StaticResource DarkTextBox}"
-                     ToolTip="HH:mm, 24-hour. 2300 becomes 23:00."
                      MaxLength="5"
                      Text="09:00"
                      TextChanged="TimeChanged"

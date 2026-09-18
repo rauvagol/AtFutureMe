@@ -5,15 +5,13 @@
         <TextBlock x:Name="LabelText" Foreground="#9AA0A8" Margin="0,0,0,4" TextWrapping="Wrap"/>
         <DockPanel>
             <Button x:Name="ClearButton" DockPanel.Dock="Right" Style="{StaticResource DarkButton}"
-                    Content="Default" Margin="8,0,0,0" Padding="8,6" Click="OnClear"
-                    ToolTip="Use the color from Settings"/>
+                    Content="Default" Margin="8,0,0,0" Padding="8,6" Click="OnClear"/>
             <Button DockPanel.Dock="Right" Style="{StaticResource DarkButton}" Content="Choose…"
                     Margin="8,0,0,0" Click="OnPick"/>
             <Border x:Name="Swatch" Width="28" Height="22" CornerRadius="4"
                     BorderBrush="#FF3A3D45" BorderThickness="1" Margin="0,0,8,0"
                     VerticalAlignment="Center"/>
             <TextBox x:Name="HexBox" Style="{StaticResource DarkTextBox}"
-                     ToolTip="#RRGGBB"
                      MaxLength="7"
                      TextChanged="OnHexChanged"
                      LostFocus="OnHexLostFocus"/>

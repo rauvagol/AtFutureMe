@@ -27,16 +27,12 @@
                         </Style.Triggers>
                     </Style>
                 </StackPanel.Style>
-                <Button Style="{StaticResource ChromeButton}" Content="+" Width="24"
-                        ToolTip="Add an item in this folder" Click="OnAdd"/>
-                <Button Style="{StaticResource ChromeFolderButton}"
-                        ToolTip="Add a folder in this folder" Click="OnAddFolder"/>
-                <Button Style="{StaticResource ChromeButton}" Content="⧉" Width="24"
-                        ToolTip="Pop this category into its own window" Click="OnPop"/>
+                <Button Style="{StaticResource ChromeButton}" Content="+" Width="24" Click="OnAdd"/>
+                <Button Style="{StaticResource ChromeFolderButton}" Click="OnAddFolder"/>
+                <Button Style="{StaticResource ChromeButton}" Content="⧉" Width="24" Click="OnPop"/>
             </StackPanel>
             <Button DockPanel.Dock="Left" Content="{Binding ExpandGlyph}" Click="OnToggle"
-                    Width="18" Padding="0" Margin="0,0,2,0"
-                    ToolTip="Expand or collapse" Tag="hit"
+                    Width="18" Padding="0" Margin="0,0,2,0" Tag="hit"
                     Visibility="{Binding ExpandVisibility}"
                     Style="{StaticResource ChromeButton}"/>
             <TextBlock Text="{Binding Name}" Style="{StaticResource OverlayCaption}"

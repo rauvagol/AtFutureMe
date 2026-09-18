@@ -17,8 +17,7 @@
                     CornerRadius="10,10,0,0" Background="Transparent" Tag="chrome">
                 <DockPanel x:Name="Chrome">
                     <StackPanel x:Name="ChromeActions" DockPanel.Dock="Right" Orientation="Horizontal">
-                        <Button Style="{StaticResource ChromeButton}" Content="—" Click="OnHide"
-                                ToolTip="Hide clock (re-enable from Configure → Clock)"/>
+                        <Button Style="{StaticResource ChromeButton}" Content="—" Click="OnHide"/>
                     </StackPanel>
                     <TextBlock x:Name="ChromeTitle" Text="Next 24h" Style="{StaticResource OverlayCaption}"
                                Margin="6,0,8,0"/>

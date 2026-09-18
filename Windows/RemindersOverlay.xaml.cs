@@ -51,9 +51,7 @@ public partial class RemindersOverlay : OverlayWindowBase
         SnoozeBlock.Visibility = state == AppHost.TempHideKind.HasActive
             ? Visibility.Visible
             : Visibility.Collapsed;
-        SnoozeButton.ToolTip = host.TempHideButtonTip(now);
         UndoButton.IsEnabled = host.CanUndoDelete;
-        UndoButton.ToolTip = host.UndoDeleteTip;
         ApplyPanelChrome(PanelBorder, DitherLayer);
         EmptyHint.Visibility = host.RootBoard.Count == 0
             ? Visibility.Visible : Visibility.Collapsed;
