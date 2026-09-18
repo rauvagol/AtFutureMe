@@ -31,8 +31,6 @@ public sealed partial class AppHost : IDisposable
     public event Action? UiChanged;
 
     readonly DispatcherTimer _tick = new() { Interval = TimeSpan.FromSeconds(1) };
-    readonly HashSet<(string Kind, string Id)> _nudge = [];
-    readonly HashSet<string> _nudgeFolders = [];
     bool _dueHighlight;
     readonly DispatcherTimer _saveBounds = new() { Interval = TimeSpan.FromMilliseconds(400) };
     readonly HashSet<string> _notified = [];
@@ -46,6 +44,8 @@ public sealed partial class AppHost : IDisposable
     WinForms.ToolStripMenuItem? _clickThroughItem;
     WinForms.ToolStripMenuItem? _autostartItem;
     RemindersOverlay? _reminders;
+    ClockOverlay? _clock;
+    UsageOverlay? _usage;
     TempHideCountdown? _countdown;
     ConfigWindow? _config;
     Icon? _trayIcon;
@@ -59,8 +59,13 @@ public sealed partial class AppHost : IDisposable
     AddEntryWindow? _addWindow;
     SetEventWhenWindow? _setWhen;
 
+    // auto model
+    public UsageTracker? Usage { get; private set; }
+
     public bool OverlayDragActive => _overlayDrag;
     public const string MainOverlayId = "reminders";
+    public const string ClockOverlayId = "clock";
+    public const string UsageOverlayId = "usage";
     bool _disposed;
     bool _overlayDrag;
 
@@ -86,6 +91,11 @@ public sealed partial class AppHost : IDisposable
         ApplyWindowChrome();
         DiscardSessionHide();
         ShowOverlays();
+        Usage = new UsageTracker(Application.Current.Dispatcher);
+        Usage.Changed += OnUsageChanged;
+        Usage.Start();
+        SyncClockOverlay();
+        SyncUsageOverlay();
         EnsureDesktop();
         SnapshotPairings();
         SnapshotLayouts();
@@ -156,6 +166,17 @@ public sealed partial class AppHost : IDisposable
         RefreshOverlayItems();
         ApplyWindowChrome();
         UpdateTrayChecks();
+    }
+
+    // auto model
+    public string CreateManualBackup()
+    {
+        CaptureBounds();
+        if (LayoutSceneActive)
+            PersistDesktopFields();
+        else
+            SnapshotDesktop();
+        return Store.CreateManualBackup(Data);
     }
 
     public void ToggleClickThrough()
@@ -604,6 +625,17 @@ public sealed partial class AppHost : IDisposable
             rows.Add((ev.Title, wakeAt, active, FolderIsDelayable(ev.CategoryId), important, lead, "event", ev.Id, ev.CategoryId));
         }
 
+        // auto model: Claude / Cursor reset times as upcoming items (reminders board + wake)
+        if (Data.Settings.UsageInjectReminders)
+        {
+            foreach (var reset in UsageTracker.BuildResetEvents(Usage?.Latest, Data.Settings, now))
+            {
+                if (!UsageTracker.ShouldShowOnRemindersBoard(reset, Data.Settings, now))
+                    continue;
+                rows.Add((reset.Title, reset.At, false, true, false, defaultLead, reset.Kind, reset.Id, ""));
+            }
+        }
+
         return rows
             .OrderBy(row => row.Active && HideAware(row) ? 0 : row.Active ? 1 : 2)
             .ThenBy(row => row.At)
@@ -842,7 +874,7 @@ public sealed partial class AppHost : IDisposable
     public string TempHideStatusText(DateTime now) =>
         ReadTempHideState(now) switch
         {
-            TempHideKind.Layout => "Paused while an app layout is in control.",
+            TempHideKind.Layout => "App layout hide is active. Important tasks can still show the main overlay.",
             TempHideKind.HasActive => "Blocked — something important is already due. Hold the moon button on the overlay to highlight it.",
             TempHideKind.TooSoon => NextUpcomingTip(now, $"Blocked — next important item is already within {TempHideLeadLabel()}."),
             _ => NextUpcomingTip(now, $"Ready — hides until the next important item is within {TempHideLeadLabel()}, or for {TempHideMaxLabel()}, whichever is first.")
@@ -853,7 +885,7 @@ public sealed partial class AppHost : IDisposable
         var lead = TempHideLeadLabel();
         return ReadTempHideState(now) switch
         {
-            TempHideKind.Layout => "Temporary hide is paused while an app layout is in control.",
+            TempHideKind.Layout => "App layout is hiding overlays. Important due items still show the main overlay.",
             TempHideKind.HasActive => "Something important is already due. Hold to highlight those items and their folders.",
             TempHideKind.TooSoon => NextUpcomingTip(now, $"Next upcoming item is already within {lead}."),
             _ => NextUpcomingTip(now, $"Hide until the next important item is within {lead}, or for at most {TempHideMaxLabel()}.")
@@ -872,28 +904,99 @@ public sealed partial class AppHost : IDisposable
     public void SetDueHighlight(bool on)
     {
         _dueHighlight = on;
-        if (on)
-            FillDueHighlight(DateTime.Now);
-        else
-        {
-            _nudge.Clear();
-            _nudgeFolders.Clear();
-        }
         ApplyDueHighlight();
     }
 
-    void FillDueHighlight(DateTime now)
+    // auto model: moon-hold nudge + static glow only when important is overriding a hide
+    void ApplyDueHighlight()
     {
-        _nudge.Clear();
-        _nudgeFolders.Clear();
-        foreach (var item in UpcomingItems(now).Where(item => item.Active && !item.Delayable))
+        var now = DateTime.Now;
+        var moonItems = new HashSet<(string Kind, string Id)>();
+        var moonFolders = new HashSet<string>(StringComparer.Ordinal);
+        if (_dueHighlight)
         {
-            var hiddenBy = VisibleCollapsedFolder(item.CategoryId);
-            if (hiddenBy != null)
-                _nudgeFolders.Add(hiddenBy);
-            else
-                _nudge.Add((item.Kind, item.Id));
+            foreach (var item in UpcomingItems(now).Where(item => item.Active && !item.Delayable))
+            {
+                var hiddenBy = VisibleCollapsedFolder(item.CategoryId);
+                if (hiddenBy != null)
+                    moonFolders.Add(hiddenBy);
+                else
+                    moonItems.Add((item.Kind, item.Id));
+            }
         }
+
+        var forceItems = new HashSet<(string Kind, string Id)>();
+        var forceFolders = new HashSet<string>(StringComparer.Ordinal);
+        // auto model: "doing X, should be doing Y" — only while hide is overridden
+        if (MainForcedVisibleByImportant(now))
+        {
+            foreach (var item in UpcomingItems(now).Where(item => IsImportantAttention(item, now)))
+            {
+                var hiddenBy = VisibleCollapsedFolder(item.CategoryId);
+                if (hiddenBy != null)
+                    forceFolders.Add(hiddenBy);
+                else
+                    forceItems.Add((item.Kind, item.Id));
+            }
+        }
+
+        const double moonGlow = 0.85;
+        const double forceGlow = 0.55;
+
+        foreach (var row in OverlayItems())
+        {
+            if (moonItems.Contains((row.ItemKind, row.Id)))
+                row.AttentionGlow = moonGlow;
+            else if (forceItems.Contains((row.ItemKind, row.Id)))
+                row.AttentionGlow = forceGlow;
+            else
+                row.AttentionGlow = 0;
+        }
+
+        foreach (var section in _sections.Values)
+        {
+            if (moonFolders.Contains(section.Id))
+                section.AttentionGlow = moonGlow;
+            else if (forceFolders.Contains(section.Id))
+                section.AttentionGlow = forceGlow;
+            else
+                section.AttentionGlow = 0;
+        }
+    }
+
+    // auto model
+    static bool IsImportantAttention(
+        (string Title, DateTime At, bool Active, bool Delayable, bool Important, TimeSpan Lead, string Kind, string Id, string CategoryId) item,
+        DateTime now) =>
+        item.Important && (item.Active || item.At - now <= item.Lead);
+
+    // auto model: true when important is why main is up despite layout/temp/tray hide
+    bool MainForcedVisibleByImportant(DateTime now) =>
+        ImportantForcesMainVisible(now) && MainWouldBeHiddenWithoutImportant(now);
+
+    // auto model
+    bool MainWouldBeHiddenWithoutImportant(DateTime now) =>
+        _hiddenAll
+        || _layoutHideAll
+        || _hiddenWindows.Contains(MainOverlayId)
+        || Data.Settings.TempHideMain && TempHideWouldHoldWithoutImportant(now);
+
+    // auto model: temp-hide hold if Important did not wake the overlay
+    bool TempHideWouldHoldWithoutImportant(DateTime now)
+    {
+        if (!Data.Settings.TempHideMain)
+            return false;
+        if (LayoutSceneActive)
+            return false;
+        if (Data.Settings.TempHideUntil is DateTime until && now >= until)
+            return false;
+        var items = UpcomingItems(now);
+        if (items.Any(item => item.Active && !item.Delayable && !item.Important))
+            return false;
+        var next = items.FirstOrDefault(item => !item.Delayable && !item.Important && !item.Active);
+        if (next.Title != null && next.At - now <= next.Lead)
+            return false;
+        return true;
     }
 
     string? VisibleCollapsedFolder(string? categoryId)
@@ -920,15 +1023,6 @@ public sealed partial class AppHost : IDisposable
         }
 
         return null;
-    }
-
-    void ApplyDueHighlight()
-    {
-        var glow = _dueHighlight ? 0.85 : 0;
-        foreach (var row in OverlayItems())
-            row.AttentionGlow = _nudge.Contains((row.ItemKind, row.Id)) ? glow : 0;
-        foreach (var section in _sections.Values)
-            section.AttentionGlow = _nudgeFolders.Contains(section.Id) ? glow : 0;
     }
 
     public void MinimizeToTray()
@@ -964,11 +1058,20 @@ public sealed partial class AppHost : IDisposable
         }
     }
 
-    bool IsOverlayHidden(string id) =>
-        _hiddenAll
-        || _layoutHideAll
-        || _hiddenWindows.Contains(id)
-        || id == MainOverlayId && Data.Settings.TempHideMain && TempHideWouldHold(DateTime.Now);
+    // auto model: important due / within lead shows main even when an app layout hid it
+    bool ImportantForcesMainVisible(DateTime now) =>
+        UpcomingItems(now).Any(item => IsImportantAttention(item, now));
+
+    bool IsOverlayHidden(string id)
+    {
+        // auto model
+        if (id == MainOverlayId && ImportantForcesMainVisible(DateTime.Now))
+            return false;
+        return _hiddenAll
+            || _layoutHideAll
+            || _hiddenWindows.Contains(id)
+            || id == MainOverlayId && Data.Settings.TempHideMain && TempHideWouldHold(DateTime.Now);
+    }
 
     void ApplyOverlayVisibility()
     {
@@ -990,7 +1093,222 @@ public sealed partial class AppHost : IDisposable
             window.Topmost = false;
             window.Topmost = true;
         }
+        // auto model
+        SyncClockOverlay();
+        SyncUsageOverlay();
         UpdateTempHideCountdown();
+    }
+
+    public double ClockHorizonHours()
+    {
+        var hours = Data.Settings.ClockHorizonHours;
+        if (hours <= 0)
+            hours = 24;
+        return Math.Clamp(hours, 1, 14 * 24);
+    }
+
+    public string ClockHorizonLabel()
+    {
+        var hours = ClockHorizonHours();
+        if (!Data.Settings.ClockHorizonInHours && hours >= 24 && Math.Abs(hours % 24) < 0.001)
+        {
+            var days = (int)Math.Round(hours / 24);
+            return days == 1 ? "Next day" : $"Next {days} days";
+        }
+
+        if (hours >= 24 && Math.Abs(hours % 24) < 0.001)
+        {
+            var days = (int)Math.Round(hours / 24);
+            return days == 1 ? "Next 24h" : $"Next {days * 24}h";
+        }
+
+        return hours == 1 ? "Next hour" : $"Next {hours:0.###}h";
+    }
+
+    public List<(string Title, double HoursAhead, string Kind, DateTime At, double? UsedPercent)> ClockEvents(DateTime now)
+    {
+        var span = ClockHorizonHours();
+        var end = now.AddHours(span);
+        var s = Data.Settings;
+        var allowed = s.ClockAllCategories || s.ClockCategoryIds is not { Count: > 0 }
+            ? null
+            : s.ClockCategoryIds.ToHashSet(StringComparer.Ordinal);
+        var rows = new List<(string Title, double HoursAhead, string Kind, DateTime At, double? UsedPercent)>();
+        foreach (var item in UpcomingItems(now))
+        {
+            if (item.Kind == "todo" && !s.ClockShowRecurring)
+                continue;
+            if (item.Kind == "event" && !s.ClockShowScheduled)
+                continue;
+            // Usage markers come from BuildResetEvents below (independent of board filter).
+            if (item.Kind.StartsWith("usage-", StringComparison.Ordinal))
+                continue;
+            if (item.Kind is not ("todo" or "event"))
+                continue;
+            if (allowed != null)
+            {
+                var folder = ResolveCategoryId(item.CategoryId);
+                if (folder.Length == 0)
+                {
+                    if (!allowed.Contains(""))
+                        continue;
+                }
+                else if (!ClockCategoryAllowed(folder, allowed))
+                    continue;
+            }
+
+            DateTime at;
+            double hoursAhead;
+            if (item.Active)
+            {
+                at = item.At;
+                hoursAhead = 0;
+            }
+            else if (item.At > now && item.At <= end)
+            {
+                at = item.At;
+                hoursAhead = (at - now).TotalHours;
+            }
+            else
+                continue;
+
+            rows.Add((item.Title, Math.Max(0, hoursAhead), item.Kind, at, null));
+        }
+
+        // auto model: clock usage wedges use their own at-limit lead hours (not the board filter)
+        if (s.UsageShowOnClock)
+        {
+            foreach (var reset in UsageTracker.BuildResetEvents(Usage?.Latest, s, now))
+            {
+                if (reset.At <= now || reset.At > end)
+                    continue;
+                if (!UsageTracker.ShouldShowOnClock(reset, s, now))
+                    continue;
+                rows.Add((reset.Title, (reset.At - now).TotalHours, reset.Kind, reset.At, reset.UsedPercent));
+            }
+        }
+
+        return rows
+            .OrderBy(r => r.HoursAhead)
+            .ThenBy(r => r.Title, StringComparer.CurrentCultureIgnoreCase)
+            .Take(40)
+            .ToList();
+    }
+
+    // auto model
+    bool ClockCategoryAllowed(string categoryId, HashSet<string> allowed)
+    {
+        var id = categoryId;
+        var guard = 0;
+        while (!string.IsNullOrWhiteSpace(id) && guard++ < 64)
+        {
+            if (allowed.Contains(id))
+                return true;
+            var folder = Data.Categories.FirstOrDefault(c => c.Id == id);
+            if (folder == null)
+                return false;
+            id = folder.ParentId ?? "";
+            if (id.Length == 0)
+                return allowed.Contains("");
+        }
+
+        return false;
+    }
+
+    public void SyncClockOverlay()
+    {
+        if (!Data.Settings.ShowClockModule || _hiddenAll || _layoutHideAll)
+        {
+            if (_clock != null)
+            {
+                _clock.Hide();
+                if (!Data.Settings.ShowClockModule)
+                {
+                    _clock.Close();
+                    _clock = null;
+                }
+            }
+
+            return;
+        }
+
+        if (_clock == null)
+        {
+            _clock = new ClockOverlay();
+            RestoreBounds(_clock, Data.Settings.Clock, defaultTopOffset: 80, _reminders);
+        }
+
+        if (!_clock.IsVisible)
+            _clock.Show();
+        _clock.ApplyChrome();
+        _clock.Refresh();
+        _clock.Topmost = false;
+        _clock.Topmost = true;
+    }
+
+    public void HideClockModule()
+    {
+        Data.Settings.ShowClockModule = false;
+        SyncClockOverlay();
+        RequestSave();
+        UiChanged?.Invoke();
+    }
+
+    // auto model
+    public void NotifyUsageUi()
+    {
+        SyncUsageOverlay();
+        _usage?.Refresh();
+        _reminders?.RefreshUsageDock();
+        _clock?.Refresh();
+        RefreshOverlayItems();
+        UiChanged?.Invoke();
+    }
+
+    void OnUsageChanged() => NotifyUsageUi();
+
+    public void SyncUsageOverlay()
+    {
+        var showModule = Data.Settings.ShowUsageModule && !_hiddenAll && !_layoutHideAll;
+        var floating = showModule && !Data.Settings.UsageDockInReminders;
+
+        if (!floating)
+        {
+            if (_usage != null)
+            {
+                _usage.Hide();
+                if (!Data.Settings.ShowUsageModule || Data.Settings.UsageDockInReminders)
+                {
+                    _usage.Close();
+                    _usage = null;
+                }
+            }
+        }
+        else
+        {
+            if (_usage == null)
+            {
+                _usage = new UsageOverlay();
+                RestoreBounds(_usage, Data.Settings.Usage, defaultTopOffset: 120, _reminders);
+            }
+
+            if (!_usage.IsVisible)
+                _usage.Show();
+            _usage.ApplyChrome();
+            _usage.Refresh();
+            _usage.Topmost = false;
+            _usage.Topmost = true;
+        }
+
+        _reminders?.RefreshUsageDock();
+    }
+
+    public void HideUsageModule()
+    {
+        Data.Settings.ShowUsageModule = false;
+        SyncUsageOverlay();
+        RequestSave();
+        UiChanged?.Invoke();
     }
 
     void UpdateTempHideCountdown()
@@ -1357,8 +1675,8 @@ public sealed partial class AppHost : IDisposable
     {
         if (TickTempHide() | TickPairings() | TickLayouts())
             Save();
-        // auto model: keep temp-hide armed so overlay can re-hide after an important task completes
-        else if (Data.Settings.TempHideMain)
+        // auto model: re-evaluate temp hide and layout hide vs important wake every tick
+        else if (Data.Settings.TempHideMain || LayoutSceneActive)
             ApplyOverlayVisibility();
         RefreshOverlayItems();
         UpdateTempHideCountdown();
@@ -1646,14 +1964,138 @@ public sealed partial class AppHost : IDisposable
         return byTime != 0 ? byTime : string.Compare(titleA, titleB, StringComparison.OrdinalIgnoreCase);
     }
 
-    // auto model
+    // auto model: folders sit after notes unless pinned among siblings
     static int AutoSortTier(string kind) =>
         kind switch
         {
             "todo" or "event" => 0,
             "once" => 1,
+            "note" => 2,
+            "category" => 3,
             _ => 2
         };
+
+    // auto model: tasks + folders share auto sort and pin slots; HoldPinWhenHidden ghosts keep slots
+    List<object> BuildMixedAutoOrder(
+        IReadOnlyList<OverlayItemVm> items,
+        IReadOnlyList<CategorySectionVm> folders,
+        string parentCategoryId)
+    {
+        var visibleTasks = items.Select(i => (i.ItemKind, i.Id)).ToHashSet();
+        var visibleFolders = folders.Select(f => f.Id).ToHashSet();
+        var rows = new List<(object? Entry, string Kind, string Id, string Title, int Pin, bool Ghost)>();
+        foreach (var item in items)
+            rows.Add((item, item.ItemKind, item.Id, item.Title, item.PinSlot, false));
+        foreach (var folder in folders)
+            rows.Add((folder, "category", folder.Id, folder.Name, folder.PinSlot, false));
+        foreach (var ghost in TaskPinHoldGhosts(parentCategoryId, visibleTasks))
+            rows.Add((null, ghost.ItemKind, ghost.Id, ghost.Title, ghost.PinSlot, true));
+        foreach (var ghost in FolderPinHoldGhosts(parentCategoryId, visibleFolders))
+            rows.Add((null, "category", ghost.Id, ghost.Name, ghost.PinSlot, true));
+        rows.Sort((a, b) => CompareOverlayOrder(a.Kind, a.Id, a.Title, b.Kind, b.Id, b.Title));
+        ApplyPinnedOrder(rows, r => r.Pin, r => r.Title);
+        return rows.Where(r => !r.Ghost && r.Entry != null).Select(r => r.Entry!).ToList();
+    }
+
+    // auto model
+    List<OverlayItemVm> TaskPinHoldGhosts(string categoryId, HashSet<(string Kind, string Id)> visible)
+    {
+        var ghosts = new List<OverlayItemVm>();
+        void Add(string kind, string id, string title, int pin, bool hold)
+        {
+            if (!hold || pin <= 0 || visible.Contains((kind, id)))
+                return;
+            ghosts.Add(new OverlayItemVm
+            {
+                Id = id,
+                ItemKind = kind,
+                CategoryId = categoryId,
+                Title = title,
+                PinSlot = pin,
+                IsPinHoldGhost = true
+            });
+        }
+
+        foreach (var item in Data.Once)
+        {
+            if (ResolveCategoryId(item.CategoryId) != categoryId)
+                continue;
+            Add("once", item.Id, item.Title, item.PinSlot, item.HoldPinWhenHidden);
+        }
+
+        foreach (var item in Data.Todos)
+        {
+            if (ResolveCategoryId(item.CategoryId) != categoryId)
+                continue;
+            Add("todo", item.Id, item.Title, item.PinSlot, item.HoldPinWhenHidden);
+        }
+
+        foreach (var item in Data.Events)
+        {
+            if (ResolveCategoryId(item.CategoryId) != categoryId)
+                continue;
+            Add("event", item.Id, item.Title, item.PinSlot, item.HoldPinWhenHidden);
+        }
+
+        foreach (var item in Data.Notes)
+        {
+            if (ResolveCategoryId(item.CategoryId) != categoryId)
+                continue;
+            Add("note", item.Id, item.Title, item.PinSlot, item.HoldPinWhenHidden);
+        }
+
+        return ghosts;
+    }
+
+    // auto model
+    List<CategorySectionVm> FolderPinHoldGhosts(string parentCategoryId, HashSet<string> visibleFolderIds)
+    {
+        string? parentId = parentCategoryId.Length == 0 ? null : parentCategoryId;
+        var ghosts = new List<CategorySectionVm>();
+        foreach (var category in CategoryTree.ChildrenOf(Data.Categories, parentId))
+        {
+            if (category.PoppedOut || !category.HoldPinWhenHidden || category.PinSlot <= 0)
+                continue;
+            if (visibleFolderIds.Contains(category.Id))
+                continue;
+            ghosts.Add(new CategorySectionVm
+            {
+                Id = category.Id,
+                Name = category.Name,
+                PinSlot = category.PinSlot
+            });
+        }
+
+        return ghosts;
+    }
+
+    public void SetPinSlot(string kind, string id, int pin)
+    {
+        pin = Math.Clamp(pin, 0, 99);
+        switch (kind)
+        {
+            case "category":
+                if (Data.Categories.FirstOrDefault(c => c.Id == id) is Category cat)
+                    cat.PinSlot = pin;
+                break;
+            case "once":
+                if (Data.Once.FirstOrDefault(t => t.Id == id) is OnceItem once)
+                    once.PinSlot = pin;
+                break;
+            case "todo":
+                if (Data.Todos.FirstOrDefault(t => t.Id == id) is TodoItem todo)
+                    todo.PinSlot = pin;
+                break;
+            case "event":
+                if (Data.Events.FirstOrDefault(t => t.Id == id) is EventItem ev)
+                    ev.PinSlot = pin;
+                break;
+            case "note":
+                if (Data.Notes.FirstOrDefault(t => t.Id == id) is NoteItem note)
+                    note.PinSlot = pin;
+                break;
+        }
+    }
 
     DateTime OverlaySortAtFor(string kind, string id)
     {
@@ -1676,10 +2118,15 @@ public sealed partial class AppHost : IDisposable
         }
     }
 
-    void SortOverlayRows(List<OverlayItemVm> rows)
+    void SortOverlayRows(List<OverlayItemVm> rows, string categoryId)
     {
-        rows.Sort((a, b) => CompareOverlayOrder(a.ItemKind, a.Id, a.Title, b.ItemKind, b.Id, b.Title));
-        ApplyPinnedOrder(rows, r => r.PinSlot, r => r.Title);
+        // auto model: HoldPinWhenHidden ghosts reserve pin slots while hidden
+        var visible = rows.Select(r => (r.ItemKind, r.Id)).ToHashSet();
+        var combined = rows.Concat(TaskPinHoldGhosts(categoryId, visible)).ToList();
+        combined.Sort((a, b) => CompareOverlayOrder(a.ItemKind, a.Id, a.Title, b.ItemKind, b.Id, b.Title));
+        ApplyPinnedOrder(combined, r => r.PinSlot, r => r.Title);
+        rows.Clear();
+        rows.AddRange(combined.Where(r => !r.IsPinHoldGhost));
     }
 
     public static void ApplyPinnedOrder<T>(List<T> rows, Func<T, int> pinOf, Func<T, string> titleOf)
@@ -1702,6 +2149,8 @@ public sealed partial class AppHost : IDisposable
     {
         var now = DateTime.Now;
         var interactive = !Data.Settings.ClickThrough;
+        // auto model
+        var inFolderIndent = Math.Clamp(Data.Settings.FolderContentIndent, 0, 40);
         var grouped = new Dictionary<string, List<OverlayItemVm>> { [""] = [] };
         foreach (var category in Data.Categories)
             grouped.TryAdd(category.Id, []);
@@ -1732,6 +2181,7 @@ public sealed partial class AppHost : IDisposable
                 BackdropBrush = TextBackdropBrush(),
                 SortAt = RecurrenceEngine.OverlaySortAt(item),
                 PinSlot = item.PinSlot,
+                ContentIndent = categoryId.Length == 0 ? 0 : inFolderIndent,
                 CheckTip = "Mark complete"
             });
         }
@@ -1769,6 +2219,7 @@ public sealed partial class AppHost : IDisposable
                 BackdropBrush = TextBackdropBrush(),
                 SortAt = RecurrenceEngine.OverlaySortAt(todo, now, state),
                 PinSlot = todo.PinSlot,
+                ContentIndent = categoryId.Length == 0 ? 0 : inFolderIndent,
                 CheckTip = "Mark complete"
             });
         }
@@ -1825,10 +2276,43 @@ public sealed partial class AppHost : IDisposable
                 BackdropBrush = TextBackdropBrush(),
                 SortAt = RecurrenceEngine.OverlaySortAt(ev),
                 PinSlot = ev.PinSlot,
+                ContentIndent = categoryId.Length == 0 ? 0 : inFolderIndent,
                 CheckTip = complete || EventCanComplete(ev, now)
                     ? "Mark complete"
                     : "Available after the scheduled time"
             });
+        }
+
+        // auto model: usage reset rows on the main board
+        if (Data.Settings.UsageInjectReminders)
+        {
+            foreach (var reset in UsageTracker.BuildResetEvents(Usage?.Latest, Data.Settings, now))
+            {
+                if (!UsageTracker.ShouldShowOnRemindersBoard(reset, Data.Settings, now))
+                    continue;
+                var due = now >= reset.At;
+                var tint = UsageTracker.BoardColorHex(reset, Data.Settings);
+                grouped[""].Add(new OverlayItemVm
+                {
+                    Id = reset.Id,
+                    ItemKind = reset.Kind,
+                    CategoryId = "",
+                    Title = reset.Title,
+                    Meta = due
+                        ? "now"
+                        : $"{UsageTracker.FormatCountdown(reset.At, now)} · {Math.Clamp(100 - reset.UsedPercent, 0, 100):0}% left",
+                    ShowCheck = false,
+                    ShowTrash = false,
+                    ShowDelete = false,
+                    Foreground = Brush(tint),
+                    TitleWeight = OverlayWeight("event"),
+                    ShowBackdrop = Data.Settings.TextBackdrop,
+                    BackdropBrush = TextBackdropBrush(),
+                    SortAt = reset.At,
+                    PinSlot = 0,
+                    ContentIndent = 0
+                });
+            }
         }
 
         foreach (var note in Data.Notes.Where(n => !n.Hidden))
@@ -1850,12 +2334,13 @@ public sealed partial class AppHost : IDisposable
                 ShowBackdrop = Data.Settings.TextBackdrop,
                 BackdropBrush = TextBackdropBrush(),
                 SortAt = DateTime.MaxValue,
-                PinSlot = note.PinSlot
+                PinSlot = note.PinSlot,
+                ContentIndent = categoryId.Length == 0 ? 0 : inFolderIndent
             });
         }
 
-        foreach (var rows in grouped.Values)
-            SortOverlayRows(rows);
+        foreach (var (categoryId, rows) in grouped)
+            SortOverlayRows(rows, categoryId);
 
         CategoryTree.RefreshLabels(Data.Categories);
         var folderCounts = Data.Settings.ShowFolderCounts ? FolderUncompletedCounts(grouped) : null;
@@ -1874,6 +2359,7 @@ public sealed partial class AppHost : IDisposable
             }
 
             section.Name = FolderOverlayName(category.Name, folderCounts, category.Id);
+            section.PinSlot = category.PinSlot;
             section.ShowButtons = interactive;
             Sync(section.Items, grouped.GetValueOrDefault(category.Id) ?? []);
         }
@@ -1916,8 +2402,6 @@ public sealed partial class AppHost : IDisposable
         // auto model
         SyncRootBoard(UncategorizedItems, DockedCategories);
         SyncCategoryWindows();
-        if (_dueHighlight)
-            FillDueHighlight(DateTime.Now);
         ApplyDueHighlight();
         UiChanged?.Invoke();
     }
@@ -1963,8 +2447,8 @@ public sealed partial class AppHost : IDisposable
         }
         else
         {
-            fresh.AddRange(loose);
-            fresh.AddRange(folders);
+            // auto model
+            fresh.AddRange(BuildMixedAutoOrder(loose, folders, ""));
         }
 
         SyncObjects(RootBoard, fresh);
@@ -2018,7 +2502,10 @@ public sealed partial class AppHost : IDisposable
                 .ThenBy(s => s.Name, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
         section.Depth = depth;
-        section.Indent = Math.Clamp(Data.Settings.FolderIndent, 0, 40);
+        // auto model: root folders use TopFolderIndent; nested folders step by FolderIndent
+        section.Indent = Math.Clamp(
+            depth == 0 ? Data.Settings.TopFolderIndent : Data.Settings.FolderIndent,
+            0, 40);
         section.HasChildren = childSections.Count > 0 || section.Items.Count > 0;
         section.IsExpanded = !category.Collapsed;
         SyncSections(section.Children, childSections);
@@ -2066,8 +2553,8 @@ public sealed partial class AppHost : IDisposable
         }
         else
         {
-            fresh.AddRange(section.Items);
-            fresh.AddRange(childSections);
+            // auto model
+            fresh.AddRange(BuildMixedAutoOrder(section.Items.ToList(), childSections, section.Id));
         }
 
         SyncObjects(section.Entries, fresh);
@@ -2242,6 +2729,7 @@ public sealed partial class AppHost : IDisposable
                 row.BackdropBrush = src.BackdropBrush;
                 row.CheckTip = src.CheckTip;
                 row.AttentionGlow = src.AttentionGlow;
+                row.ContentIndent = src.ContentIndent;
             }
             else if (i < target.Count)
             {
@@ -2306,6 +2794,18 @@ public sealed partial class AppHost : IDisposable
             _reminders.ApplyChrome();
         }
 
+        if (_clock != null)
+        {
+            _clock.ResizeMode = resize;
+            _clock.ApplyChrome();
+        }
+
+        if (_usage != null)
+        {
+            // Usage lock mode owns its own resize/chrome; still refresh click-through.
+            _usage.ApplyChrome();
+        }
+
         foreach (var window in _categoryWindows.Values)
         {
             window.ResizeMode = resize;
@@ -2313,6 +2813,8 @@ public sealed partial class AppHost : IDisposable
         }
 
         _reminders?.ApplyClickThrough();
+        _clock?.ApplyClickThrough();
+        _usage?.ApplyClickThrough();
         foreach (var window in _categoryWindows.Values)
             window.ApplyClickThrough();
         _countdown?.ApplyChrome();
@@ -2365,6 +2867,26 @@ public sealed partial class AppHost : IDisposable
                 if (!WindowBounds.CloseTo(read, expected))
                     layout.MainBounds = read.Clone();
             }
+        }
+
+        // auto model
+        if (_clock is { IsLoaded: true, IsVisible: true })
+        {
+            var read = ReadBounds(_clock);
+            Data.Settings.Clock.Left = read.Left;
+            Data.Settings.Clock.Top = read.Top;
+            Data.Settings.Clock.Width = read.Width;
+            Data.Settings.Clock.Height = read.Height;
+        }
+
+        // auto model
+        if (_usage is { IsLoaded: true, IsVisible: true })
+        {
+            var read = ReadBounds(_usage);
+            Data.Settings.Usage.Left = read.Left;
+            Data.Settings.Usage.Top = read.Top;
+            Data.Settings.Usage.Width = read.Width;
+            Data.Settings.Usage.Height = read.Height;
         }
 
         foreach (var category in Data.Categories.Where(c => c.PoppedOut))
@@ -2646,6 +3168,99 @@ public sealed partial class AppHost : IDisposable
             Data.Settings.Desktop.UserHidMain = false;
         }
         Data.Settings.FolderIndent = Math.Clamp(Data.Settings.FolderIndent, 0, 40);
+        // auto model
+        Data.Settings.TopFolderIndent = Math.Clamp(Data.Settings.TopFolderIndent, 0, 40);
+        if (Data.Settings.FolderContentIndent < 0)
+            Data.Settings.FolderContentIndent = 12;
+        Data.Settings.FolderContentIndent = Math.Clamp(Data.Settings.FolderContentIndent, 0, 40);
+        // auto model
+        if (Data.Settings.ClockHorizonHours <= 0)
+            Data.Settings.ClockHorizonHours = 24;
+        Data.Settings.ClockHorizonHours = Math.Clamp(Data.Settings.ClockHorizonHours, 1, 14 * 24);
+        if (!Enum.IsDefined(Data.Settings.ClockTickStep))
+            Data.Settings.ClockTickStep = ClockTickStep.Hour;
+        Data.Settings.ClockTickLengthHour = SnapClockPercent(Data.Settings.ClockTickLengthHour, 0.01, 0.50);
+        Data.Settings.ClockTickLengthThirty = SnapClockPercent(Data.Settings.ClockTickLengthThirty, 0.01, 0.50);
+        Data.Settings.ClockTickLengthFifteen = SnapClockPercent(Data.Settings.ClockTickLengthFifteen, 0.01, 0.50);
+        Data.Settings.ClockTickLengthMinute = SnapClockPercent(Data.Settings.ClockTickLengthMinute, 0.01, 0.50);
+        Data.Settings.ClockSecondHandLength = SnapClockPercent(Data.Settings.ClockSecondHandLength, 0.01, 0.95);
+        Data.Settings.ClockHourHandLength = SnapClockPercent(Data.Settings.ClockHourHandLength, 0.01, 0.95);
+        Data.Settings.ClockWedgeWidth = SnapClockPercent(Data.Settings.ClockWedgeWidth, 0.01, 0.15);
+        Data.Settings.ClockTimePosition = Math.Clamp(Data.Settings.ClockTimePosition, 0, 1);
+        // auto model
+        Data.Settings.ClockTimeFontSize = Math.Clamp(
+            Data.Settings.ClockTimeFontSize <= 0 ? 13 : Data.Settings.ClockTimeFontSize, 8, 48);
+        if (!Enum.IsDefined(Data.Settings.ClockLockMode))
+            Data.Settings.ClockLockMode = ClockLockMode.Locked;
+        Data.Settings.ClockColorRecurring = ColorText.NormalizeOr(Data.Settings.ClockColorRecurring, "#8AB4F8");
+        Data.Settings.ClockColorScheduled = ColorText.NormalizeOr(Data.Settings.ClockColorScheduled, "#FFD24D");
+        Data.Settings.ClockColorDue = ColorText.NormalizeOr(Data.Settings.ClockColorDue, ColorText.Due);
+        Data.Settings.ClockColorCaret = ColorText.NormalizeOr(Data.Settings.ClockColorCaret, "#8AB4F8");
+        Data.Settings.ClockColorRing = ColorText.NormalizeOr(Data.Settings.ClockColorRing, "#C5C9D0");
+        Data.Settings.ClockColorMajorTick = ColorText.NormalizeOr(Data.Settings.ClockColorMajorTick, "#C5C9D0");
+        Data.Settings.ClockColorMinorTick = ColorText.NormalizeOr(Data.Settings.ClockColorMinorTick, "#9AA0A8");
+        Data.Settings.ClockColorSecondHand = ColorText.NormalizeOr(Data.Settings.ClockColorSecondHand, "#FF8A65");
+        Data.Settings.ClockColorHourHand = ColorText.NormalizeOr(Data.Settings.ClockColorHourHand, "#E8EAED");
+        Data.Settings.ClockColorWedgeLine = ColorText.NormalizeOr(Data.Settings.ClockColorWedgeLine, "#FFFFFF");
+        Data.Settings.ClockColorTime = ColorText.NormalizeOr(Data.Settings.ClockColorTime, "#E8EAED");
+        Data.Settings.ClockColorTimeOutline = ColorText.NormalizeOr(Data.Settings.ClockColorTimeOutline, "#000000");
+        Data.Settings.ClockTimeOutlineStrength = Math.Clamp(
+            Data.Settings.ClockTimeOutlineStrength <= 0 ? 2 : Data.Settings.ClockTimeOutlineStrength, 1, 6);
+        // auto model
+        if (!Enum.IsDefined(Data.Settings.UsageLockMode))
+            Data.Settings.UsageLockMode = UsageLockMode.Locked;
+        Data.Settings.UsagePollMinutes = Math.Clamp(
+            Data.Settings.UsagePollMinutes <= 0 ? 15 : Data.Settings.UsagePollMinutes, 5, 120);
+        Data.Settings.UsageFullSessionWeeklyPercent = Math.Clamp(
+            Data.Settings.UsageFullSessionWeeklyPercent <= 0 ? 10 : Data.Settings.UsageFullSessionWeeklyPercent, 1, 100);
+        Data.Settings.UsageReminderCushion = Math.Clamp(
+            Data.Settings.UsageReminderCushion <= 0 ? 2 : Data.Settings.UsageReminderCushion, 1, 10);
+        Data.Settings.UsageAtLimitLeadHours5h = ClampUsageLead(
+            Data.Settings.UsageAtLimitLeadHours5h, 1);
+        Data.Settings.UsageAtLimitLeadHoursWeekly = ClampUsageLead(
+            Data.Settings.UsageAtLimitLeadHoursWeekly, 12);
+        Data.Settings.UsageAtLimitLeadHoursOpus = ClampUsageLead(
+            Data.Settings.UsageAtLimitLeadHoursOpus, 12);
+        Data.Settings.UsageAtLimitLeadHoursCursor = ClampUsageLead(
+            Data.Settings.UsageAtLimitLeadHoursCursor, 24);
+        Data.Settings.UsageClockAtLimitLeadHours5h = ClampUsageLead(
+            Data.Settings.UsageClockAtLimitLeadHours5h, 5);
+        Data.Settings.UsageClockAtLimitLeadHoursWeekly = ClampUsageLead(
+            Data.Settings.UsageClockAtLimitLeadHoursWeekly, 48);
+        Data.Settings.UsageClockAtLimitLeadHoursOpus = ClampUsageLead(
+            Data.Settings.UsageClockAtLimitLeadHoursOpus, 48);
+        Data.Settings.UsageClockAtLimitLeadHoursCursor = ClampUsageLead(
+            Data.Settings.UsageClockAtLimitLeadHoursCursor, 72);
+        Data.Settings.UsageColorClaude = ColorText.NormalizeOr(Data.Settings.UsageColorClaude, "#D4A574");
+        Data.Settings.UsageColorCursor = ColorText.NormalizeOr(Data.Settings.UsageColorCursor, "#8AB4F8");
+        if (!Enum.IsDefined(Data.Settings.UsageBoardColorMode5h))
+            Data.Settings.UsageBoardColorMode5h = UsageBoardColorMode.UsageTint;
+        if (!Enum.IsDefined(Data.Settings.UsageBoardColorModeWeekly))
+            Data.Settings.UsageBoardColorModeWeekly = UsageBoardColorMode.UsageTint;
+        if (!Enum.IsDefined(Data.Settings.UsageBoardColorModeOpus))
+            Data.Settings.UsageBoardColorModeOpus = UsageBoardColorMode.UsageTint;
+        if (!Enum.IsDefined(Data.Settings.UsageBoardColorModeCursor))
+            Data.Settings.UsageBoardColorModeCursor = UsageBoardColorMode.UsageTint;
+        Data.Settings.UsageBoardColor5h = ColorText.NormalizeOr(Data.Settings.UsageBoardColor5h, "#D4A574");
+        Data.Settings.UsageBoardColorWeekly = ColorText.NormalizeOr(Data.Settings.UsageBoardColorWeekly, "#D4A574");
+        Data.Settings.UsageBoardColorOpus = ColorText.NormalizeOr(Data.Settings.UsageBoardColorOpus, "#D4A574");
+        Data.Settings.UsageBoardColorCursor = ColorText.NormalizeOr(Data.Settings.UsageBoardColorCursor, "#8AB4F8");
+        if (Data.Settings.Usage.Width < 160)
+            Data.Settings.Usage.Width = 280;
+        if (Data.Settings.Usage.Height < 140)
+            Data.Settings.Usage.Height = 320;
+        // Face fill: blank follows overlay panel. Migrate the brief default that changed backgrounds.
+        if (string.IsNullOrWhiteSpace(Data.Settings.ClockColorFace)
+            || (ColorText.TryNormalize(Data.Settings.ClockColorFace, out var face)
+                && face.Equals("#202228", StringComparison.OrdinalIgnoreCase)))
+            Data.Settings.ClockColorFace = "";
+        else if (!ColorText.TryNormalize(Data.Settings.ClockColorFace, out _))
+            Data.Settings.ClockColorFace = "";
+        Data.Settings.ClockCategoryIds ??= [];
+        if (Data.Settings.Clock.Width < 160)
+            Data.Settings.Clock.Width = 280;
+        if (Data.Settings.Clock.Height < 180)
+            Data.Settings.Clock.Height = 300;
         FillTaskColors(Data.Settings);
         if (Data.Settings.HideCompleted)
         {
@@ -2655,6 +3270,7 @@ public sealed partial class AppHost : IDisposable
             Data.Settings.HideCompleted = false;
         }
         Data.Settings.Reminders ??= new WindowBounds();
+        Data.Settings.Clock ??= new WindowBounds { Width = 280, Height = 300 };
         Data.Settings.IgnoredPairTargets ??= [];
         Data.Settings.TaskOrder ??= [];
         Data.AppLayouts ??= [];
@@ -2690,6 +3306,22 @@ public sealed partial class AppHost : IDisposable
         MigrateHideMainPairs();
         EnsureTaskOrder();
     }
+
+    // auto model: store clock size knobs as whole percents (e.g. 0.16 not 0.075191…)
+    static double SnapClockPercent(double value, double min, double max)
+    {
+        var lo = (int)Math.Round(min * 100);
+        var hi = (int)Math.Round(max * 100);
+        if (value <= 0)
+            value = min;
+        var pct = (int)Math.Round(value * 100);
+        pct = Math.Clamp(pct, lo, hi);
+        return pct / 100.0;
+    }
+
+    // auto model
+    static double ClampUsageLead(double value, double fallback) =>
+        Math.Clamp(value <= 0 ? fallback : value, 0.25, 14 * 24);
 
     static void NormalizeCheckRule(IHasCheckRule item)
     {
@@ -2796,6 +3428,12 @@ public sealed partial class AppHost : IDisposable
         _setWhen?.Close();
         _countdown?.Close();
         _countdown = null;
+        _clock?.Close();
+        _clock = null;
+        _usage?.Close();
+        _usage = null;
+        Usage?.Dispose();
+        Usage = null;
         foreach (var window in _categoryWindows.Values.ToList())
             window.Close();
         _categoryWindows.Clear();

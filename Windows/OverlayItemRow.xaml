@@ -4,7 +4,7 @@
              PreviewMouseLeftButtonDown="OnDragDown"
              PreviewMouseMove="OnDragMove"
              PreviewMouseLeftButtonUp="OnDragUp">
-    <Grid Margin="0,1">
+    <Grid Margin="{Binding RowMargin}">
         <Border Opacity="{Binding AttentionGlow}"
                 Background="#66FFD24D"
                 CornerRadius="6"

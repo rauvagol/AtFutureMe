@@ -24,7 +24,6 @@ public partial class CategoryOverlay : OverlayWindowBase
     {
         var section = AppHost.Instance.SectionFor(CategoryId);
         // auto model
-        BoardList.ItemTemplateSelector ??= RemindersOverlay.CreateBoardSelector();
         BoardList.ItemsSource = section?.Entries;
         TitleText.Text = section?.Name ?? "Category";
         Title = TitleText.Text;

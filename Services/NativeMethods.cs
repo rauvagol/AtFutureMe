@@ -36,25 +36,31 @@ public static class NativeMethods
     public static void ApplyOverlayStyles(Window window)
     {
         var hwnd = new WindowInteropHelper(window).EnsureHandle();
-        ApplyExStyle(hwnd, false);
+        // auto model: overlays default to no-activate; only transparent when locked
+        ApplyExStyle(hwnd, clickThrough: false, allowActivate: false);
     }
 
-    public static void SetClickThrough(Window window, bool clickThrough)
+    public static void SetClickThrough(Window window, bool clickThrough, bool allowActivate = false)
     {
         var hwnd = new WindowInteropHelper(window).Handle;
         if (hwnd == IntPtr.Zero)
             return;
-        ApplyExStyle(hwnd, clickThrough);
+        ApplyExStyle(hwnd, clickThrough, allowActivate);
     }
 
-    static void ApplyExStyle(IntPtr hwnd, bool clickThrough)
+    // auto model: keep WS_EX_NOACTIVATE unless a text field / menu needs keyboard focus
+    static void ApplyExStyle(IntPtr hwnd, bool clickThrough, bool allowActivate)
     {
         var style = GetWindowLongPtr(hwnd, GwlExStyle).ToInt64();
         var next = style | WsExToolWindow | WsExLayered;
-        if (clickThrough)
-            next |= WsExTransparent | WsExNoActivate;
+        if (allowActivate)
+            next &= ~(long)WsExNoActivate;
         else
-            next &= ~((long)WsExTransparent | WsExNoActivate);
+            next |= WsExNoActivate;
+        if (clickThrough)
+            next |= WsExTransparent;
+        else
+            next &= ~(long)WsExTransparent;
         if (next == style)
             return;
 

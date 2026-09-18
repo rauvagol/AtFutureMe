@@ -101,6 +101,12 @@ public sealed class Category : IHasCheckRule
     /// <summary>True when the folder editor shows the reshow lead in hours; false means days.</summary>
     public bool CheckReshowInHours { get; set; }
 
+    // auto model: 1 = first among siblings (tasks + folders), 0 = unpinned
+    public int PinSlot { get; set; }
+
+    // auto model: when hidden, still reserve this pin so later pins stay ahead of unpinned items
+    public bool HoldPinWhenHidden { get; set; }
+
     public WindowBounds Bounds { get; set; } = new() { Width = 340, Height = 320 };
 
     [JsonIgnore]
@@ -123,6 +129,9 @@ public sealed class TodoItem : IHasCheckRule
     public DateTime? CompletedAt { get; set; }
     public DateTime? LastCheckedAt { get; set; }
     public int PinSlot { get; set; }
+
+    // auto model: when hidden, still reserve this pin so later pins stay ahead of unpinned items
+    public bool HoldPinWhenHidden { get; set; }
 
     /// <summary>Coming eventually with no known date. Overlay tracks days since last check.</summary>
     public bool UnknownDate { get; set; }
@@ -152,6 +161,8 @@ public sealed class OnceItem : IHasCheckRule
     public DateTime CreatedAt { get; set; } = DateTime.Now;
     public DateTime? CompletedAt { get; set; }
     public int PinSlot { get; set; }
+    // auto model
+    public bool HoldPinWhenHidden { get; set; }
     public FolderCheckRule CheckRule { get; set; } = FolderCheckRule.Inherit;
     public double CheckReshowHours { get; set; } = 24;
     public bool CheckReshowInHours { get; set; }
@@ -169,6 +180,8 @@ public sealed class EventItem : IHasCheckRule
     public DateTime? LastCheckedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public int PinSlot { get; set; }
+    // auto model
+    public bool HoldPinWhenHidden { get; set; }
 
     /// <summary>Days between check-ins when there is no date. 0 or less means weekly.</summary>
     public int CheckEveryDays { get; set; } = 7;
@@ -202,6 +215,8 @@ public sealed class NoteItem
     public string CategoryId { get; set; } = "";
     public bool Hidden { get; set; }
     public int PinSlot { get; set; }
+    // auto model
+    public bool HoldPinWhenHidden { get; set; }
 }
 
 public sealed class WindowBounds
@@ -266,6 +281,12 @@ public sealed class AppSettings
     public bool HideEmptyFolders { get; set; }
     public bool ShowFolderCounts { get; set; }
     public int FolderIndent { get; set; } = 14;
+    /// <summary>Left inset for root-level folder blocks on the overlay.</summary>
+    // auto model
+    public int TopFolderIndent { get; set; }
+    /// <summary>Left inset for tasks/notes inside a folder, so they read apart from root-level tasks under that folder.</summary>
+    // auto model
+    public int FolderContentIndent { get; set; } = 12;
     public bool ManualSort { get; set; }
     public int EventHorizonDays { get; set; }
     public int RecurringHorizon { get; set; }
@@ -284,9 +305,171 @@ public sealed class AppSettings
     [JsonIgnore]
     public DateTime? TempHideUntil { get; set; }
     public WindowBounds Reminders { get; set; } = new() { Width = 340, Height = 460 };
+    // auto model: optional Now-at-top event clock
+    public bool ShowClockModule { get; set; }
+    public WindowBounds Clock { get; set; } = new() { Width = 280, Height = 300 };
+    /// <summary>How far ahead the clock face covers, in hours.</summary>
+    public double ClockHorizonHours { get; set; } = 24;
+    /// <summary>True when the Clock tab edits the horizon in hours; false means days.</summary>
+    public bool ClockHorizonInHours { get; set; } = true;
+    /// <summary>When true, rim labels use 12-hour clock; otherwise 24-hour.</summary>
+    public bool ClockUse12Hour { get; set; }
+    /// <summary>Minor tick spacing on the rim.</summary>
+    public ClockTickStep ClockTickStep { get; set; } = ClockTickStep.Hour;
+    /// <summary>How far inward from the rim each tick class extends, as a fraction of radius (snapped to 1%).</summary>
+    // auto model
+    public double ClockTickLengthHour { get; set; } = 0.16;
+    public double ClockTickLengthThirty { get; set; } = 0.12;
+    public double ClockTickLengthFifteen { get; set; } = 0.10;
+    public double ClockTickLengthMinute { get; set; } = 0.06;
+    /// <summary>Second hand length as a fraction of rim radius (snapped to 1%).</summary>
+    // auto model
+    public double ClockSecondHandLength { get; set; } = 0.78;
+    /// <summary>Task wedge angular width as a fraction of the full ring (snapped to 1%).</summary>
+    // auto model
+    public double ClockWedgeWidth { get; set; } = 0.02;
+    public bool ClockShowEventLabels { get; set; }
+    public bool ClockShowRecurring { get; set; } = true;
+    public bool ClockShowScheduled { get; set; } = true;
+    /// <summary>When locked, only the clock face shows (no chrome/panel) and clicks pass through.</summary>
+    // auto model
+    public ClockLockMode ClockLockMode { get; set; } = ClockLockMode.Locked;
+    /// <summary>When locked/semi-locked, keep a darkened disk behind the face instead of a fully transparent window.</summary>
+    // auto model
+    public bool ClockKeepFaceWhenLocked { get; set; }
+    /// <summary>Show the sweeping second hand (0 at top, clockwise).</summary>
+    // auto model
+    public bool ClockShowSecondHand { get; set; } = true;
+    /// <summary>Show a fixed vertical hand pointing at Now (straight up).</summary>
+    // auto model
+    public bool ClockShowHourHand { get; set; }
+    /// <summary>0 = time just under the Now chevron; 1 = near the center of the face.</summary>
+    // auto model
+    public double ClockTimePosition { get; set; }
+    /// <summary>Font size for the current-time label on the clock face.</summary>
+    // auto model
+    public double ClockTimeFontSize { get; set; } = 13;
+    /// <summary>Hour (Now) hand length as a fraction of rim radius (snapped to 1%).</summary>
+    // auto model
+    public double ClockHourHandLength { get; set; } = 0.55;
+    // auto model: clock face + event colors (independent of overlay task colors)
+    public string ClockColorRecurring { get; set; } = "#8AB4F8";
+    public string ClockColorScheduled { get; set; } = "#FFD24D";
+    public string ClockColorDue { get; set; } = "#5DDC8A";
+    public string ClockColorCaret { get; set; } = "#8AB4F8";
+    public string ClockColorRing { get; set; } = "#C5C9D0";
+    public string ClockColorMajorTick { get; set; } = "#C5C9D0";
+    public string ClockColorMinorTick { get; set; } = "#9AA0A8";
+    public string ClockColorSecondHand { get; set; } = "#FF8A65";
+    public string ClockColorHourHand { get; set; } = "#E8EAED";
+    public string ClockColorWedgeLine { get; set; } = "#FFFFFF";
+    public string ClockColorTime { get; set; } = "#E8EAED";
+    public string ClockColorTimeOutline { get; set; } = "#000000";
+    /// <summary>Draw an outline behind the current-time label.</summary>
+    // auto model
+    public bool ClockTimeOutline { get; set; }
+    /// <summary>Outline thickness in device-independent pixels (1–6).</summary>
+    // auto model
+    public int ClockTimeOutlineStrength { get; set; } = 2;
+    public string ClockColorFace { get; set; } = "";
+    /// <summary>When true, every folder is included; otherwise only ClockCategoryIds.</summary>
+    public bool ClockAllCategories { get; set; } = true;
+    public List<string> ClockCategoryIds { get; set; } = [];
+
+    // auto model: AI usage tracker overlay (Claude + Cursor)
+    public bool ShowUsageModule { get; set; }
+    public WindowBounds Usage { get; set; } = new() { Width = 280, Height = 320 };
+    public UsageLockMode UsageLockMode { get; set; } = UsageLockMode.Locked;
+    /// <summary>When true, show usage at the bottom of the reminders list instead of a floating window.</summary>
+    // auto model
+    public bool UsageDockInReminders { get; set; }
+    /// <summary>Docked compact rows: use idle gray for % / time instead of usage tint.</summary>
+    // auto model
+    public bool UsageDockPlainGray { get; set; }
+    /// <summary>Docked compact rows: show used percent before time-to-reset.</summary>
+    // auto model
+    public bool UsageDockShowPercent { get; set; } = true;
+    /// <summary>Minutes between usage API polls (clamped 5–120).</summary>
+    public int UsagePollMinutes { get; set; } = 15;
+    public bool UsageShowClaude { get; set; } = true;
+    public bool UsageShowCursor { get; set; } = true;
+    /// <summary>Inject reset times onto the reminders board as scheduled-like rows.</summary>
+    public bool UsageInjectReminders { get; set; } = true;
+    /// <summary>When true, board rows only appear at/near limit or when remaining capacity may go unused before reset.</summary>
+    // auto model
+    public bool UsageBoardSmartFilter { get; set; } = true;
+    /// <summary>Ballpark: one full 5h burn as a percent of the weekly bar (default 10).</summary>
+    // auto model
+    public double UsageFullSessionWeeklyPercent { get; set; } = 10;
+    /// <summary>Multiplier for partial sessions when estimating alert horizon (default 2 → 30% left ≈ 30h).</summary>
+    // auto model
+    public double UsageReminderCushion { get; set; } = 2;
+    /// <summary>When a meter is fully used, only show on the board within this many hours of reset.</summary>
+    // auto model
+    public double UsageAtLimitLeadHours5h { get; set; } = 1;
+    public double UsageAtLimitLeadHoursWeekly { get; set; } = 12;
+    public double UsageAtLimitLeadHoursOpus { get; set; } = 12;
+    public double UsageAtLimitLeadHoursCursor { get; set; } = 24;
+    /// <summary>When a meter is fully used, only show on the clock within this many hours of reset.</summary>
+    // auto model
+    public double UsageClockAtLimitLeadHours5h { get; set; } = 5;
+    public double UsageClockAtLimitLeadHoursWeekly { get; set; } = 48;
+    public double UsageClockAtLimitLeadHoursOpus { get; set; } = 48;
+    public double UsageClockAtLimitLeadHoursCursor { get; set; } = 72;
+    /// <summary>Show reset markers on the clock ring (usage-tinted wedges).</summary>
+    public bool UsageShowOnClock { get; set; } = true;
+    public string UsageColorClaude { get; set; } = "#D4A574";
+    public string UsageColorCursor { get; set; } = "#8AB4F8";
+    /// <summary>How each usage reset row is colored on the reminders board.</summary>
+    // auto model
+    public UsageBoardColorMode UsageBoardColorMode5h { get; set; } = UsageBoardColorMode.UsageTint;
+    public UsageBoardColorMode UsageBoardColorModeWeekly { get; set; } = UsageBoardColorMode.UsageTint;
+    public UsageBoardColorMode UsageBoardColorModeOpus { get; set; } = UsageBoardColorMode.UsageTint;
+    public UsageBoardColorMode UsageBoardColorModeCursor { get; set; } = UsageBoardColorMode.UsageTint;
+    public string UsageBoardColor5h { get; set; } = "#D4A574";
+    public string UsageBoardColorWeekly { get; set; } = "#D4A574";
+    public string UsageBoardColorOpus { get; set; } = "#D4A574";
+    public string UsageBoardColorCursor { get; set; } = "#8AB4F8";
+
     public List<string> TaskOrder { get; set; } = [];
     public List<IgnoredPairTarget> IgnoredPairTargets { get; set; } = [];
     public DesktopLayout? Desktop { get; set; }
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum UsageBoardColorMode
+{
+    /// <summary>Green→red by used percent.</summary>
+    UsageTint,
+    /// <summary>Fixed custom color.</summary>
+    Fixed,
+    /// <summary>Same default idle color as other scheduled rows.</summary>
+    Default
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum UsageLockMode
+{
+    Locked,
+    SemiLocked,
+    Unlocked
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum ClockLockMode
+{
+    Locked,
+    SemiLocked,
+    Unlocked
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum ClockTickStep
+{
+    Hour,
+    ThirtyMinutes,
+    FifteenMinutes,
+    Minute
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]

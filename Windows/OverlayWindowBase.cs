@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using AtFutureMe.Services;
 
@@ -10,8 +11,15 @@ namespace AtFutureMe.Windows;
 public class OverlayWindowBase : Window
 {
     const double HitPad = 3;
+    // auto model
+    const int WmMouseActivate = 0x0021;
+    const int MaNoActivate = 3;
 
     public bool ForceClickThrough { get; protected set; }
+
+    // auto model: true while a text field / menu on this overlay needs keyboard focus
+    bool _allowActivate;
+    bool _leaveFocusQueued;
 
     public OverlayWindowBase()
     {
@@ -27,12 +35,33 @@ public class OverlayWindowBase : Window
         SourceInitialized += OnSourceInitialized;
         Loaded += (_, _) => CompositionTarget.Rendering += OnRendering;
         Closed += (_, _) => CompositionTarget.Rendering -= OnRendering;
+        // auto model: take focus only for controls that need typing / menu navigation
+        AddHandler(PreviewMouseDownEvent, new MouseButtonEventHandler(OnPreviewMouseDownForFocus), true);
+        AddHandler(PreviewGotKeyboardFocusEvent, new KeyboardFocusChangedEventHandler(OnPreviewGotKeyboardFocus), true);
+        AddHandler(PreviewLostKeyboardFocusEvent, new KeyboardFocusChangedEventHandler(OnPreviewLostKeyboardFocus), true);
+        AddHandler(ContextMenuOpeningEvent, new ContextMenuEventHandler(OnContextMenuOpening), true);
+        AddHandler(ContextMenuClosingEvent, new ContextMenuEventHandler(OnContextMenuClosing), true);
     }
 
     void OnSourceInitialized(object? sender, EventArgs e)
     {
         NativeMethods.ApplyOverlayStyles(this);
         ApplyClickThrough();
+        // auto model
+        if (PresentationSource.FromVisual(this) is HwndSource source)
+            source.AddHook(WndProc);
+    }
+
+    // auto model: refuse activation on click unless a text/menu focus session is open
+    IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == WmMouseActivate && !_allowActivate)
+        {
+            handled = true;
+            return (IntPtr)MaNoActivate;
+        }
+
+        return IntPtr.Zero;
     }
 
     void OnRendering(object? sender, EventArgs e) => ApplyClickThrough();
@@ -41,7 +70,7 @@ public class OverlayWindowBase : Window
     {
         if (ForceClickThrough)
         {
-            NativeMethods.SetClickThrough(this, true);
+            NativeMethods.SetClickThrough(this, true, allowActivate: false);
             return;
         }
 
@@ -49,7 +78,111 @@ public class OverlayWindowBase : Window
         var pass = !host.OverlayDragActive
             && IsVisible
             && !HitInteractive();
-        NativeMethods.SetClickThrough(this, pass);
+        // auto model
+        NativeMethods.SetClickThrough(this, pass, _allowActivate);
+    }
+
+    // auto model
+    void OnPreviewMouseDownForFocus(object sender, MouseButtonEventArgs e)
+    {
+        if (ForceClickThrough || AppHost.Instance.Data.Settings.ClickThrough)
+            return;
+        if (NeedsKeyboardFocus(e.OriginalSource as DependencyObject))
+            EnterFocusMode();
+    }
+
+    // auto model
+    void OnPreviewGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (NeedsKeyboardFocus(e.NewFocus as DependencyObject))
+            EnterFocusMode();
+    }
+
+    // auto model
+    void OnPreviewLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (!NeedsKeyboardFocus(e.OldFocus as DependencyObject))
+            return;
+        if (NeedsKeyboardFocus(e.NewFocus as DependencyObject))
+            return;
+        ScheduleLeaveFocusMode();
+    }
+
+    // auto model
+    void OnContextMenuOpening(object sender, ContextMenuEventArgs e) => EnterFocusMode();
+
+    // auto model
+    void OnContextMenuClosing(object sender, ContextMenuEventArgs e) => ScheduleLeaveFocusMode();
+
+    // auto model
+    void EnterFocusMode()
+    {
+        _leaveFocusQueued = false;
+        if (_allowActivate)
+        {
+            if (!IsActive)
+                Activate();
+            return;
+        }
+
+        _allowActivate = true;
+        ApplyClickThrough();
+        Activate();
+    }
+
+    // auto model
+    void ScheduleLeaveFocusMode()
+    {
+        if (!_allowActivate || _leaveFocusQueued)
+            return;
+        _leaveFocusQueued = true;
+        Dispatcher.BeginInvoke(() =>
+        {
+            _leaveFocusQueued = false;
+            if (!_allowActivate)
+                return;
+            if (NeedsKeyboardFocus(Keyboard.FocusedElement as DependencyObject))
+                return;
+            if (HasOpenContextMenu(this))
+                return;
+            _allowActivate = false;
+            ApplyClickThrough();
+        }, System.Windows.Threading.DispatcherPriority.Background);
+    }
+
+    // auto model
+    static bool NeedsKeyboardFocus(DependencyObject? source)
+    {
+        var current = source;
+        while (current != null)
+        {
+            if (current is TextBox or RichTextBox or PasswordBox or ComboBox or DatePicker
+                or TextBoxBase
+                or Menu or MenuItem or System.Windows.Controls.ContextMenu)
+                return true;
+            if (current is Window)
+                break;
+            current = VisualTreeHelper.GetParent(current) ?? LogicalTreeHelper.GetParent(current);
+        }
+
+        return false;
+    }
+
+    // auto model
+    static bool HasOpenContextMenu(DependencyObject root)
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            if (VisualTreeHelper.GetChild(root, i) is not DependencyObject child)
+                continue;
+            if (child is System.Windows.Controls.ContextMenu { IsOpen: true })
+                return true;
+            if (HasOpenContextMenu(child))
+                return true;
+        }
+
+        return false;
     }
 
     protected void ApplyPanelChrome(Border panel, Border? dither = null)

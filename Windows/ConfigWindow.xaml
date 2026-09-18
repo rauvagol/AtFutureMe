@@ -156,7 +156,11 @@
                             <TextBox x:Name="OncePin" Style="{StaticResource DarkTextBox}"
                                      ToolTip="0 = automatic. 1 = first in this folder, 3 = third."
                                      TextChanged="OnceFieldChanged"/>
-                            <TextBlock Text="0 follows automatic sort. 1 always first in this folder, 3 always third. Other items still sort around it."
+                            <CheckBox x:Name="OnceHoldPin" Style="{StaticResource DarkCheck}"
+                                      Content="Hold pin when hidden"
+                                      Margin="0,8,0,0"
+                                      Checked="OnceFieldChanged" Unchecked="OnceFieldChanged"/>
+                            <TextBlock Text="0 follows automatic sort. 1 always first among siblings, 3 always third. Hold pin keeps that slot reserved when this item is hidden (for example completed), so later pins stay ahead of unpinned items."
                                        Foreground="#7A8088" TextWrapping="Wrap" Margin="0,6,0,0"/>
                             <TextBlock Text="Colors" Foreground="#8AB4F8" FontWeight="SemiBold" Margin="0,16,0,4"/>
                             <TextBlock Text="Leave a row empty or press Default to use Settings. Only states this To Do can show."
@@ -224,7 +228,11 @@
                             <TextBox x:Name="TodoPin" Style="{StaticResource DarkTextBox}"
                                      ToolTip="0 = automatic. 1 = first in this folder, 3 = third."
                                      TextChanged="TodoFieldChanged"/>
-                            <TextBlock Text="0 follows automatic sort. 1 always first in this folder, 3 always third. Other items still sort around it."
+                            <CheckBox x:Name="TodoHoldPin" Style="{StaticResource DarkCheck}"
+                                      Content="Hold pin when hidden"
+                                      Margin="0,8,0,0"
+                                      Checked="TodoFieldChanged" Unchecked="TodoFieldChanged"/>
+                            <TextBlock Text="0 follows automatic sort. 1 always first among siblings, 3 always third. Hold pin keeps that slot reserved when this item is hidden, so later pins stay ahead of unpinned items."
                                        Foreground="#7A8088" TextWrapping="Wrap" Margin="0,6,0,0"/>
 
                             <StackPanel x:Name="TodoWatchFields" Visibility="Collapsed" Margin="0,10,0,0">
@@ -356,7 +364,11 @@
                             <TextBox x:Name="EventPin" Style="{StaticResource DarkTextBox}"
                                      ToolTip="0 = automatic. 1 = first in this folder, 3 = third."
                                      TextChanged="EventFieldChanged"/>
-                            <TextBlock Text="0 follows automatic sort. 1 always first in this folder, 3 always third. Other items still sort around it."
+                            <CheckBox x:Name="EventHoldPin" Style="{StaticResource DarkCheck}"
+                                      Content="Hold pin when hidden"
+                                      Margin="0,8,0,0"
+                                      Checked="EventFieldChanged" Unchecked="EventFieldChanged"/>
+                            <TextBlock Text="0 follows automatic sort. 1 always first among siblings, 3 always third. Hold pin keeps that slot reserved when this item is hidden, so later pins stay ahead of unpinned items."
                                        Foreground="#7A8088" TextWrapping="Wrap" Margin="0,6,0,0"/>
                             <!-- auto model -->
                             <CheckBox x:Name="EventImportant" Style="{StaticResource DarkCheck}"
@@ -467,7 +479,11 @@
                                 <TextBox x:Name="NotePin" Style="{StaticResource DarkTextBox}"
                                          ToolTip="0 = automatic. 1 = first in this folder, 3 = third."
                                          TextChanged="NoteFieldChanged"/>
-                                <TextBlock Text="0 follows automatic sort. 1 always first in this folder, 3 always third. Other items still sort around it."
+                                <CheckBox x:Name="NoteHoldPin" Style="{StaticResource DarkCheck}"
+                                          Content="Hold pin when hidden"
+                                          Margin="0,8,0,0"
+                                          Checked="NoteFieldChanged" Unchecked="NoteFieldChanged"/>
+                                <TextBlock Text="0 follows automatic sort. 1 always first among siblings, 3 always third. Hold pin keeps that slot reserved when this item is hidden, so later pins stay ahead of unpinned items."
                                            Foreground="#7A8088" TextWrapping="Wrap" Margin="0,6,0,0"/>
                                 <TextBlock Text="Body" Foreground="#9AA0A8" Margin="0,12,0,4"/>
                                 <TextBox x:Name="NoteBody" Style="{StaticResource DarkTextBox}" AcceptsReturn="True"
@@ -512,6 +528,14 @@
                     <StackPanel x:Name="CategoryEditor" IsEnabled="False">
                         <TextBlock Text="Name" Foreground="#9AA0A8" Margin="0,0,0,4"/>
                         <TextBox x:Name="CategoryName" Style="{StaticResource DarkTextBox}" TextChanged="CategoryFieldChanged"/>
+                        <TextBlock Text="Pin position" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                        <TextBox x:Name="CategoryPin" Style="{StaticResource DarkTextBox}" TextChanged="CategoryFieldChanged"/>
+                        <CheckBox x:Name="CategoryHoldPin" Style="{StaticResource DarkCheck}"
+                                  Content="Hold pin when hidden"
+                                  Margin="0,8,0,0"
+                                  Checked="CategoryFieldChanged" Unchecked="CategoryFieldChanged"/>
+                        <TextBlock Text="1 = first among siblings (tasks and folders in the same place). 0 = unpinned — folders sit below tasks unless pinned. Hold pin keeps the slot when the folder is not shown."
+                                   Foreground="#7A8088" TextWrapping="Wrap" Margin="0,4,0,0"/>
                         <TextBlock Text="Inside" Foreground="#9AA0A8" Margin="0,10,0,4"/>
                         <ComboBox x:Name="CategoryParent" Style="{StaticResource DarkCombo}"
                                   ItemTemplate="{StaticResource CategoryItemTemplate}"
@@ -678,7 +702,7 @@
                                               Margin="0,12,0,0"
                                               Checked="AppLayoutFieldChanged" Unchecked="AppLayoutFieldChanged"/>
                                     <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,16,0,0"
-                                               Text="Flag first, then launch the program and arrange overlays. Moves, pop in/out, and folder collapse save to this program. Hide and lock are set here. Tray hide and lock are frozen while this layout is in control. Closing the last flagged program restores desktop. Folder pairs still pop their folder on top if that program is not a full layout."/>
+                                               Text="Flag first, then launch the program and arrange overlays. Moves, pop in/out, and folder collapse save to this program. Hide and lock are set here. Tray hide and lock are frozen while this layout is in control. Important tasks still force the main overlay visible when due or within their lead. Closing the last flagged program restores desktop. Folder pairs still pop their folder on top if that program is not a full layout."/>
                                 </StackPanel>
                             </StackPanel>
                         </ScrollViewer>
@@ -716,6 +740,482 @@
                         </DockPanel>
                     </Grid>
                 </Grid>
+            </TabItem>
+
+            <TabItem Header="Clock">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Style="{StaticResource DarkScrollViewer}" Margin="4,8,0,0">
+                    <StackPanel MaxWidth="560">
+                        <CheckBox x:Name="ClockModuleBox" Style="{StaticResource DarkCheck}"
+                                  Content="Show clock module"
+                                  Checked="ClockModuleChanged" Unchecked="ClockModuleChanged"/>
+                        <TextBlock Text="Lock mode" Foreground="#9AA0A8" Margin="0,16,0,4"/>
+                        <ComboBox x:Name="ClockLockModeBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="ClockLockChanged">
+                            <ComboBoxItem Content="Locked — click-through, hover tips only"/>
+                            <ComboBoxItem Content="Semi-locked — drag face to position (no resize)"/>
+                            <ComboBoxItem Content="Unlocked — chrome + resize"/>
+                        </ComboBox>
+                        <CheckBox x:Name="ClockKeepFaceBox" Style="{StaticResource DarkCheck}"
+                                  Content="Keep darkened face when locked / semi-locked"
+                                  Margin="0,10,0,0"
+                                  Checked="ClockFilterChanged" Unchecked="ClockFilterChanged"/>
+                        <CheckBox x:Name="ClockSecondHandBox" Style="{StaticResource DarkCheck}"
+                                  Content="Show second hand"
+                                  Margin="0,8,0,0"
+                                  Checked="ClockFilterChanged" Unchecked="ClockFilterChanged"/>
+                        <CheckBox x:Name="ClockHourHandBox" Style="{StaticResource DarkCheck}"
+                                  Content="Show hour hand (fixed, points straight up at Now)"
+                                  Margin="0,8,0,0"
+                                  Checked="ClockFilterChanged" Unchecked="ClockFilterChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,8,0,0"
+                                   Text="Semi-lock and locked hide the title bar and top-align the face so you can place it at the edge of the screen. Semi-lock: drag the face to move. Second hand: :00 up, :15 right, :30 down, :45 left."/>
+
+                        <TextBlock Text="Covers the next" Foreground="#9AA0A8" Margin="0,16,0,4"/>
+                        <DockPanel>
+                            <ComboBox x:Name="ClockHorizonUnitBox" DockPanel.Dock="Right" Width="110"
+                                      Style="{StaticResource DarkCombo}"
+                                      SelectionChanged="ClockHorizonUnitChanged">
+                                <ComboBoxItem Content="Hours"/>
+                                <ComboBoxItem Content="Days"/>
+                            </ComboBox>
+                            <TextBox x:Name="ClockHorizonBox" Style="{StaticResource DarkTextBox}" Margin="0,0,8,0"
+                                     LostFocus="ClockHorizonCommit" KeyDown="ClockHorizonKey"/>
+                        </DockPanel>
+
+                        <TextBlock Text="Time format" Foreground="#9AA0A8" Margin="0,16,0,4"/>
+                        <ComboBox x:Name="ClockHourFormatBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="ClockFilterChanged">
+                            <ComboBoxItem Content="24-hour"/>
+                            <ComboBoxItem Content="12-hour"/>
+                        </ComboBox>
+
+                        <DockPanel Margin="0,16,0,0">
+                            <TextBlock x:Name="ClockTimePosLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="0%"/>
+                            <TextBlock Text="Time position" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockTimePosSlider" Minimum="0" Maximum="1" TickFrequency="0.01"
+                                IsSnapToTickEnabled="False"
+                                PreviewMouseLeftButtonDown="SliderGoToClick"
+                                MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag"
+                                LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTimePosChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
+                                   Text="0% sits just under the Now mark; 100% moves the time toward the center."/>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockTimeFontSizeLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="13"/>
+                            <TextBlock Text="Current time font size" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockTimeFontSizeSlider" Minimum="8" Maximum="48" TickFrequency="1"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTimeFontSizeChanged"/>
+
+                        <TextBlock Text="Ticks" Foreground="#9AA0A8" Margin="0,16,0,4"/>
+                        <ComboBox x:Name="ClockTickStepBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="ClockFilterChanged">
+                            <ComboBoxItem Content="Hours"/>
+                            <ComboBoxItem Content="30 minutes"/>
+                            <ComboBoxItem Content="15 minutes"/>
+                            <ComboBoxItem Content="Minutes"/>
+                        </ComboBox>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                   Text="Finest step to draw. Each class keeps its own length (hour / 30 / 15 / minute)."/>
+
+                        <DockPanel Margin="0,12,0,0">
+                            <TextBlock x:Name="ClockTickLenHourLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="16%"/>
+                            <TextBlock Text="Hour tick length" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockTickLenHourSlider" Minimum="0.01" Maximum="0.5" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockTickLenThirtyLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="12%"/>
+                            <TextBlock Text="30 min tick length" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockTickLenThirtySlider" Minimum="0.01" Maximum="0.5" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockTickLenFifteenLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="10%"/>
+                            <TextBlock Text="15 min tick length" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockTickLenFifteenSlider" Minimum="0.01" Maximum="0.5" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockTickLenMinuteLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="6%"/>
+                            <TextBlock Text="Minute tick length" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockTickLenMinuteSlider" Minimum="0.01" Maximum="0.5" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockSecondHandLenLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="78%"/>
+                            <TextBlock Text="Second hand length" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockSecondHandLenSlider" Minimum="0.01" Maximum="0.95" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockHourHandLenLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="55%"/>
+                            <TextBlock Text="Hour hand length" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockHourHandLenSlider" Minimum="0.01" Maximum="0.95" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockWedgeWidthLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="2%"/>
+                            <TextBlock Text="Task wedge width" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockWedgeWidthSlider" Minimum="0.01" Maximum="0.15" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
+                                   Text="Lengths snap to whole percents. Tick/second-hand % is of the ring radius; wedge width % is of the full circle."/>
+
+                        <TextBlock Text="Face colors" Foreground="#9AA0A8" Margin="0,16,0,4"/>
+                        <local:ColorRow x:Name="ClockColorRingRow"/>
+                        <local:ColorRow x:Name="ClockColorMajorTickRow"/>
+                        <local:ColorRow x:Name="ClockColorMinorTickRow"/>
+                        <local:ColorRow x:Name="ClockColorSecondHandRow"/>
+                        <local:ColorRow x:Name="ClockColorHourHandRow"/>
+                        <local:ColorRow x:Name="ClockColorTimeRow"/>
+                        <CheckBox x:Name="ClockTimeOutlineBox" Style="{StaticResource DarkCheck}"
+                                  Content="Outline current time"
+                                  Margin="0,8,0,0"
+                                  Checked="ClockFilterChanged" Unchecked="ClockFilterChanged"/>
+                        <local:ColorRow x:Name="ClockColorTimeOutlineRow"/>
+                        <DockPanel Margin="0,4,0,0">
+                            <TextBlock x:Name="ClockTimeOutlineStrengthLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="2"/>
+                            <TextBlock Text="Time outline strength" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockTimeOutlineStrengthSlider" Minimum="1" Maximum="6" TickFrequency="1"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTimeOutlineStrengthChanged"/>
+                        <local:ColorRow x:Name="ClockColorCaretRow"/>
+                        <local:ColorRow x:Name="ClockColorFaceRow"/>
+
+                        <TextBlock Text="Event colors" Foreground="#9AA0A8" Margin="0,16,0,4"/>
+                        <local:ColorRow x:Name="ClockColorRecurringRow"/>
+                        <local:ColorRow x:Name="ClockColorScheduledRow"/>
+                        <local:ColorRow x:Name="ClockColorDueRow"/>
+                        <local:ColorRow x:Name="ClockColorWedgeLineRow"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
+                                   Text="Exact-time line is the opaque line through the middle of each task wedge."/>
+
+                        <TextBlock Text="Show on the ring" Foreground="#9AA0A8" Margin="0,16,0,4"/>
+                        <CheckBox x:Name="ClockShowRecurringBox" Style="{StaticResource DarkCheck}"
+                                  Content="Recurring"
+                                  Checked="ClockFilterChanged" Unchecked="ClockFilterChanged"/>
+                        <CheckBox x:Name="ClockShowScheduledBox" Style="{StaticResource DarkCheck}"
+                                  Content="Scheduled"
+                                  Margin="0,6,0,0"
+                                  Checked="ClockFilterChanged" Unchecked="ClockFilterChanged"/>
+                        <CheckBox x:Name="ClockShowLabelsBox" Style="{StaticResource DarkCheck}"
+                                  Content="Also show event name labels (wedges + hover tip are enough for most cases)"
+                                  Margin="0,6,0,0"
+                                  Checked="ClockFilterChanged" Unchecked="ClockFilterChanged"/>
+
+                        <CheckBox x:Name="ClockAllCategoriesBox" Style="{StaticResource DarkCheck}"
+                                  Content="All folders"
+                                  Margin="0,16,0,0"
+                                  Checked="ClockAllCategoriesChanged" Unchecked="ClockAllCategoriesChanged"/>
+                        <TextBlock Text="Folders" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                        <Border Background="#FF2A2D34" BorderBrush="#FF3A3D45" BorderThickness="1"
+                                Padding="8" MaxHeight="220">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                          Style="{StaticResource DarkScrollViewer}">
+                                <ItemsControl x:Name="ClockCategoryList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox Style="{StaticResource DarkCheck}"
+                                                      Content="{Binding Name}"
+                                                      IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                                                      Margin="0,2,0,2"
+                                                      Checked="ClockCategoryPickChanged"
+                                                      Unchecked="ClockCategoryPickChanged"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                   Text="Uncheck All folders to limit the ring to selected folders (nested items follow a selected parent). Unlock the clock above to move or resize it."/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Usage">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Style="{StaticResource DarkScrollViewer}" Margin="4,8,0,0">
+                    <StackPanel MaxWidth="560">
+                        <CheckBox x:Name="UsageModuleBox" Style="{StaticResource DarkCheck}"
+                                  Content="Show AI usage module"
+                                  Checked="UsageModuleChanged" Unchecked="UsageModuleChanged"/>
+                        <CheckBox x:Name="UsageDockInRemindersBox" Style="{StaticResource DarkCheck}"
+                                  Content="Append under the task list (scroll to see it)"
+                                  Margin="0,8,0,0"
+                                  Checked="UsageFilterChanged" Unchecked="UsageFilterChanged"/>
+                        <CheckBox x:Name="UsageDockShowPercentBox" Style="{StaticResource DarkCheck}"
+                                  Content="Docked rows: show used %"
+                                  Margin="0,8,0,0"
+                                  Checked="UsageFilterChanged" Unchecked="UsageFilterChanged"/>
+                        <CheckBox x:Name="UsageDockPlainGrayBox" Style="{StaticResource DarkCheck}"
+                                  Content="Docked rows: plain gray % / time (not usage tint)"
+                                  Margin="0,8,0,0"
+                                  Checked="UsageFilterChanged" Unchecked="UsageFilterChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                   Text="Reads Claude Code and Cursor logins already on this PC. Sign in to Claude Code once (browser-only Claude is enough after that)."/>
+
+                        <TextBlock Text="Lock mode" Foreground="#9AA0A8" Margin="0,16,0,4"/>
+                        <ComboBox x:Name="UsageLockModeBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="UsageLockChanged">
+                            <ComboBoxItem Content="Locked — click-through"/>
+                            <ComboBoxItem Content="Semi-locked — drag to position (no resize)"/>
+                            <ComboBoxItem Content="Unlocked — chrome + resize"/>
+                        </ComboBox>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
+                                   Text="Lock mode applies to the floating usage window only."/>
+
+                        <TextBlock Text="Providers" Foreground="#9AA0A8" Margin="0,16,0,4"/>
+                        <CheckBox x:Name="UsageShowClaudeBox" Style="{StaticResource DarkCheck}"
+                                  Content="Claude (5-hour + weekly)"
+                                  Checked="UsageFilterChanged" Unchecked="UsageFilterChanged"/>
+                        <CheckBox x:Name="UsageShowCursorBox" Style="{StaticResource DarkCheck}"
+                                  Content="Cursor (plan remaining + billing cycle)"
+                                  Margin="0,8,0,0"
+                                  Checked="UsageFilterChanged" Unchecked="UsageFilterChanged"/>
+
+                        <DockPanel Margin="0,16,0,0">
+                            <TextBlock x:Name="UsagePollLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="48" Text="15m"/>
+                            <TextBlock Text="Poll interval" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="UsagePollSlider" Minimum="5" Maximum="120" TickFrequency="5"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="UsagePollChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
+                                   Text="Claude’s usage endpoint rate-limits aggressively — prefer 15+ minutes."/>
+
+                        <TextBlock Text="Reminders &amp; clock" Foreground="#9AA0A8" Margin="0,16,0,4"/>
+                        <CheckBox x:Name="UsageInjectRemindersBox" Style="{StaticResource DarkCheck}"
+                                  Content="Show reset times on the reminders board"
+                                  Checked="UsageFilterChanged" Unchecked="UsageFilterChanged"/>
+                        <CheckBox x:Name="UsageBoardSmartFilterBox" Style="{StaticResource DarkCheck}"
+                                  Content="Only when at limit or capacity may go unused before reset"
+                                  Margin="0,8,0,0"
+                                  Checked="UsageFilterChanged" Unchecked="UsageFilterChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
+                                   Text="Example: 30% weekly left, one full 5h ≈ 10% of weekly, cushion 2× → alert when ≤30h remain until weekly reset."/>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="UsageSessionPctLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="40" Text="10%"/>
+                            <TextBlock Text="One full 5h ≈ % of weekly" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="UsageSessionPctSlider" Minimum="1" Maximum="50" TickFrequency="1"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="UsageSmartKnobsChanged"/>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="UsageCushionLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="40" Text="2×"/>
+                            <TextBlock Text="Partial-session cushion" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="UsageCushionSlider" Minimum="1" Maximum="5" TickFrequency="0.5"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="UsageSmartKnobsChanged"/>
+
+                        <TextBlock Text="At limit — show on board within" Foreground="#9AA0A8" Margin="0,16,0,4"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,0,0,4"
+                                   Text="When a meter is fully used, only list it on the reminders board this close to its reset."/>
+
+                        <DockPanel Margin="0,4,0,0">
+                            <TextBlock x:Name="UsageLead5hLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="48" Text="1h"/>
+                            <TextBlock Text="Claude 5h" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="UsageLead5hSlider" Minimum="0.25" Maximum="5" TickFrequency="0.25"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="UsageLeadChanged"/>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="UsageLeadWeeklyLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="48" Text="12h"/>
+                            <TextBlock Text="Claude weekly" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="UsageLeadWeeklySlider" Minimum="1" Maximum="168" TickFrequency="1"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="UsageLeadChanged"/>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="UsageLeadOpusLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="48" Text="12h"/>
+                            <TextBlock Text="Claude Opus weekly" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="UsageLeadOpusSlider" Minimum="1" Maximum="168" TickFrequency="1"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="UsageLeadChanged"/>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="UsageLeadCursorLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="48" Text="24h"/>
+                            <TextBlock Text="Cursor billing" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="UsageLeadCursorSlider" Minimum="1" Maximum="168" TickFrequency="1"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="UsageLeadChanged"/>
+
+                        <CheckBox x:Name="UsageShowOnClockBox" Style="{StaticResource DarkCheck}"
+                                  Content="Show reset wedges on the clock (green→red by used %)"
+                                  Margin="0,16,0,0"
+                                  Checked="UsageFilterChanged" Unchecked="UsageFilterChanged"/>
+
+                        <TextBlock Text="At limit — show on clock within" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,0,0,4"
+                                   Text="Separate from the board. Fully used meters only get a clock wedge this close to reset (defaults are wider so the ring can still preview)."/>
+
+                        <DockPanel Margin="0,4,0,0">
+                            <TextBlock x:Name="UsageClockLead5hLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="48" Text="5h"/>
+                            <TextBlock Text="Claude 5h" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="UsageClockLead5hSlider" Minimum="0.25" Maximum="5" TickFrequency="0.25"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="UsageClockLeadChanged"/>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="UsageClockLeadWeeklyLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="48" Text="48h"/>
+                            <TextBlock Text="Claude weekly" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="UsageClockLeadWeeklySlider" Minimum="1" Maximum="168" TickFrequency="1"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="UsageClockLeadChanged"/>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="UsageClockLeadOpusLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="48" Text="48h"/>
+                            <TextBlock Text="Claude Opus weekly" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="UsageClockLeadOpusSlider" Minimum="1" Maximum="168" TickFrequency="1"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="UsageClockLeadChanged"/>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="UsageClockLeadCursorLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="48" Text="72h"/>
+                            <TextBlock Text="Cursor billing" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="UsageClockLeadCursorSlider" Minimum="1" Maximum="168" TickFrequency="1"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="UsageClockLeadChanged"/>
+
+                        <TextBlock Text="Board row colors" Foreground="#9AA0A8" Margin="0,16,0,4"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,0,0,6"
+                                   Text="Per reset on the reminders list: usage tint (green→red), a fixed color, or the default idle task color."/>
+
+                        <TextBlock Text="Claude 5h" Foreground="#9AA0A8" Margin="0,4,0,4"/>
+                        <ComboBox x:Name="UsageBoardColorMode5hBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="UsageBoardColorModeChanged">
+                            <ComboBoxItem Content="Usage tint (green→red)"/>
+                            <ComboBoxItem Content="Fixed color"/>
+                            <ComboBoxItem Content="Default (no special color)"/>
+                        </ComboBox>
+                        <local:ColorRow x:Name="UsageBoardColor5hRow"/>
+
+                        <TextBlock Text="Claude weekly" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                        <ComboBox x:Name="UsageBoardColorModeWeeklyBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="UsageBoardColorModeChanged">
+                            <ComboBoxItem Content="Usage tint (green→red)"/>
+                            <ComboBoxItem Content="Fixed color"/>
+                            <ComboBoxItem Content="Default (no special color)"/>
+                        </ComboBox>
+                        <local:ColorRow x:Name="UsageBoardColorWeeklyRow"/>
+
+                        <TextBlock Text="Claude Opus weekly" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                        <ComboBox x:Name="UsageBoardColorModeOpusBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="UsageBoardColorModeChanged">
+                            <ComboBoxItem Content="Usage tint (green→red)"/>
+                            <ComboBoxItem Content="Fixed color"/>
+                            <ComboBoxItem Content="Default (no special color)"/>
+                        </ComboBox>
+                        <local:ColorRow x:Name="UsageBoardColorOpusRow"/>
+
+                        <TextBlock Text="Cursor billing" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                        <ComboBox x:Name="UsageBoardColorModeCursorBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="UsageBoardColorModeChanged">
+                            <ComboBoxItem Content="Usage tint (green→red)"/>
+                            <ComboBoxItem Content="Fixed color"/>
+                            <ComboBoxItem Content="Default (no special color)"/>
+                        </ComboBox>
+                        <local:ColorRow x:Name="UsageBoardColorCursorRow"/>
+
+                        <TextBlock Text="Accent colors" Foreground="#9AA0A8" Margin="0,16,0,4"/>
+                        <local:ColorRow x:Name="UsageColorClaudeRow"/>
+                        <local:ColorRow x:Name="UsageColorCursorRow"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                   Text="Clock wedges still tint green→red from remaining usage; accents are for the usage overlay headers."/>
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
 
             <TabItem Header="Settings">
@@ -909,9 +1409,23 @@
                         <CheckBox x:Name="ManualSortBox" Style="{StaticResource DarkCheck}"
                                   Content="Manual sort — overlay and Layout follow ↑↓"
                                   Checked="SettingsChanged" Unchecked="SettingsChanged"/>
-                        <TextBlock Text="Automatic sort: Recurring and Scheduled by due time, then To Dos at the bottom, then notes. A pin on an item (1 = first in its folder, 3 = third) holds that slot while everything else still sorts automatically. Manual sort starts from add order and uses Layout ↑↓ — including moving folders past tasks; pins still apply."
+                        <TextBlock Text="Automatic sort: Recurring and Scheduled by due time, then To Dos, then notes, then folders. A pin on a task or folder (1 = first among siblings, 3 = third) holds that slot while everything else still sorts automatically. Layout ↑↓ sets a pin instead of turning on Manual sort. Manual sort freezes order to ↑↓ (including folders among tasks); pins still apply."
                                    Foreground="#7A8088" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                        <TextBlock Text="Folder indent" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                        <TextBlock Text="Top-level folders" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                        <DockPanel>
+                            <TextBlock x:Name="TopFolderIndentLabel" DockPanel.Dock="Right" Width="48" Foreground="#C5C9D0"/>
+                            <Slider x:Name="TopFolderIndentSlider" Minimum="0" Maximum="40" TickFrequency="1"
+                                    SmallChange="1" LargeChange="4"
+                                    IsMoveToPointEnabled="True" IsSnapToTickEnabled="True"
+                                    PreviewMouseLeftButtonDown="SliderGoToClick"
+                                    MouseMove="SliderDrag"
+                                    MouseLeftButtonUp="SliderEndDrag"
+                                    LostMouseCapture="SliderEndDrag"
+                                    ValueChanged="TopFolderIndentChanged"/>
+                        </DockPanel>
+                        <TextBlock Text="How far root folders sit in from root-level tasks. 0 lines folder headers up with the task column."
+                                   Foreground="#7A8088" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                        <TextBlock Text="Nested folders" Foreground="#9AA0A8" Margin="0,12,0,4"/>
                         <DockPanel>
                             <TextBlock x:Name="IndentLabel" DockPanel.Dock="Right" Width="48" Foreground="#C5C9D0"/>
                             <Slider x:Name="IndentSlider" Minimum="0" Maximum="40" TickFrequency="1"
@@ -923,6 +1437,22 @@
                                     LostMouseCapture="SliderEndDrag"
                                     ValueChanged="IndentChanged"/>
                         </DockPanel>
+                        <TextBlock Text="How far each nested folder steps in from its parent."
+                                   Foreground="#7A8088" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                        <TextBlock Text="Tasks inside folders" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                        <DockPanel>
+                            <TextBlock x:Name="ContentIndentLabel" DockPanel.Dock="Right" Width="48" Foreground="#C5C9D0"/>
+                            <Slider x:Name="ContentIndentSlider" Minimum="0" Maximum="40" TickFrequency="1"
+                                    SmallChange="1" LargeChange="4"
+                                    IsMoveToPointEnabled="True" IsSnapToTickEnabled="True"
+                                    PreviewMouseLeftButtonDown="SliderGoToClick"
+                                    MouseMove="SliderDrag"
+                                    MouseLeftButtonUp="SliderEndDrag"
+                                    LostMouseCapture="SliderEndDrag"
+                                    ValueChanged="ContentIndentChanged"/>
+                        </DockPanel>
+                        <TextBlock Text="Extra inset for tasks and notes under a folder. 0 lines their checkboxes up with root-level tasks (when top-level folder indent is also 0)."
+                                   Foreground="#7A8088" TextWrapping="Wrap" Margin="0,4,0,0"/>
                         <CheckBox x:Name="HorizonHoursBox" Style="{StaticResource DarkCheck}"
                                   Content="Count upcoming window in hours instead of days"
                                   Checked="HorizonUnitChanged" Unchecked="HorizonUnitChanged"/>
@@ -972,7 +1502,9 @@
                         <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                             <Button Style="{StaticResource DarkButton}" Content="Open JSON" Click="OpenJson"/>
                             <Button Style="{StaticResource DarkButton}" Content="Open folder" Click="OpenFolder"/>
+                            <Button Style="{StaticResource DarkButton}" Content="Create backup" Click="CreateBackup"/>
                         </StackPanel>
+                        <TextBlock x:Name="BackupStatus" TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"/>
 
                         <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,20,0,0"
                                    Text="Minimize hides overlay windows to the notification area. Close (✕) quits the app. Unlock the overlay to drag, resize, use + to add entries, and the gear to configure. Drag items onto a folder to move them. Drag a folder onto another to nest it, onto the top or bottom of a header to reorder, or onto @FutureMe to make it top-level."/>

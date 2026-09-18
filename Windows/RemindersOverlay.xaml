@@ -24,6 +24,13 @@
                                TextWrapping="Wrap" Foreground="#7A8088"/>
                     <!-- auto model -->
                     <ItemsControl x:Name="BoardList"/>
+                    <Border x:Name="UsageDock" Margin="0,8,0,0" Visibility="Collapsed"
+                            Background="Transparent" Tag="hit">
+                        <StackPanel>
+                            <Border Height="1" Background="#3A3D45" Margin="0,2,0,6" IsHitTestVisible="False"/>
+                            <StackPanel x:Name="UsageDockMeters"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
             <Border x:Name="ChromeBar" Grid.Row="0" VerticalAlignment="Top" Padding="10,8,10,6"
@@ -44,8 +51,14 @@
                                 PreviewMouseLeftButtonUp="OnTempHideUp"
                                 LostMouseCapture="OnTempHideLostCapture"
                                 Click="OnTempHide">
-                            <TextBlock x:Name="SnoozeGlyph" FontFamily="Segoe MDL2 Assets" FontSize="12"
-                                       Text="&#xE708;" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                            <Grid Width="14" Height="14">
+                                <TextBlock x:Name="SnoozeGlyph" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                           Text="&#xE708;" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <Line x:Name="SnoozeBlock" X1="1" Y1="7" X2="13" Y2="7"
+                                      StrokeThickness="1.4" Visibility="Collapsed" IsHitTestVisible="False"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                            </Grid>
                         </Button>
                         <Button Style="{StaticResource ChromeButton}" Content="—" Click="OnMinimize" ToolTip="Hide this window"/>
                         <Button Style="{StaticResource ChromeButton}" Content="✕" Click="OnClose" ToolTip="Quit AtFutureMe"/>

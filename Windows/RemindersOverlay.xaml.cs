@@ -18,22 +18,9 @@ public partial class RemindersOverlay : OverlayWindowBase
         return brush;
     }
 
-    // auto model
-    public static DataTemplateSelector CreateBoardSelector()
-    {
-        var factoryItem = new FrameworkElementFactory(typeof(OverlayItemRow));
-        var factorySection = new FrameworkElementFactory(typeof(CategorySectionBlock));
-        return new BoardTemplateSelector
-        {
-            ItemTemplate = new DataTemplate { VisualTree = factoryItem },
-            SectionTemplate = new DataTemplate { VisualTree = factorySection }
-        };
-    }
-
     public RemindersOverlay()
     {
         InitializeComponent();
-        BoardList.ItemTemplateSelector = CreateBoardSelector();
         BoardList.ItemsSource = AppHost.Instance.RootBoard;
         LocationChanged += (_, _) => AppHost.Instance.ScheduleBoundsSave();
         SizeChanged += (_, _) => AppHost.Instance.ScheduleBoundsSave();
@@ -60,15 +47,43 @@ public partial class RemindersOverlay : OverlayWindowBase
         var color = state == AppHost.TempHideKind.CanHide ? SnoozeLive : SnoozeMuted;
         SnoozeButton.Foreground = color;
         SnoozeGlyph.Foreground = color;
-        SnoozeGlyph.TextDecorations = state == AppHost.TempHideKind.HasActive
-            ? TextDecorations.Strikethrough
-            : null;
+        SnoozeBlock.Stroke = color;
+        SnoozeBlock.Visibility = state == AppHost.TempHideKind.HasActive
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         SnoozeButton.ToolTip = host.TempHideButtonTip(now);
         UndoButton.IsEnabled = host.CanUndoDelete;
         UndoButton.ToolTip = host.UndoDeleteTip;
         ApplyPanelChrome(PanelBorder, DitherLayer);
         EmptyHint.Visibility = host.RootBoard.Count == 0
             ? Visibility.Visible : Visibility.Collapsed;
+        RefreshUsageDock();
+    }
+
+    // auto model
+    string? _usageDockSig;
+
+    public void RefreshUsageDock()
+    {
+        if (UsageDock == null || UsageDockMeters == null)
+            return;
+        var host = AppHost.Instance;
+        var s = host.Data.Settings;
+        var show = s.ShowUsageModule && s.UsageDockInReminders;
+        if (!show)
+        {
+            UsageDock.Visibility = Visibility.Collapsed;
+            UsageDockMeters.Children.Clear();
+            _usageDockSig = null;
+            return;
+        }
+
+        UsageDock.Visibility = Visibility.Visible;
+        var sig = UsagePanelContent.CompactSignature(s, host.Usage?.Latest);
+        if (sig == _usageDockSig && UsageDockMeters.Children.Count > 0)
+            return;
+        _usageDockSig = sig;
+        UsagePanelContent.Fill(UsageDockMeters, compact: true);
     }
 
     void OnWindowDrag(object sender, MouseButtonEventArgs e) => DragIfUnlocked(e);

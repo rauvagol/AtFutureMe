@@ -12,6 +12,25 @@ public sealed class OverlayItemVm : INotifyPropertyChanged
     public string CategoryId { get; init; } = "";
     public DateTime SortAt { get; init; } = DateTime.MaxValue;
     public int PinSlot { get; init; }
+    // auto model: placeholder for ApplyPinnedOrder when HoldPinWhenHidden item is not on the overlay
+    public bool IsPinHoldGhost { get; init; }
+
+    int _contentIndent;
+    // auto model
+    public int ContentIndent
+    {
+        get => _contentIndent;
+        set
+        {
+            if (_contentIndent == value)
+                return;
+            _contentIndent = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(RowMargin));
+        }
+    }
+
+    public Thickness RowMargin => new(_contentIndent, 1, 0, 1);
 
     string _checkTip = "";
     public string CheckTip
@@ -207,6 +226,9 @@ public sealed class CategorySectionVm : INotifyPropertyChanged
 {
     public string Id { get; set; } = "";
 
+    // auto model
+    public int PinSlot { get; set; }
+
     string _name = "";
     public string Name
     {
@@ -250,15 +272,14 @@ public sealed class CategorySectionVm : INotifyPropertyChanged
         get => _indent;
         set
         {
-            if (_indent == value)
-                return;
+            // auto model: always refresh margin so slider changes apply even when depth is unchanged
             _indent = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(BlockMargin));
         }
     }
 
-    public Thickness BlockMargin => new(Depth == 0 ? 4 : Indent, Depth == 0 ? 10 : 4, 4, 0);
+    public Thickness BlockMargin => new(Math.Max(0, Indent), Depth == 0 ? 10 : 4, 4, 0);
 
     bool _hasChildren;
     public bool HasChildren
