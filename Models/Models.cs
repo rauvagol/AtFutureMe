@@ -299,6 +299,9 @@ public sealed class AppSettings
     public bool TempHideWarnInHours { get; set; }
     public OverlayCorner TempHideWarnCorner { get; set; } = OverlayCorner.BottomRight;
     public List<string>? SettingsOpen { get; set; }
+    /// <summary>Last selected Configure tab index (Layout, Tasks, …).</summary>
+    // auto model
+    public int ConfigTabIndex { get; set; }
     [JsonIgnore]
     public bool TempHideMain { get; set; }
 
@@ -372,6 +375,121 @@ public sealed class AppSettings
     // auto model
     public int ClockTimeOutlineStrength { get; set; } = 2;
     public string ClockColorFace { get; set; } = "";
+    /// <summary>When true, fill the clock face with ClockColorAttention while a recurring/scheduled task is due.</summary>
+    // auto model
+    public bool ClockAttentionTint { get; set; }
+    /// <summary>Face fill while a recurring or scheduled task needs attention (due / overdue).</summary>
+    // auto model
+    public string ClockColorAttention { get; set; } = "#FF8A65";
+
+    // auto model: aesthetics — concentric planetary drive (face ↔ second hand)
+    /// <summary>Off, or concentric multi-stage planetary underlay.</summary>
+    public ClockGearDriveMode ClockGearDriveMode { get; set; } = ClockGearDriveMode.Off;
+    /// <summary>Compound tooth counts for the selected catalog train (empty = Off / legacy enum).</summary>
+    // auto model
+    public List<int> ClockGearCompounds { get; set; } = [];
+    /// <summary>Show RPM / ratio debug labels on the concentric gear scaffold.</summary>
+    // auto model
+    public bool ClockGearDebugLabels { get; set; }
+    /// <summary>Draw a circle on each ring gear at its solid-rim midpoint (mask debug).</summary>
+    // auto model
+    public bool ClockGearDebugRingCenter { get; set; }
+    /// <summary>Hide carriage rails, braces, and pins. Planets stay.</summary>
+    // auto model
+    public bool ClockGearHideCarousel { get; set; }
+    /// <summary>Multiply planetary animation vs wall-clock (1–1440). Does not affect hands.</summary>
+    // auto model
+    public double ClockGearAnimSpeed { get; set; } = 1;
+    /// <summary>Planet count per gap (outer→1st, 1st→2nd, 2nd→3rd, 3rd→sun). Length 4.</summary>
+    // auto model
+    public List<int> ClockGearPlanetCounts { get; set; } = [3, 3, 3, 3];
+    /// <summary>Planet constellation rotation per gap in degrees (0–360). Length 4.</summary>
+    // auto model
+    public List<double> ClockGearPlanetOffsetsDeg { get; set; } = [0, 0, 0, 0];
+    /// <summary>Looks-only carousel of each ring's planets (deg/min, signed).</summary>
+    // auto model
+    public List<double> ClockGearCarrierDegPerMin { get; set; } = [0, 0, 0, 0, 0];
+    /// <summary>
+    /// Null/true: equalize carousel orbit speed, keep outer face rate and
+    /// center sun at 1 rpm. False: use ClockGearCarrierDegPerMin.
+    /// </summary>
+    // auto model
+    public bool? ClockGearAutoCarrier { get; set; }
+    /// <summary>Per-ring carousel direction when auto-carrier is on.</summary>
+    // auto model
+    public List<ClockGearCarrierDir> ClockGearCarrierDirs { get; set; } = [];
+    /// <summary>Floor on auto carousel |ω| in deg/min (0 = no floor). Unlocked rings only.</summary>
+    // auto model
+    public double ClockGearCarrierMinDegPerMin { get; set; }
+    /// <summary>When auto-carrier is on, lock this ring to ClockGearCarrierDegPerMin.</summary>
+    // auto model
+    public List<bool> ClockGearCarrierPinned { get; set; } = [];
+    /// <summary>Integer compound/idler size multiplier per ring (1 = stock train).</summary>
+    // auto model
+    public List<double> ClockGearCompoundScale { get; set; } = [1, 1, 1, 1, 1];
+    /// <summary>Always 1 — kept for save compat (2-idler pairs are not assemblable).</summary>
+    // auto model
+    public int ClockGearIdlersPerCompound { get; set; } = 1;
+    /// <summary>Idler seat angle per gap (0° = toward center). Length 4; [0] is outer→1st.</summary>
+    // auto model
+    public List<double> ClockGearIdlerOffsetsDeg { get; set; } = [0, 0, 0, 0];
+    /// <summary>Compat alias for <see cref="ClockGearIdlerOffsetsDeg"/>[0].</summary>
+    // auto model
+    public double ClockGearIdlerOffsetDeg
+    {
+        get => ClockGearIdlerOffsetsDeg is { Count: > 0 } ? ClockGearIdlerOffsetsDeg[0] : 0;
+        set
+        {
+            ClockGearIdlerOffsetsDeg ??= [0, 0, 0, 0];
+            while (ClockGearIdlerOffsetsDeg.Count < 4)
+                ClockGearIdlerOffsetsDeg.Add(0);
+            ClockGearIdlerOffsetsDeg[0] = value;
+        }
+    }
+    public string ClockGearColor { get; set; } = "#7A8088";
+    /// <summary>Compound fill. Blank = darkened ring color.</summary>
+    // auto model
+    public string ClockGearCompoundColor { get; set; } = "";
+    /// <summary>Small planet pinion. Blank = ring color.</summary>
+    // auto model
+    public string ClockGearPlanetColor { get; set; } = "";
+    /// <summary>Idler fill. Blank = ring color.</summary>
+    // auto model
+    public string ClockGearIdlerColor { get; set; } = "";
+    /// <summary>Center sun (drives the second hand). Blank = darkened ring color.</summary>
+    // auto model
+    public string ClockGearSunColor { get; set; } = "";
+    /// <summary>Opaque carrier rails and braces.</summary>
+    // auto model
+    public string ClockGearCarriageColor { get; set; } = "#C4A882";
+    /// <summary>Per-annulus carriage frame. Empty = copy legacy scalars onto every ring.</summary>
+    // auto model
+    public List<ClockGearCarriageStage> ClockGearCarriageStages { get; set; } = [];
+    /// <summary>Legacy rail stroke; used only to seed empty ClockGearCarriageStages.</summary>
+    // auto model
+    public double ClockGearCarriageRail { get; set; } = 4;
+    /// <summary>Legacy brace stroke; used only to seed empty ClockGearCarriageStages.</summary>
+    // auto model
+    public double ClockGearCarriageRung { get; set; } = 2.4;
+    /// <summary>Legacy brace sweep; used only to seed empty ClockGearCarriageStages.</summary>
+    // auto model
+    public double ClockGearCarriageSweepDeg { get; set; } = 18;
+    /// <summary>Legacy brace direction; used only to seed empty ClockGearCarriageStages.</summary>
+    // auto model
+    public bool ClockGearCarriageReverse { get; set; }
+    /// <summary>Legacy axle pins; used only to seed empty ClockGearCarriageStages.</summary>
+    // auto model
+    public bool? ClockGearCarriagePins { get; set; }
+    /// <summary>Legacy hub reinforcement; used only to seed empty ClockGearCarriageStages.</summary>
+    // auto model
+    public double ClockGearCarriageHub { get; set; }
+    /// <summary>0–1 train opacity. Outer drive teeth and center sun stay full strength.</summary>
+    public double ClockGearOpacity { get; set; } = 0.42;
+    /// <summary>Tooth radial depth as a fraction of that gear's pitch radius.</summary>
+    public double ClockGearToothDepthFrac { get; set; } = 0.14;
+    /// <summary>Fraction of each pitch angle taken by the tooth tip.</summary>
+    public double ClockGearToothWidthFrac { get; set; } = 0.48;
+
     /// <summary>When true, every folder is included; otherwise only ClockCategoryIds.</summary>
     public bool ClockAllCategories { get; set; } = true;
     public List<string> ClockCategoryIds { get; set; } = [];
@@ -386,6 +504,15 @@ public sealed class AppSettings
     /// <summary>Docked compact rows: use idle gray for % / time instead of usage tint.</summary>
     // auto model
     public bool UsageDockPlainGray { get; set; }
+    /// <summary>Docked compact rows: use idle gray for the usage bar fill instead of usage tint.</summary>
+    // auto model
+    public bool UsageDockPlainGrayBar { get; set; }
+    /// <summary>Docked compact rows: dim + strikethrough when a meter is fully used (unavailable until reset).</summary>
+    // auto model
+    public bool UsageDockDimAtLimit { get; set; }
+    /// <summary>When dim-at-limit is on, Claude week also dims if Claude 5h is at 100%.</summary>
+    // auto model
+    public bool UsageDockWeekInherit5hDim { get; set; }
     /// <summary>Docked compact rows: show used percent before time-to-reset.</summary>
     // auto model
     public bool UsageDockShowPercent { get; set; } = true;
@@ -470,6 +597,112 @@ public enum ClockTickStep
     ThirtyMinutes,
     FifteenMinutes,
     Minute
+}
+
+/// <summary>Clock face aesthetics gear drive — Off or a locked tooth progression.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum ClockGearCarriageKind
+{
+    /// <summary>Twin orbit rails with evenly spaced swept braces.</summary>
+    Orbit,
+    /// <summary>Orbit rails plus a bow from each compound pin to its idler pin.</summary>
+    PinLinks,
+    /// <summary>Pin-to-pin bows only — no orbit rings.</summary>
+    Skeleton,
+    /// <summary>Filled C-arms wrapping each compound/idler pair.</summary>
+    Cradles,
+    /// <summary>Orbit rails with X-lattice bracing between them.</summary>
+    Truss,
+    /// <summary>Helical ribbons winding between the two orbits.</summary>
+    Helix,
+    /// <summary>Several pin-to-pin bows fanned around each pair.</summary>
+    Fan
+}
+
+/// <summary>Carriage look for one annulus.</summary>
+// auto model
+public sealed class ClockGearCarriageStage
+{
+    public ClockGearCarriageKind Kind { get; set; } = ClockGearCarriageKind.Orbit;
+    public double Rail { get; set; } = 4;
+    public double Rung { get; set; } = 2.4;
+    public double SweepDeg { get; set; } = 18;
+    public bool Reverse { get; set; }
+    public bool Pins { get; set; } = true;
+    public double Hub { get; set; }
+    /// <summary>Extra copies of the pin-link template, evenly spaced to the next planet (0 = template only).</summary>
+    public int LinkRepeats { get; set; }
+    /// <summary>0 = own idler; 1 = next planet’s idler, wrapping around the ring.</summary>
+    public int LinkStride { get; set; }
+
+    public ClockGearCarriageStage Clone() => new()
+    {
+        Kind = Kind,
+        Rail = Rail,
+        Rung = Rung,
+        SweepDeg = SweepDeg,
+        Reverse = Reverse,
+        Pins = Pins,
+        Hub = Hub,
+        LinkRepeats = LinkRepeats,
+        LinkStride = LinkStride
+    };
+
+    public ClockGearCarriageStage Clamped()
+    {
+        if (!Enum.IsDefined(Kind))
+            Kind = ClockGearCarriageKind.Orbit;
+        Rail = Math.Clamp(Rail <= 0 ? 4 : Rail, 1, 12);
+        Rung = Math.Clamp(Rung <= 0 ? 2.4 : Rung, 1, 10);
+        SweepDeg = Math.Clamp(SweepDeg, 0, 45);
+        Hub = Math.Clamp(Hub, 0, 14);
+        LinkRepeats = Math.Clamp(LinkRepeats, 0, 8);
+        LinkStride = Math.Clamp(LinkStride, 0, 6);
+        return this;
+    }
+
+    public static ClockGearCarriageStage FromLegacy(AppSettings s) => new ClockGearCarriageStage
+    {
+        Kind = ClockGearCarriageKind.Orbit,
+        Rail = s.ClockGearCarriageRail,
+        Rung = s.ClockGearCarriageRung,
+        SweepDeg = s.ClockGearCarriageSweepDeg,
+        Reverse = s.ClockGearCarriageReverse,
+        Pins = s.ClockGearCarriagePins != false,
+        Hub = s.ClockGearCarriageHub
+    }.Clamped();
+
+    public static ClockGearCarriageStage At(AppSettings settings, int stage)
+    {
+        var list = settings.ClockGearCarriageStages;
+        if (list != null && stage >= 0 && stage < list.Count && list[stage] != null)
+            return list[stage];
+        return FromLegacy(settings);
+    }
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum ClockGearCarrierDir
+{
+    Auto,
+    Clockwise,
+    Counterclockwise,
+    /// <summary>Park this carousel (ω_c = 0).</summary>
+    Still
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum ClockGearDriveMode
+{
+    Off,
+    /// <summary>Legacy name: 96 → 72 → 36 (×10 / ×6 / ×6), first assemblable default.</summary>
+    Concentric,
+    Teeth144_96_64_32,
+    Teeth144_108_72_36,
+    Teeth144_120_90_60,
+    Teeth144_120_80_60,
+    Teeth144_144_108_72,
+    Teeth144_144_120_80
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]

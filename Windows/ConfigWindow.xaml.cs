@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Globalization;
 using System.IO;
 using System.Windows;
@@ -161,6 +162,13 @@ public partial class ConfigWindow : Window
         WireClockColor(ClockColorTimeRow, (s, hex) => s.ClockColorTime = hex);
         WireClockColor(ClockColorTimeOutlineRow, (s, hex) => s.ClockColorTimeOutline = hex);
         WireClockColorOptional(ClockColorFaceRow, (s, hex) => s.ClockColorFace = hex ?? "");
+        WireClockColor(ClockColorAttentionRow, (s, hex) => s.ClockColorAttention = hex);
+        WireClockColor(ClockGearColorRow, (s, hex) => s.ClockGearColor = hex);
+        WireClockColorOptional(ClockGearCompoundColorRow, (s, hex) => s.ClockGearCompoundColor = hex ?? "");
+        WireClockColorOptional(ClockGearPlanetColorRow, (s, hex) => s.ClockGearPlanetColor = hex ?? "");
+        WireClockColorOptional(ClockGearIdlerColorRow, (s, hex) => s.ClockGearIdlerColor = hex ?? "");
+        WireClockColorOptional(ClockGearSunColorRow, (s, hex) => s.ClockGearSunColor = hex ?? "");
+        WireClockColor(ClockGearCarriageColorRow, (s, hex) => s.ClockGearCarriageColor = hex);
         // auto model
         WireUsageColor(UsageColorClaudeRow, (s, hex) => s.UsageColorClaude = hex);
         WireUsageColor(UsageColorCursorRow, (s, hex) => s.UsageColorCursor = hex);
@@ -267,6 +275,8 @@ public partial class ConfigWindow : Window
     {
         if (_loading || e.Source != MainTabs || LayoutTree == null)
             return;
+        AppHost.Instance.Data.Settings.ConfigTabIndex = MainTabs.SelectedIndex;
+        AppHost.Instance.RequestSave();
         if (MainTabs.SelectedIndex == 0)
         {
             BindLayout();
@@ -1219,6 +1229,13 @@ public partial class ConfigWindow : Window
         LoadTempHideDurations(s);
         TempHideCornerBox.SelectedIndex = (int)s.TempHideWarnCorner;
         LoadSettingsSections(s);
+        if (MainTabs != null)
+        {
+            var tabCount = MainTabs.Items.Count;
+            MainTabs.SelectedIndex = tabCount == 0
+                ? 0
+                : Math.Clamp(s.ConfigTabIndex, 0, tabCount - 1);
+        }
         RefreshUpcomingScheduled();
         OpacitySlider.Value = s.Opacity;
         OpacityLabel.Text = $"{s.Opacity:P0}";
@@ -1281,6 +1298,20 @@ public partial class ConfigWindow : Window
             ClockLockModeBox.SelectedIndex = (int)s.ClockLockMode;
         if (ClockKeepFaceBox != null)
             ClockKeepFaceBox.IsChecked = s.ClockKeepFaceWhenLocked;
+        LoadGearCatalogBox(s);
+        RefreshPlanetSliders(s);
+        LoadClockGearCarrierRates(s);
+        if (ClockGearAutoCarrierBox != null)
+            ClockGearAutoCarrierBox.IsChecked = s.ClockGearAutoCarrier != false;
+        if (ClockGearDebugLabelsBox != null)
+            ClockGearDebugLabelsBox.IsChecked = s.ClockGearDebugLabels;
+        if (ClockGearDebugRingCenterBox != null)
+            ClockGearDebugRingCenterBox.IsChecked = s.ClockGearDebugRingCenter;
+        if (ClockGearHideCarouselBox != null)
+            ClockGearHideCarouselBox.IsChecked = s.ClockGearHideCarousel;
+        LoadClockGearAnimSpeed(s.ClockGearAnimSpeed);
+        LoadClockGearOpacity(s.ClockGearOpacity);
+        LoadClockGearCarriageStyle(s);
         if (ClockSecondHandBox != null)
             ClockSecondHandBox.IsChecked = s.ClockShowSecondHand;
         if (ClockHourHandBox != null)
@@ -1349,6 +1380,20 @@ public partial class ConfigWindow : Window
         ClockColorTimeOutlineRow?.Bind("Time outline", s.ClockColorTimeOutline, s.ClockColorTimeOutline, false);
         ClockColorCaretRow?.Bind("Now caret", s.ClockColorCaret, s.ClockColorCaret, false);
         ClockColorFaceRow?.Bind("Face fill (blank = match overlay panel)", "#202228", s.ClockColorFace, true);
+        ClockColorAttentionRow?.Bind("Attention face tint", s.ClockColorAttention, s.ClockColorAttention, false);
+        ClockGearColorRow?.Bind("Annulus / ring", s.ClockGearColor, s.ClockGearColor, false);
+        ClockGearCompoundColorRow?.Bind(
+            "Compound (blank = darkened ring)", s.ClockGearColor, s.ClockGearCompoundColor, true);
+        ClockGearPlanetColorRow?.Bind(
+            "Planet (blank = ring)", s.ClockGearColor, s.ClockGearPlanetColor, true);
+        ClockGearIdlerColorRow?.Bind(
+            "Idler (blank = ring)", s.ClockGearColor, s.ClockGearIdlerColor, true);
+        ClockGearSunColorRow?.Bind(
+            "Center sun (blank = darkened ring)", s.ClockGearColor, s.ClockGearSunColor, true);
+        ClockGearCarriageColorRow?.Bind(
+            "Carriage / frame", s.ClockGearCarriageColor, s.ClockGearCarriageColor, false);
+        if (ClockAttentionTintBox != null)
+            ClockAttentionTintBox.IsChecked = s.ClockAttentionTint;
         ClockColorRecurringRow?.Bind("Recurring wedge", s.ClockColorRecurring, s.ClockColorRecurring, false);
         ClockColorScheduledRow?.Bind("Scheduled wedge", s.ClockColorScheduled, s.ClockColorScheduled, false);
         ClockColorDueRow?.Bind("Due wedge", s.ClockColorDue, s.ClockColorDue, false);
@@ -1410,6 +1455,12 @@ public partial class ConfigWindow : Window
             UsageDockShowPercentBox.IsChecked = s.UsageDockShowPercent;
         if (UsageDockPlainGrayBox != null)
             UsageDockPlainGrayBox.IsChecked = s.UsageDockPlainGray;
+        if (UsageDockPlainGrayBarBox != null)
+            UsageDockPlainGrayBarBox.IsChecked = s.UsageDockPlainGrayBar;
+        if (UsageDockDimAtLimitBox != null)
+            UsageDockDimAtLimitBox.IsChecked = s.UsageDockDimAtLimit;
+        if (UsageDockWeekInherit5hDimBox != null)
+            UsageDockWeekInherit5hDimBox.IsChecked = s.UsageDockWeekInherit5hDim;
         if (UsageLockModeBox != null)
             UsageLockModeBox.SelectedIndex = (int)s.UsageLockMode;
         if (UsageShowClaudeBox != null)
@@ -1563,6 +1614,12 @@ public partial class ConfigWindow : Window
             s.UsageDockShowPercent = UsageDockShowPercentBox.IsChecked == true;
         if (UsageDockPlainGrayBox != null)
             s.UsageDockPlainGray = UsageDockPlainGrayBox.IsChecked == true;
+        if (UsageDockPlainGrayBarBox != null)
+            s.UsageDockPlainGrayBar = UsageDockPlainGrayBarBox.IsChecked == true;
+        if (UsageDockDimAtLimitBox != null)
+            s.UsageDockDimAtLimit = UsageDockDimAtLimitBox.IsChecked == true;
+        if (UsageDockWeekInherit5hDimBox != null)
+            s.UsageDockWeekInherit5hDim = UsageDockWeekInherit5hDimBox.IsChecked == true;
         if (UsageShowOnClockBox != null)
             s.UsageShowOnClock = UsageShowOnClockBox.IsChecked == true;
         AppHost.Instance.SyncUsageOverlay();
@@ -1742,12 +1799,1480 @@ public partial class ConfigWindow : Window
             s.ClockShowEventLabels = ClockShowLabelsBox.IsChecked == true;
         if (ClockKeepFaceBox != null)
             s.ClockKeepFaceWhenLocked = ClockKeepFaceBox.IsChecked == true;
+        if (ClockAttentionTintBox != null)
+            s.ClockAttentionTint = ClockAttentionTintBox.IsChecked == true;
+        if (ClockGearDebugLabelsBox != null)
+            s.ClockGearDebugLabels = ClockGearDebugLabelsBox.IsChecked == true;
+        if (ClockGearDebugRingCenterBox != null)
+            s.ClockGearDebugRingCenter = ClockGearDebugRingCenterBox.IsChecked == true;
+        if (ClockGearHideCarouselBox != null)
+            s.ClockGearHideCarousel = ClockGearHideCarouselBox.IsChecked == true;
         if (ClockSecondHandBox != null)
             s.ClockShowSecondHand = ClockSecondHandBox.IsChecked == true;
         if (ClockHourHandBox != null)
             s.ClockShowHourHand = ClockHourHandBox.IsChecked == true;
         if (ClockTimeOutlineBox != null)
             s.ClockTimeOutline = ClockTimeOutlineBox.IsChecked == true;
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    // auto model
+    void ClockGearDriveModeChanged(object sender, EventArgs e)
+    {
+        if (_loading)
+            return;
+        ApplySelectedGearCombo(AppHost.Instance.Data.Settings);
+        RefreshPlanetSliders(AppHost.Instance.Data.Settings);
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void LoadGearCatalogBox(AppSettings s)
+    {
+        if (ClockGearDriveModeBox == null)
+            return;
+        var prev = _loading;
+        _loading = true;
+        try
+        {
+            ClockGearDriveModeBox.Items.Clear();
+            ClockGearDriveModeBox.Items.Add(new ComboBoxItem { Content = "Off", Tag = null });
+            foreach (var combo in ClockGearGeometry.PrecomputedCombos())
+                ClockGearDriveModeBox.Items.Add(new ComboBoxItem { Content = combo.Label, Tag = combo });
+            ClockGearDriveModeBox.SelectedIndex = IndexOfGearCombo(s);
+        }
+        finally
+        {
+            _loading = prev;
+        }
+    }
+
+    static int IndexOfGearCombo(AppSettings s)
+    {
+        if (s.ClockGearDriveMode == ClockGearDriveMode.Off)
+            return 0;
+        var combos = ClockGearGeometry.PrecomputedCombos();
+        var stored = (s.ClockGearCompounds ?? []).Where(n => n > 0).ToArray();
+        for (var i = 0; i < combos.Count; i++)
+        {
+            var c = combos[i];
+            if (stored.Length == c.Compounds.Length && stored.SequenceEqual(c.Compounds))
+                return i + 1;
+        }
+        if (ClockGearGeometry.TryGetProgression(s.ClockGearDriveMode, out var legacy))
+        {
+            var ncs = legacy.Compounds();
+            for (var i = 0; i < combos.Count; i++)
+            {
+                if (combos[i].Compounds.SequenceEqual(ncs))
+                    return i + 1;
+            }
+        }
+        return 0;
+    }
+
+    void ApplySelectedGearCombo(AppSettings s)
+    {
+        if (ClockGearDriveModeBox?.SelectedItem is not ComboBoxItem item)
+            return;
+        if (item.Tag is ClockGearGeometry.GearCombo combo)
+        {
+            s.ClockGearDriveMode = ClockGearDriveMode.Concentric;
+            s.ClockGearCompounds = [.. combo.Compounds];
+            var packed = ClockGearGeometry.DensestStagePlanets(combo.Compounds, GearRim());
+            s.ClockGearPlanetCounts = PadPlanetCounts(packed.Length > 0 ? packed : combo.StagePlanets);
+            s.ClockGearPlanetOffsetsDeg = [0, 0, 0, 0, 0];
+        }
+        else
+        {
+            s.ClockGearDriveMode = ClockGearDriveMode.Off;
+            s.ClockGearCompounds = [];
+        }
+    }
+
+    static List<int> PadPlanetCounts(IReadOnlyList<int>? src)
+    {
+        var list = new List<int>();
+        if (src != null)
+        {
+            foreach (var n in src)
+                list.Add(Math.Clamp(n <= 0 ? 1 : n, 1, 12));
+        }
+        if (list.Count == 0)
+            list.Add(1);
+        while (list.Count < 5)
+            list.Add(1);
+        return list;
+    }
+
+    // auto model
+    void LoadClockGearAnimSpeed(double speed)
+    {
+        if (ClockGearAnimSpeedSlider == null)
+            return;
+        var v = Math.Clamp(Math.Round(speed), 1, 1440);
+        ClockGearAnimSpeedSlider.Value = v;
+        if (ClockGearAnimSpeedLabel != null)
+            ClockGearAnimSpeedLabel.Text = $"{v:0}×";
+    }
+
+    // auto model
+    void ClockGearAnimSpeedChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || ClockGearAnimSpeedSlider == null)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        s.ClockGearAnimSpeed = Math.Clamp(Math.Round(ClockGearAnimSpeedSlider.Value), 1, 1440);
+        if (Math.Abs(ClockGearAnimSpeedSlider.Value - s.ClockGearAnimSpeed) > 0.01)
+            ClockGearAnimSpeedSlider.Value = s.ClockGearAnimSpeed;
+        if (ClockGearAnimSpeedLabel != null)
+            ClockGearAnimSpeedLabel.Text = $"{s.ClockGearAnimSpeed:0}×";
+        // Speed is read each frame — no face rebuild needed.
+        AppHost.Instance.RequestSave();
+    }
+
+    void LoadClockGearOpacity(double opacity)
+    {
+        if (ClockGearOpacitySlider == null)
+            return;
+        var pct = Math.Clamp(Math.Round(Math.Clamp(opacity, 0.05, 1) * 100), 5, 100);
+        ClockGearOpacitySlider.Value = pct;
+        if (ClockGearOpacityLabel != null)
+            ClockGearOpacityLabel.Text = $"{pct:0}%";
+    }
+
+    void ClockGearOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || ClockGearOpacitySlider == null)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        var pct = Math.Clamp(Math.Round(ClockGearOpacitySlider.Value), 5, 100);
+        if (Math.Abs(ClockGearOpacitySlider.Value - pct) > 0.01)
+            ClockGearOpacitySlider.Value = pct;
+        s.ClockGearOpacity = pct / 100.0;
+        if (ClockGearOpacityLabel != null)
+            ClockGearOpacityLabel.Text = $"{pct:0}%";
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    sealed class CarriageStageUi
+    {
+        public required StackPanel Root { get; init; }
+        public required ComboBox KindBox { get; init; }
+        public required TextBlock Hint { get; init; }
+        public required TextBlock SweepTitle { get; init; }
+        public required TextBlock SweepValue { get; init; }
+        public required Slider Rail { get; init; }
+        public required TextBlock RailValue { get; init; }
+        public required Slider Rung { get; init; }
+        public required TextBlock RungValue { get; init; }
+        public required Slider Sweep { get; init; }
+        public required ComboBox DirBox { get; init; }
+        public required CheckBox PinsBox { get; init; }
+        public required Slider Hub { get; init; }
+        public required TextBlock HubValue { get; init; }
+        public required StackPanel LinkPanel { get; init; }
+        public required Slider Repeats { get; init; }
+        public required TextBlock RepeatsValue { get; init; }
+        public required Slider Stride { get; init; }
+        public required TextBlock StrideValue { get; init; }
+    }
+
+    static readonly (ClockGearCarriageKind Kind, string Label, string Hint)[] CarriageKindChoices =
+    [
+        (ClockGearCarriageKind.Orbit, "Orbit rails",
+            "Two rings with evenly spaced swept braces."),
+        (ClockGearCarriageKind.PinLinks, "Pin links (dynamic)",
+            "A bow from each compound pin to an idler pin. Repeats copy that link evenly between this planet and the next."),
+        (ClockGearCarriageKind.Skeleton, "Skeleton",
+            "Pin-to-pin bows only — no orbit rings."),
+        (ClockGearCarriageKind.Cradles, "Planet cradles",
+            "Filled C-arms behind each pair, plus the pin-link controls below."),
+        (ClockGearCarriageKind.Truss, "Lattice truss",
+            "X-bracing between the two orbit rails."),
+        (ClockGearCarriageKind.Helix, "Helix ribbon",
+            "Spiral ribbons winding between the two orbits."),
+        (ClockGearCarriageKind.Fan, "Leaf spring",
+            "Same pin-link template, with repeats filling the gap to the next planet.")
+    ];
+
+    CarriageStageUi[]? _carriageUi;
+
+    static bool CarriageUsesPinLinks(ClockGearCarriageKind kind) =>
+        kind is ClockGearCarriageKind.PinLinks or ClockGearCarriageKind.Skeleton
+            or ClockGearCarriageKind.Cradles or ClockGearCarriageKind.Fan;
+
+    static string CarriageSweepTitle(ClockGearCarriageKind kind) => kind switch
+    {
+        ClockGearCarriageKind.Helix => "Helix twist",
+        ClockGearCarriageKind.PinLinks or ClockGearCarriageKind.Skeleton
+            or ClockGearCarriageKind.Fan or ClockGearCarriageKind.Cradles => "Link bow",
+        _ => "Brace sweep"
+    };
+
+    static string CarriageRepeatsText(int repeats) => repeats switch
+    {
+        0 => "none",
+        1 => "1 mid",
+        2 => "thirds",
+        _ => $"{repeats} extras"
+    };
+
+    static string CarriageStrideText(int stride) => stride switch
+    {
+        0 => "same set",
+        1 => "next planet",
+        _ => $"skip {stride - 1}"
+    };
+
+    void LoadClockGearCarriageStyle(AppSettings s)
+    {
+        EnsureCarriageStageUi();
+        if (_carriageUi == null)
+            return;
+        s.ClockGearCarriageStages ??= [];
+        while (s.ClockGearCarriageStages.Count < 5)
+        {
+            var seed = s.ClockGearCarriageStages.Count > 0
+                ? s.ClockGearCarriageStages[^1].Clone()
+                : ClockGearCarriageStage.FromLegacy(s);
+            s.ClockGearCarriageStages.Add(seed.Clamped());
+        }
+        var compounds = (s.ClockGearCompounds ?? []).Where(n => n > 0).ToArray();
+        var live = s.ClockGearDriveMode != ClockGearDriveMode.Off && compounds.Length >= 1;
+        var prev = _loading;
+        _loading = true;
+        try
+        {
+            for (var i = 0; i < _carriageUi.Length; i++)
+            {
+                var ui = _carriageUi[i];
+                var on = live && i < Math.Max(compounds.Length, 1);
+                ui.Root.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+                if (!on)
+                    continue;
+                var st = ClockGearCarriageStage.At(s, i).Clamped();
+                SelectCarriageKind(ui.KindBox, st.Kind);
+                ui.Hint.Text = CarriageKindChoices.FirstOrDefault(c => c.Kind == st.Kind).Hint
+                    ?? CarriageKindChoices[0].Hint;
+                ui.Rail.Value = st.Rail;
+                ui.RailValue.Text = $"{st.Rail:0.#}";
+                ui.Rung.Value = st.Rung;
+                ui.RungValue.Text = $"{st.Rung:0.#}";
+                ui.Sweep.Value = st.SweepDeg;
+                ui.SweepValue.Text = $"{st.SweepDeg:0}°";
+                ui.SweepTitle.Text = CarriageSweepTitle(st.Kind);
+                ui.DirBox.SelectedIndex = st.Reverse ? 1 : 0;
+                ui.PinsBox.IsChecked = st.Pins;
+                ui.Hub.Value = st.Hub;
+                ui.HubValue.Text = st.Hub < 0.05 ? "off" : $"{st.Hub:0.#}";
+                ui.Repeats.Value = st.LinkRepeats;
+                ui.RepeatsValue.Text = CarriageRepeatsText(st.LinkRepeats);
+                ui.Stride.Value = st.LinkStride;
+                ui.StrideValue.Text = CarriageStrideText(st.LinkStride);
+                ui.LinkPanel.Visibility = CarriageUsesPinLinks(st.Kind)
+                    ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+        finally
+        {
+            _loading = prev;
+        }
+    }
+
+    void EnsureCarriageStageUi()
+    {
+        if (_carriageUi != null || ClockGearCarriageHost == null)
+            return;
+        _carriageUi = new CarriageStageUi[4];
+        for (var i = 0; i < _carriageUi.Length; i++)
+            _carriageUi[i] = BuildCarriageStageUi(i);
+    }
+
+    CarriageStageUi BuildCarriageStageUi(int index)
+    {
+        var comboStyle = (Style)FindResource("DarkCombo");
+        var checkStyle = (Style)FindResource("DarkCheck");
+        var root = new StackPanel { Margin = new Thickness(0, index == 0 ? 0 : 10, 0, 0) };
+        root.Children.Add(new TextBlock
+        {
+            Text = $"Ring {index + 1}",
+            Foreground = BrushHex("#9AA0A8"),
+            Margin = new Thickness(0, 0, 0, 4)
+        });
+
+        var kindBox = new ComboBox
+        {
+            Style = comboStyle,
+            MaxDropDownHeight = 360
+        };
+        foreach (var choice in CarriageKindChoices)
+            kindBox.Items.Add(new ComboBoxItem { Content = choice.Label, Tag = choice.Kind });
+        kindBox.SelectedIndex = 0;
+        kindBox.SelectionChanged += (_, _) => CarriageStageChanged(index);
+        root.Children.Add(kindBox);
+
+        var hint = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = BrushHex("#7A8088"),
+            Margin = new Thickness(0, 4, 0, 0),
+            Text = CarriageKindChoices[0].Hint
+        };
+        root.Children.Add(hint);
+
+        var (rail, railValue) = AddCarriageSlider(root, "Rail thickness", 1, 12, 0.5, "4", index);
+        var (rung, rungValue) = AddCarriageSlider(root, "Brace thickness", 1, 10, 0.5, "2.4", index);
+        var (sweep, sweepValue, sweepTitle) = AddCarriageSliderTitled(root, "Brace sweep", 0, 45, 1, "18°", index);
+
+        var dirBox = new ComboBox
+        {
+            Style = comboStyle,
+            Margin = new Thickness(0, 8, 0, 0)
+        };
+        dirBox.Items.Add(new ComboBoxItem { Content = "Clockwise braces" });
+        dirBox.Items.Add(new ComboBoxItem { Content = "Counter-clockwise braces" });
+        dirBox.SelectedIndex = 0;
+        dirBox.SelectionChanged += (_, _) => CarriageStageChanged(index);
+        root.Children.Add(dirBox);
+
+        var pins = new CheckBox
+        {
+            Style = checkStyle,
+            Content = "Axle pins through gear centers",
+            Margin = new Thickness(0, 8, 0, 0),
+            IsChecked = true
+        };
+        pins.Checked += (_, _) => CarriageStageChanged(index);
+        pins.Unchecked += (_, _) => CarriageStageChanged(index);
+        root.Children.Add(pins);
+
+        var (hub, hubValue) = AddCarriageSlider(root, "Hub reinforcement", 0, 14, 0.5, "off", index);
+
+        var linkPanel = new StackPanel();
+        var (repeats, repeatsValue) = AddCarriageSlider(linkPanel, "Link repeats", 0, 8, 1, "none", index);
+        var (stride, strideValue) = AddCarriageSlider(linkPanel, "Link stride", 0, 6, 1, "same set", index);
+        var linkHint = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = BrushHex("#7A8088"),
+            Margin = new Thickness(0, 4, 0, 0),
+            Text = "Repeats copy the pin link evenly between this planet and the next (1 = one in the middle, 2 = thirds). Stride 0 is own idler; 1+ braces to another planet’s idler."
+        };
+        linkPanel.Children.Add(linkHint);
+        root.Children.Add(linkPanel);
+        ClockGearCarriageHost!.Children.Add(root);
+
+        return new CarriageStageUi
+        {
+            Root = root,
+            KindBox = kindBox,
+            Hint = hint,
+            SweepTitle = sweepTitle,
+            SweepValue = sweepValue,
+            Rail = rail,
+            RailValue = railValue,
+            Rung = rung,
+            RungValue = rungValue,
+            Sweep = sweep,
+            DirBox = dirBox,
+            PinsBox = pins,
+            Hub = hub,
+            HubValue = hubValue,
+            LinkPanel = linkPanel,
+            Repeats = repeats,
+            RepeatsValue = repeatsValue,
+            Stride = stride,
+            StrideValue = strideValue
+        };
+    }
+
+    (Slider Slider, TextBlock Value) AddCarriageSlider(
+        Panel host, string title, double min, double max, double tick, string initial, int index)
+    {
+        var (slider, value, _) = AddCarriageSliderTitled(host, title, min, max, tick, initial, index);
+        return (slider, value);
+    }
+
+    (Slider Slider, TextBlock Value, TextBlock Title) AddCarriageSliderTitled(
+        Panel host, string title, double min, double max, double tick, string initial, int index)
+    {
+        var value = new TextBlock
+        {
+            Foreground = BrushHex("#9AA0A8"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+            MinWidth = 48,
+            Text = initial
+        };
+        DockPanel.SetDock(value, Dock.Right);
+        var titleBlock = new TextBlock
+        {
+            Text = title,
+            Foreground = BrushHex("#9AA0A8"),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var row = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
+        row.Children.Add(value);
+        row.Children.Add(titleBlock);
+        host.Children.Add(row);
+        var slider = new Slider
+        {
+            Minimum = min,
+            Maximum = max,
+            TickFrequency = tick,
+            IsSnapToTickEnabled = true,
+            Value = min
+        };
+        slider.PreviewMouseLeftButtonDown += SliderGoToClick;
+        slider.MouseMove += SliderDrag;
+        slider.MouseLeftButtonUp += SliderEndDrag;
+        slider.LostMouseCapture += SliderEndDrag;
+        slider.ValueChanged += (_, _) => CarriageStageChanged(index);
+        host.Children.Add(slider);
+        return (slider, value, titleBlock);
+    }
+
+    static SolidColorBrush BrushHex(string hex)
+    {
+        var c = (Color)ColorConverter.ConvertFromString(hex)!;
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
+
+    static void SelectCarriageKind(ComboBox box, ClockGearCarriageKind kind)
+    {
+        for (var i = 0; i < box.Items.Count; i++)
+        {
+            if (box.Items[i] is ComboBoxItem item && item.Tag is ClockGearCarriageKind k && k == kind)
+            {
+                box.SelectedIndex = i;
+                return;
+            }
+        }
+        box.SelectedIndex = 0;
+    }
+
+    void CarriageStageChanged(int index)
+    {
+        if (_loading || _carriageUi == null || index < 0 || index >= _carriageUi.Length)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        s.ClockGearCarriageStages ??= [];
+        while (s.ClockGearCarriageStages.Count < 5)
+            s.ClockGearCarriageStages.Add(ClockGearCarriageStage.FromLegacy(s));
+        var ui = _carriageUi[index];
+        var kind = ClockGearCarriageKind.Orbit;
+        if (ui.KindBox.SelectedItem is ComboBoxItem pick && pick.Tag is ClockGearCarriageKind tagged)
+            kind = tagged;
+        var st = s.ClockGearCarriageStages[index];
+        st.Kind = kind;
+        st.Rail = Math.Clamp(ui.Rail.Value, 1, 12);
+        st.Rung = Math.Clamp(ui.Rung.Value, 1, 10);
+        st.SweepDeg = Math.Clamp(Math.Round(ui.Sweep.Value), 0, 45);
+        st.Reverse = ui.DirBox.SelectedIndex == 1;
+        st.Pins = ui.PinsBox.IsChecked == true;
+        st.Hub = Math.Clamp(ui.Hub.Value, 0, 14);
+        st.LinkRepeats = (int)Math.Clamp(Math.Round(ui.Repeats.Value), 0, 8);
+        st.LinkStride = (int)Math.Clamp(Math.Round(ui.Stride.Value), 0, 6);
+        st.Clamped();
+        ui.RailValue.Text = $"{st.Rail:0.#}";
+        ui.RungValue.Text = $"{st.Rung:0.#}";
+        ui.SweepValue.Text = $"{st.SweepDeg:0}°";
+        ui.SweepTitle.Text = CarriageSweepTitle(kind);
+        ui.HubValue.Text = st.Hub < 0.05 ? "off" : $"{st.Hub:0.#}";
+        ui.RepeatsValue.Text = CarriageRepeatsText(st.LinkRepeats);
+        ui.StrideValue.Text = CarriageStrideText(st.LinkStride);
+        ui.Hint.Text = CarriageKindChoices.FirstOrDefault(c => c.Kind == kind).Hint
+            ?? CarriageKindChoices[0].Hint;
+        ui.LinkPanel.Visibility = CarriageUsesPinLinks(kind)
+            ? Visibility.Visible : Visibility.Collapsed;
+        s.ClockGearCarriageRail = s.ClockGearCarriageStages[0].Rail;
+        s.ClockGearCarriageRung = s.ClockGearCarriageStages[0].Rung;
+        s.ClockGearCarriageSweepDeg = s.ClockGearCarriageStages[0].SweepDeg;
+        s.ClockGearCarriageReverse = s.ClockGearCarriageStages[0].Reverse;
+        s.ClockGearCarriagePins = s.ClockGearCarriageStages[0].Pins;
+        s.ClockGearCarriageHub = s.ClockGearCarriageStages[0].Hub;
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void LoadClockGearCarrierRates(AppSettings s)
+    {
+        var rates = s.ClockGearCarrierDegPerMin ?? [0, 0, 0, 0, 0];
+        while (rates.Count < 5)
+            rates.Add(0);
+        s.ClockGearCarrierDegPerMin = rates;
+        var auto = s.ClockGearAutoCarrier != false;
+        List<ClockGearGeometry.StageSolve>? diagStages = null;
+        double[]? diagSecs = null;
+        var diagOuter = 0.0;
+        if (ClockGearGeometry.TryGetProgression(s, out var prog)
+            && ClockGearGeometry.TrySolveTrain(
+                prog, GearRim(), s.ClockGearPlanetCounts ?? [], s.ClockGearPlanetOffsetsDeg ?? [],
+                s.ClockGearIdlerOffsetsDeg ?? [], out var stages, out _)
+            && stages.Count > 0)
+        {
+            stages = ClockGearGeometry.WithDrawnCompounds(stages, s.ClockGearCompoundScale);
+            var hours = s.ClockHorizonHours <= 0 ? 24 : s.ClockHorizonHours;
+            diagOuter = 1.0 / ClockGearGeometry.FaceToSecondRatio(hours);
+            diagStages = stages;
+            if (auto)
+            {
+                diagSecs = ClockGearGeometry.SolveEqualCarrierSecScales(
+                    stages, diagOuter, 1.0, s.ClockGearCarrierDirs,
+                    Math.Max(0, s.ClockGearCarrierMinDegPerMin) / 360.0,
+                    s.ClockGearCarrierPinned, s.ClockGearCarrierDegPerMin);
+                for (var i = 0; i < diagSecs.Length && i < rates.Count; i++)
+                    rates[i] = diagSecs[i] * 360.0;
+            }
+            else
+            {
+                diagSecs = new double[stages.Count];
+                for (var i = 0; i < diagSecs.Length; i++)
+                {
+                    var dpm = i < rates.Count ? rates[i] : 0;
+                    diagSecs[i] = Math.Abs(dpm) < 0.05 ? 0 : dpm / 360.0;
+                }
+            }
+        }
+        var compounds = (s.ClockGearCompounds ?? []).Where(n => n > 0).ToArray();
+        var panels = new[]
+        {
+            ClockGearCarousel0, ClockGearCarousel1, ClockGearCarousel2, ClockGearCarousel3
+        };
+        var sliders = new[]
+        {
+            ClockGearCarrier0Slider, ClockGearCarrier1Slider,
+            ClockGearCarrier2Slider, ClockGearCarrier3Slider
+        };
+        var labels = new[]
+        {
+            ClockGearCarrier0Label, ClockGearCarrier1Label,
+            ClockGearCarrier2Label, ClockGearCarrier3Label
+        };
+        var dirBoxes = new[]
+        {
+            ClockGearCarrier0DirBox, ClockGearCarrier1DirBox,
+            ClockGearCarrier2DirBox, ClockGearCarrier3DirBox
+        };
+        s.ClockGearCarrierDirs ??= [];
+        while (s.ClockGearCarrierDirs.Count < 5)
+            s.ClockGearCarrierDirs.Add(ClockGearCarrierDir.Auto);
+        s.ClockGearCarrierPinned ??= [];
+        while (s.ClockGearCarrierPinned.Count < 5)
+            s.ClockGearCarrierPinned.Add(false);
+        var unpinnedLive = 0;
+        for (var i = 0; i < sliders.Length && i < compounds.Length; i++)
+        {
+            var dir = i < s.ClockGearCarrierDirs.Count
+                ? s.ClockGearCarrierDirs[i] : ClockGearCarrierDir.Auto;
+            if (s.ClockGearCarrierPinned[i] || dir == ClockGearCarrierDir.Still)
+                continue;
+            unpinnedLive++;
+        }
+        var pinBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xED));
+        var freeBrush = new SolidColorBrush(Color.FromRgb(0x9A, 0xA0, 0xA8));
+        var prev = _loading;
+        _loading = true;
+        try
+        {
+            if (ClockGearAutoCarrierBox != null)
+                ClockGearAutoCarrierBox.IsChecked = auto;
+            if (ClockGearCarrierMinSlider != null)
+            {
+                var min = Math.Clamp(s.ClockGearCarrierMinDegPerMin, 0, 360);
+                s.ClockGearCarrierMinDegPerMin = min;
+                ClockGearCarrierMinSlider.IsEnabled = auto;
+                ClockGearCarrierMinSlider.Value = min;
+                if (ClockGearCarrierMinLabel != null)
+                    ClockGearCarrierMinLabel.Text = min < 0.5 ? "off" : FormatCarrierRate(min);
+            }
+            for (var i = 0; i < sliders.Length; i++)
+            {
+                var live = i < compounds.Length;
+                var dir = i < s.ClockGearCarrierDirs.Count
+                    ? s.ClockGearCarrierDirs[i] : ClockGearCarrierDir.Auto;
+                var parked = live && (s.ClockGearCarrierPinned[i] || dir == ClockGearCarrierDir.Still);
+                var leftover = auto && live && !parked && (compounds.Length <= 1 || unpinnedLive <= 1);
+                if (panels[i] != null)
+                    panels[i]!.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
+                if (sliders[i] == null)
+                    continue;
+                var v = dir == ClockGearCarrierDir.Still ? 0 : rates[i];
+                var span = Math.Max(720, Math.Ceiling(Math.Abs(v) + 1));
+                sliders[i]!.Minimum = auto ? -span : -720;
+                sliders[i]!.Maximum = auto ? span : 720;
+                sliders[i]!.IsEnabled = live && (!auto || parked || !leftover);
+                sliders[i]!.Value = auto ? v : Math.Clamp(Math.Round(v), -720, 720);
+                if (labels[i] != null)
+                {
+                    labels[i]!.Text = FormatCarrierRate(auto ? v : sliders[i]!.Value);
+                    labels[i]!.Foreground = auto && parked ? pinBrush : freeBrush;
+                    labels[i]!.ToolTip = !auto ? null
+                        : dir == ClockGearCarrierDir.Still ? "No direction (parked). Click to let Auto pick."
+                        : parked ? "Locked speed. Click to let Auto pick."
+                        : leftover ? "Computed from the sun lock."
+                        : "Drag to lock this ring’s speed.";
+                    labels[i]!.Cursor = auto && parked ? Cursors.Hand : Cursors.Arrow;
+                }
+                if (dirBoxes[i] != null)
+                {
+                    dirBoxes[i]!.Visibility = auto && live ? Visibility.Visible : Visibility.Collapsed;
+                    dirBoxes[i]!.SelectedIndex = dir switch
+                    {
+                        ClockGearCarrierDir.Clockwise => 1,
+                        ClockGearCarrierDir.Counterclockwise => 2,
+                        ClockGearCarrierDir.Still => 3,
+                        _ => 0
+                    };
+                    dirBoxes[i]!.IsEnabled = live && auto;
+                }
+            }
+            if (ClockGearCarrierWarn != null)
+            {
+                var warn = diagStages != null && diagSecs != null
+                    ? ClockGearGeometry.DiagnoseCarrierLocks(
+                        diagStages, diagOuter, 1.0, diagSecs, auto,
+                        s.ClockGearCarrierDirs,
+                        Math.Max(0, s.ClockGearCarrierMinDegPerMin) / 360.0,
+                        s.ClockGearCarrierPinned, s.ClockGearCarrierDegPerMin)
+                    : null;
+                ClockGearCarrierWarn.Text = warn ?? "";
+                ClockGearCarrierWarn.Visibility = string.IsNullOrWhiteSpace(warn)
+                    ? Visibility.Collapsed : Visibility.Visible;
+            }
+        }
+        finally
+        {
+            _loading = prev;
+        }
+    }
+
+    static string FormatCarrierRate(double degPerMin)
+    {
+        if (Math.Abs(degPerMin) < 1e-6)
+            return double.IsNegative(degPerMin) ? "−0°/m" : "+0°/m";
+        if (Math.Abs(degPerMin) < 0.1)
+            return $"{degPerMin:+0.###;-0.###}°/m";
+        if (Math.Abs(degPerMin - Math.Round(degPerMin)) < 0.05)
+            return $"{Math.Round(degPerMin):+0;-0}°/m";
+        return $"{degPerMin:+0.0;-0.0}°/m";
+    }
+
+    void ClockGearAutoCarrierChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading || ClockGearAutoCarrierBox == null)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        s.ClockGearAutoCarrier = ClockGearAutoCarrierBox.IsChecked == true;
+        LoadClockGearCarrierRates(s);
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void ClockGearCarrierMinChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        var min = Math.Clamp(Math.Round(ClockGearCarrierMinSlider?.Value ?? 0), 0, 360);
+        s.ClockGearCarrierMinDegPerMin = min;
+        if (ClockGearCarrierMinLabel != null)
+            ClockGearCarrierMinLabel.Text = min < 0.5 ? "off" : FormatCarrierRate(min);
+        LoadClockGearCarrierRates(s);
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void ClockGearCarrierRateChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        var rates = s.ClockGearCarrierDegPerMin ?? [0.0, 0, 0, 0, 0];
+        while (rates.Count < 5)
+            rates.Add(0);
+        s.ClockGearCarrierPinned ??= [];
+        while (s.ClockGearCarrierPinned.Count < 5)
+            s.ClockGearCarrierPinned.Add(false);
+        var sliders = new[]
+        {
+            ClockGearCarrier0Slider, ClockGearCarrier1Slider,
+            ClockGearCarrier2Slider, ClockGearCarrier3Slider
+        };
+        var labels = new[]
+        {
+            ClockGearCarrier0Label, ClockGearCarrier1Label,
+            ClockGearCarrier2Label, ClockGearCarrier3Label
+        };
+        var idx = -1;
+        for (var i = 0; i < sliders.Length; i++)
+        {
+            if (ReferenceEquals(sliders[i], sender))
+                idx = i;
+        }
+        if (idx < 0)
+            return;
+        var v = Math.Clamp(Math.Round(sliders[idx]!.Value), -720, 720);
+        if (Math.Abs(sliders[idx]!.Value - v) > 0.01)
+            sliders[idx]!.Value = v;
+        rates[idx] = v;
+        s.ClockGearCarrierDegPerMin = rates;
+        if (s.ClockGearAutoCarrier != false)
+        {
+            s.ClockGearCarrierDirs ??= [];
+            while (s.ClockGearCarrierDirs.Count < 5)
+                s.ClockGearCarrierDirs.Add(ClockGearCarrierDir.Auto);
+            if (Math.Abs(v) < 0.5)
+            {
+                s.ClockGearCarrierDirs[idx] = ClockGearCarrierDir.Still;
+                s.ClockGearCarrierPinned[idx] = false;
+                rates[idx] = 0;
+            }
+            else
+            {
+                if (s.ClockGearCarrierDirs[idx] == ClockGearCarrierDir.Still)
+                    s.ClockGearCarrierDirs[idx] = v < 0
+                        ? ClockGearCarrierDir.Counterclockwise
+                        : ClockGearCarrierDir.Clockwise;
+                s.ClockGearCarrierPinned[idx] = true;
+            }
+            LoadClockGearCarrierRates(s);
+        }
+        else
+        {
+            for (var i = 0; i < sliders.Length; i++)
+            {
+                if (sliders[i] == null)
+                    continue;
+                var ri = Math.Clamp(Math.Round(sliders[i]!.Value), -720, 720);
+                if (Math.Abs(sliders[i]!.Value - ri) > 0.01)
+                    sliders[i]!.Value = ri;
+                rates[i] = ri;
+                if (labels[i] != null)
+                    labels[i]!.Text = FormatCarrierRate(ri);
+            }
+        }
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void ClockGearCarrierPinClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (_loading)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        if (s.ClockGearAutoCarrier == false)
+            return;
+        s.ClockGearCarrierPinned ??= [];
+        while (s.ClockGearCarrierPinned.Count < 5)
+            s.ClockGearCarrierPinned.Add(false);
+        s.ClockGearCarrierDirs ??= [];
+        while (s.ClockGearCarrierDirs.Count < 5)
+            s.ClockGearCarrierDirs.Add(ClockGearCarrierDir.Auto);
+        var labels = new[]
+        {
+            ClockGearCarrier0Label, ClockGearCarrier1Label,
+            ClockGearCarrier2Label, ClockGearCarrier3Label
+        };
+        for (var i = 0; i < labels.Length; i++)
+        {
+            if (!ReferenceEquals(labels[i], sender))
+                continue;
+            var parked = s.ClockGearCarrierPinned[i]
+                || (i < s.ClockGearCarrierDirs.Count
+                    && s.ClockGearCarrierDirs[i] == ClockGearCarrierDir.Still);
+            if (!parked)
+                continue;
+            s.ClockGearCarrierPinned[i] = false;
+            if (i < s.ClockGearCarrierDirs.Count
+                && s.ClockGearCarrierDirs[i] == ClockGearCarrierDir.Still)
+                s.ClockGearCarrierDirs[i] = ClockGearCarrierDir.Auto;
+            LoadClockGearCarrierRates(s);
+            AppHost.Instance.SyncClockOverlay();
+            AppHost.Instance.RequestSave();
+            return;
+        }
+    }
+
+    void ClockGearCarrierDirChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        if (s.ClockGearAutoCarrier == false)
+            return;
+        s.ClockGearCarrierDirs ??= [];
+        while (s.ClockGearCarrierDirs.Count < 5)
+            s.ClockGearCarrierDirs.Add(ClockGearCarrierDir.Auto);
+        s.ClockGearCarrierPinned ??= [];
+        while (s.ClockGearCarrierPinned.Count < 5)
+            s.ClockGearCarrierPinned.Add(false);
+        var rates = s.ClockGearCarrierDegPerMin ?? [0.0, 0, 0, 0, 0];
+        while (rates.Count < 5)
+            rates.Add(0);
+        var boxes = new[]
+        {
+            ClockGearCarrier0DirBox, ClockGearCarrier1DirBox,
+            ClockGearCarrier2DirBox, ClockGearCarrier3DirBox
+        };
+        for (var i = 0; i < boxes.Length; i++)
+        {
+            if (boxes[i] == null)
+                continue;
+            s.ClockGearCarrierDirs[i] = boxes[i]!.SelectedIndex switch
+            {
+                1 => ClockGearCarrierDir.Clockwise,
+                2 => ClockGearCarrierDir.Counterclockwise,
+                3 => ClockGearCarrierDir.Still,
+                _ => ClockGearCarrierDir.Auto
+            };
+            if (s.ClockGearCarrierDirs[i] == ClockGearCarrierDir.Still)
+            {
+                rates[i] = 0;
+                s.ClockGearCarrierPinned[i] = false;
+            }
+        }
+        s.ClockGearCarrierDegPerMin = rates;
+        LoadClockGearCarrierRates(s);
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void LoadClockGearCompoundScales(AppSettings s)
+    {
+        var scales = s.ClockGearCompoundScale ?? [1.0, 1, 1, 1, 1];
+        while (scales.Count < 5)
+            scales.Add(1);
+        for (var i = 0; i < scales.Count; i++)
+            scales[i] = scales[i] < 1.5 ? 1 : Math.Clamp(Math.Round(scales[i]), 1, 24);
+        s.ClockGearCompoundScale = scales;
+        var compounds = (s.ClockGearCompounds ?? []).Where(n => n > 0).ToArray();
+        var panels = new[]
+        {
+            ClockGearSize0, ClockGearSize1, ClockGearSize2, ClockGearSize3
+        };
+        var sliders = new[]
+        {
+            ClockGearScale0Slider, ClockGearScale1Slider,
+            ClockGearScale2Slider, ClockGearScale3Slider
+        };
+        var labels = new[]
+        {
+            ClockGearScale0Label, ClockGearScale1Label,
+            ClockGearScale2Label, ClockGearScale3Label
+        };
+
+        var maxK = new int[4];
+        Array.Fill(maxK, 1);
+        if (ClockGearGeometry.TryGetProgression(s, out var prog)
+            && ClockGearGeometry.TrySolveTrain(
+                prog, GearRim(), s.ClockGearPlanetCounts ?? [], s.ClockGearPlanetOffsetsDeg ?? [],
+                s.ClockGearIdlerOffsetsDeg ?? [], out var stages, out _))
+        {
+            for (var i = 0; i < maxK.Length && i < stages.Count; i++)
+                maxK[i] = ClockGearGeometry.MaxCompoundMul(
+                    stages[i].Layout, stages[i].Fit.Teeth, stages[i].PlanetCount,
+                    stages[i].PlanetOffsetDeg);
+        }
+
+        var prev = _loading;
+        _loading = true;
+        try
+        {
+            for (var i = 0; i < sliders.Length; i++)
+            {
+                var live = i < compounds.Length;
+                if (panels[i] != null)
+                    panels[i]!.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
+                if (sliders[i] == null)
+                    continue;
+                var cap = Math.Max(1, maxK[i]);
+                sliders[i]!.Minimum = 1;
+                sliders[i]!.Maximum = cap;
+                sliders[i]!.IsEnabled = cap > 1;
+                sliders[i]!.Visibility = cap > 1 ? Visibility.Visible : Visibility.Collapsed;
+                var k = (int)Math.Clamp(Math.Round(scales[i]), 1, cap);
+                scales[i] = k;
+                sliders[i]!.Value = k;
+                if (labels[i] != null)
+                {
+                    var nc = live ? compounds[i] * k : k;
+                    var ni = 6 * k;
+                    labels[i]!.Text = cap > 1 ? $"{k}×  {nc}T/{ni}T" : "1×";
+                }
+            }
+        }
+        finally
+        {
+            _loading = prev;
+        }
+        s.ClockGearCompoundScale = scales;
+    }
+
+    void ClockGearCompoundScaleChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        var scales = s.ClockGearCompoundScale ?? [1.0, 1, 1, 1, 1];
+        while (scales.Count < 5)
+            scales.Add(1);
+        var compounds = (s.ClockGearCompounds ?? []).Where(n => n > 0).ToArray();
+        var sliders = new[]
+        {
+            ClockGearScale0Slider, ClockGearScale1Slider,
+            ClockGearScale2Slider, ClockGearScale3Slider
+        };
+        var labels = new[]
+        {
+            ClockGearScale0Label, ClockGearScale1Label,
+            ClockGearScale2Label, ClockGearScale3Label
+        };
+        for (var i = 0; i < sliders.Length; i++)
+        {
+            if (sliders[i] == null)
+                continue;
+            var cap = Math.Max(1, sliders[i]!.Maximum);
+            var k = (int)Math.Clamp(Math.Round(sliders[i]!.Value), 1, cap);
+            if (Math.Abs(sliders[i]!.Value - k) > 0.01)
+                sliders[i]!.Value = k;
+            scales[i] = k;
+            if (labels[i] != null)
+            {
+                var nc = i < compounds.Length ? compounds[i] * k : k;
+                labels[i]!.Text = $"{k}×  {nc}T/{6 * k}T";
+            }
+        }
+        s.ClockGearCompoundScale = scales;
+        LoadClockGearCarrierRates(s);
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    // auto model
+    void LoadClockGearPlanetCounts(List<int>? counts) =>
+        RefreshPlanetSliders(AppHost.Instance.Data.Settings);
+
+    void CapPlanetSliders(int maxPlanets)
+    {
+        _ = maxPlanets;
+    }
+
+    void RefreshPlanetSliders(AppSettings s)
+    {
+        if (ClockGearFiddlePanel == null)
+            return;
+        var compounds = (s.ClockGearCompounds ?? []).Where(n => n > 0).ToArray();
+        var on = s.ClockGearDriveMode != ClockGearDriveMode.Off && compounds.Length >= 2;
+        ClockGearFiddlePanel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        if (!on)
+            return;
+
+        s.ClockGearPlanetCounts = PadPlanetCounts(s.ClockGearPlanetCounts);
+        var sliders = new[]
+        {
+            ClockGearPlanetsGap0Slider, ClockGearPlanetsGap1Slider,
+            ClockGearPlanetsGap2Slider, ClockGearPlanetsGap3Slider
+        };
+        var labels = new[]
+        {
+            ClockGearPlanetsGap0Label, ClockGearPlanetsGap1Label,
+            ClockGearPlanetsGap2Label, ClockGearPlanetsGap3Label
+        };
+        var stages = new[]
+        {
+            ClockGearPlanetStage0, ClockGearPlanetStage1,
+            ClockGearPlanetStage2, ClockGearPlanetStage3
+        };
+
+        var prev = _loading;
+        _loading = true;
+        try
+        {
+            var rim = GearRim();
+            var current = s.ClockGearPlanetCounts;
+            for (var i = 0; i < sliders.Length; i++)
+            {
+                var live = i < compounds.Length;
+                if (stages[i] != null)
+                    stages[i]!.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
+                if (!live)
+                    continue;
+                var ticks = ClockGearGeometry.ValidStagePlanetCounts(compounds, rim, current, i);
+                if (ticks.Count == 0)
+                    ticks = [current[i]];
+                var only = ticks.Count < 2;
+                if (sliders[i] != null)
+                {
+                    sliders[i]!.Visibility = only ? Visibility.Collapsed : Visibility.Visible;
+                    sliders[i]!.IsEnabled = !only;
+                }
+                if (only)
+                {
+                    current[i] = ticks[0];
+                    if (labels[i] != null)
+                        labels[i]!.Text = $"{ticks[0]}";
+                    continue;
+                }
+                ApplyPlanetTicks(sliders[i], labels[i], ticks, current[i]);
+                current[i] = (int)Math.Round(sliders[i]!.Value);
+            }
+        }
+        finally
+        {
+            _loading = prev;
+        }
+        LoadClockGearCarrierRates(s);
+        LoadClockGearCompoundScales(s);
+        LoadClockGearCarriageStyle(s);
+    }
+
+    static double GearRim() => Math.Max(28, AppHost.Instance.ClockFaceRim);
+
+    void ApplyGearSolve(AppSettings s)
+    {
+        EnsureIdlerOffsets(s);
+        s.ClockGearPlanetCounts ??= [1, 1, 1, 1, 1];
+        s.ClockGearPlanetOffsetsDeg ??= [0, 0, 0, 0, 0];
+        s.ClockGearCarrierDegPerMin ??= [0, 0, 0, 0, 0];
+        s.ClockGearCarrierDirs ??= [];
+        s.ClockGearCarrierPinned ??= [];
+        s.ClockGearCompoundScale ??= [1, 1, 1, 1, 1];
+        while (s.ClockGearPlanetCounts.Count < 5)
+            s.ClockGearPlanetCounts.Add(s.ClockGearPlanetCounts[^1]);
+        while (s.ClockGearPlanetOffsetsDeg.Count < 5)
+            s.ClockGearPlanetOffsetsDeg.Add(0);
+        while (s.ClockGearCarrierDegPerMin.Count < 5)
+            s.ClockGearCarrierDegPerMin.Add(0);
+        while (s.ClockGearCarrierDirs.Count < 5)
+            s.ClockGearCarrierDirs.Add(ClockGearCarrierDir.Auto);
+        while (s.ClockGearCarrierPinned.Count < 5)
+            s.ClockGearCarrierPinned.Add(false);
+        while (s.ClockGearCompoundScale.Count < 5)
+            s.ClockGearCompoundScale.Add(1);
+
+        var prev = _loading;
+        _loading = true;
+        try
+        {
+            if (!ClockGearGeometry.TryGetProgression(s.ClockGearDriveMode, out var prog))
+            {
+                SetStageSliderEnabled(0, false);
+                return;
+            }
+
+            var rim = GearRim();
+            if (!ClockGearGeometry.TrySolveTrain(
+                    prog, rim, s.ClockGearPlanetCounts, s.ClockGearPlanetOffsetsDeg,
+                    s.ClockGearIdlerOffsetsDeg, out var stages, out _)
+                || stages.Count == 0)
+            {
+                SetStageSliderEnabled(0, false);
+                return;
+            }
+
+            for (var i = 0; i < 5; i++)
+            {
+                if (i < stages.Count)
+                {
+                    s.ClockGearPlanetCounts[i] = stages[i].PlanetCount;
+                    s.ClockGearPlanetOffsetsDeg[i] = stages[i].PlanetOffsetDeg;
+                    if (i < s.ClockGearIdlerOffsetsDeg.Count)
+                        s.ClockGearIdlerOffsetsDeg[i] = stages[i].IdlerOffsetDeg;
+                }
+                else
+                {
+                    s.ClockGearPlanetCounts[i] = stages[^1].PlanetCount;
+                }
+            }
+            s.ClockGearIdlerOffsetDeg = s.ClockGearIdlerOffsetsDeg[0];
+
+            var planetSliders = new[]
+            {
+                ClockGearPlanetsGap0Slider, ClockGearPlanetsGap1Slider,
+                ClockGearPlanetsGap2Slider, ClockGearPlanetsGap3Slider
+            };
+            var planetLabels = new[]
+            {
+                ClockGearPlanetsGap0Label, ClockGearPlanetsGap1Label,
+                ClockGearPlanetsGap2Label, ClockGearPlanetsGap3Label
+            };
+            var offsetSliders = new[]
+            {
+                ClockGearPlanetOffset0Slider, ClockGearPlanetOffset1Slider,
+                ClockGearPlanetOffset2Slider, ClockGearPlanetOffset3Slider
+            };
+            var offsetLabels = new[]
+            {
+                ClockGearPlanetOffset0Label, ClockGearPlanetOffset1Label,
+                ClockGearPlanetOffset2Label, ClockGearPlanetOffset3Label
+            };
+            var idlerSliders = new[]
+            {
+                ClockGearIdlerOffsetSlider, ClockGearIdlerOffset1Slider,
+                ClockGearIdlerOffset2Slider, ClockGearIdlerOffset3Slider
+            };
+            var idlerLabels = new[]
+            {
+                ClockGearIdlerOffsetLabel, ClockGearIdlerOffset1Label,
+                ClockGearIdlerOffset2Label, ClockGearIdlerOffset3Label
+            };
+
+            for (var i = 0; i < planetSliders.Length; i++)
+            {
+                var live = i < prog.StageCount;
+                if (planetSliders[i] != null)
+                    planetSliders[i]!.IsEnabled = live;
+                if (offsetSliders[i] != null)
+                    offsetSliders[i]!.IsEnabled = live;
+                if (!live)
+                    continue;
+                var ticks = ClockGearGeometry.CompletingPlanetCounts(
+                    prog, rim, i, s.ClockGearPlanetCounts, s.ClockGearPlanetOffsetsDeg,
+                    s.ClockGearIdlerOffsetsDeg);
+                if (ticks.Count == 0)
+                    ticks = [stages[Math.Min(i, stages.Count - 1)].PlanetCount];
+                ApplyPlanetTicks(planetSliders[i], planetLabels[i], ticks, s.ClockGearPlanetCounts[i]);
+                var period = ClockGearGeometry.PlanetOffsetPeriodDeg(s.ClockGearPlanetCounts[i]);
+                if (offsetSliders[i] != null)
+                {
+                    offsetSliders[i]!.Maximum = period;
+                    offsetSliders[i]!.Value = ClockGearGeometry.WrapOffsetDeg(
+                        s.ClockGearPlanetOffsetsDeg[i], period);
+                }
+                if (offsetLabels[i] != null)
+                    offsetLabels[i]!.Text = $"{s.ClockGearPlanetOffsetsDeg[i]:0}°";
+            }
+
+            for (var i = 0; i < idlerSliders.Length; i++)
+            {
+                var live = i < prog.StageCount && i < stages.Count;
+                if (idlerSliders[i] != null)
+                    idlerSliders[i]!.IsEnabled = live;
+                if (!live)
+                    continue;
+                var st = stages[i];
+                int? lockSun = i == prog.StageCount - 1 ? prog.LockedSunAt(i) : null;
+                ApplyIdlerOffsetSlider(
+                    idlerSliders[i], idlerLabels[i], st.IdlerOffsetDeg,
+                    st.PlanetCount, st.PlanetOffsetDeg, st.Layout, lockSun);
+            }
+        }
+        finally
+        {
+            _loading = prev;
+        }
+        LoadClockGearCarrierRates(s);
+    }
+
+    void SetStageSliderEnabled(int fromStage, bool enabled)
+    {
+        foreach (var sl in new[]
+                 {
+                     ClockGearPlanetsGap0Slider, ClockGearPlanetsGap1Slider,
+                     ClockGearPlanetsGap2Slider, ClockGearPlanetsGap3Slider,
+                     ClockGearPlanetOffset0Slider, ClockGearPlanetOffset1Slider,
+                     ClockGearPlanetOffset2Slider, ClockGearPlanetOffset3Slider,
+                     ClockGearIdlerOffsetSlider, ClockGearIdlerOffset1Slider,
+                     ClockGearIdlerOffset2Slider, ClockGearIdlerOffset3Slider
+                 })
+        {
+            if (sl != null)
+                sl.IsEnabled = enabled;
+        }
+        _ = fromStage;
+    }
+
+    static void ApplyPlanetTicks(Slider? slider, TextBlock? label, List<int> ticks, int value)
+    {
+        if (slider == null)
+            return;
+        slider.Minimum = ticks.Min();
+        slider.Maximum = ticks.Max();
+        // Only assembled counts are seats (not every integer between min and max).
+        slider.TickFrequency = Math.Max(1, ticks.Max() - ticks.Min() + 1);
+        slider.Ticks = new DoubleCollection(ticks.Select(t => (double)t));
+        slider.IsSnapToTickEnabled = true;
+        var snapped = ticks.Contains(value)
+            ? value
+            : ticks.OrderBy(t => Math.Abs(t - value)).First();
+        if (Math.Abs(slider.Value - snapped) > 0.01)
+            slider.Value = snapped;
+        if (label != null)
+            label.Text = $"{snapped}";
+    }
+
+    static void LoadPlanetGap(Slider? slider, TextBlock? label, List<int>? counts, int index)
+    {
+        if (slider == null)
+            return;
+        var v = counts != null && index < counts.Count ? counts[index] : 3;
+        v = Math.Clamp(v <= 0 ? 3 : v, 1, 12);
+        slider.Value = v;
+        if (label != null)
+            label.Text = $"{v}";
+    }
+
+    static int ReadPlanetGap(Slider? slider, TextBlock? label)
+    {
+        var v = slider == null ? 3 : (int)Math.Round(Math.Clamp(slider.Value, 1, 12));
+        if (slider != null && Math.Abs(slider.Value - v) > 0.01)
+            slider.Value = v;
+        if (label != null)
+            label.Text = $"{v}";
+        return v;
+    }
+
+    // auto model
+    void LoadClockGearPlanetOffsets(List<double>? offsets)
+    {
+        var counts = AppHost.Instance.Data.Settings.ClockGearPlanetCounts;
+        LoadPlanetOffset(ClockGearPlanetOffset0Slider, ClockGearPlanetOffset0Label, offsets, counts, 0);
+        LoadPlanetOffset(ClockGearPlanetOffset1Slider, ClockGearPlanetOffset1Label, offsets, counts, 1);
+        LoadPlanetOffset(ClockGearPlanetOffset2Slider, ClockGearPlanetOffset2Label, offsets, counts, 2);
+        LoadPlanetOffset(ClockGearPlanetOffset3Slider, ClockGearPlanetOffset3Label, offsets, counts, 3);
+    }
+
+    static void LoadPlanetOffset(
+        Slider? slider, TextBlock? label, List<double>? offsets, List<int>? counts, int index)
+    {
+        if (slider == null)
+            return;
+        var count = counts != null && index < counts.Count ? Math.Clamp(counts[index], 1, 12) : 3;
+        var period = ClockGearGeometry.PlanetOffsetPeriodDeg(count);
+        slider.Maximum = period;
+        var v = offsets != null && index < offsets.Count ? offsets[index] : 0;
+        v = ClockGearGeometry.WrapOffsetDeg(v, period);
+        slider.Value = v;
+        if (label != null)
+            label.Text = $"{v:0}°";
+    }
+
+    // auto model
+    void ClockGearPlanetCountChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        var compounds = (s.ClockGearCompounds ?? []).Where(n => n > 0).ToArray();
+        var counts = PadPlanetCounts(s.ClockGearPlanetCounts);
+        var sliders = new[]
+        {
+            ClockGearPlanetsGap0Slider, ClockGearPlanetsGap1Slider,
+            ClockGearPlanetsGap2Slider, ClockGearPlanetsGap3Slider
+        };
+        var labels = new[]
+        {
+            ClockGearPlanetsGap0Label, ClockGearPlanetsGap1Label,
+            ClockGearPlanetsGap2Label, ClockGearPlanetsGap3Label
+        };
+        for (var i = 0; i < sliders.Length && i < compounds.Length; i++)
+        {
+            if (sliders[i]?.Visibility == Visibility.Visible)
+                counts[i] = ReadPlanetGap(sliders[i], labels[i]);
+        }
+
+        var rim = GearRim();
+        if (sender is Slider moved)
+        {
+            var stage = Array.IndexOf(sliders, moved);
+            if (stage >= 0 && stage < compounds.Length)
+            {
+                var ticks = ClockGearGeometry.ValidStagePlanetCounts(compounds, rim, counts, stage);
+                if (ticks.Count > 0 && !ticks.Contains(counts[stage]))
+                    counts[stage] = ticks.OrderBy(t => Math.Abs(t - counts[stage])).First();
+            }
+        }
+
+        s.ClockGearPlanetCounts = counts;
+        RefreshPlanetSliders(s);
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    static double SyncOffsetSlider(
+        Slider? slider, TextBlock? label, int planetCount, List<double>? offsets, int index)
+    {
+        var period = ClockGearGeometry.PlanetOffsetPeriodDeg(planetCount);
+        var current = offsets != null && index < offsets.Count ? offsets[index] : 0;
+        var v = ClockGearGeometry.WrapOffsetDeg(current, period);
+        if (slider != null)
+        {
+            slider.Maximum = period;
+            if (Math.Abs(slider.Value - v) > 0.01)
+                slider.Value = v;
+        }
+        if (label != null)
+            label.Text = $"{v:0}°";
+        return v;
+    }
+
+    // auto model
+    void ClockGearPlanetOffsetChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        var counts = s.ClockGearPlanetCounts;
+        s.ClockGearPlanetOffsetsDeg =
+        [
+            ReadPlanetOffset(ClockGearPlanetOffset0Slider, ClockGearPlanetOffset0Label, CountAt(counts, 0)),
+            ReadPlanetOffset(ClockGearPlanetOffset1Slider, ClockGearPlanetOffset1Label, CountAt(counts, 1)),
+            ReadPlanetOffset(ClockGearPlanetOffset2Slider, ClockGearPlanetOffset2Label, CountAt(counts, 2)),
+            ReadPlanetOffset(ClockGearPlanetOffset3Slider, ClockGearPlanetOffset3Label, CountAt(counts, 3))
+        ];
+        s.ClockGearIdlersPerCompound = 1;
+        ResnapAllIdlerOffsets(s);
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    static int CountAt(List<int>? counts, int index) =>
+        counts != null && index < counts.Count ? Math.Clamp(counts[index], 1, 12) : 3;
+
+    static double ReadPlanetOffset(Slider? slider, TextBlock? label, int planetCount)
+    {
+        var period = ClockGearGeometry.PlanetOffsetPeriodDeg(planetCount);
+        var v = slider == null ? 0 : ClockGearGeometry.WrapOffsetDeg(Math.Round(slider.Value), period);
+        if (slider != null)
+        {
+            if (Math.Abs(slider.Maximum - period) > 0.01)
+                slider.Maximum = period;
+            if (Math.Abs(slider.Value - v) > 0.01)
+                slider.Value = v;
+        }
+        if (label != null)
+            label.Text = $"{v:0}°";
+        return v;
+    }
+
+    // auto model
+    void LoadClockGearIdlers(List<double>? offsets)
+    {
+        EnsureIdlerOffsets(AppHost.Instance.Data.Settings);
+        var s = AppHost.Instance.Data.Settings;
+        ResnapAllIdlerOffsets(s);
+    }
+
+    static void EnsureIdlerOffsets(AppSettings s)
+    {
+        s.ClockGearIdlerOffsetsDeg ??= [0, 0, 0, 0, 0];
+        while (s.ClockGearIdlerOffsetsDeg.Count < 5)
+            s.ClockGearIdlerOffsetsDeg.Add(0);
+    }
+
+    void ResnapAllIdlerOffsets(AppSettings s) => ApplyGearSolve(s);
+
+    static int PlanetCountGap0()
+    {
+        var counts = AppHost.Instance.Data.Settings.ClockGearPlanetCounts;
+        return counts is { Count: > 0 } ? Math.Clamp(counts[0], 1, 12) : 3;
+    }
+
+    static double PlanetOffsetGap0()
+    {
+        var offs = AppHost.Instance.Data.Settings.ClockGearPlanetOffsetsDeg;
+        var count = PlanetCountGap0();
+        var raw = offs is { Count: > 0 } ? offs[0] : 0;
+        return ClockGearGeometry.WrapOffsetDeg(raw, ClockGearGeometry.PlanetOffsetPeriodDeg(count));
+    }
+
+    void ApplyIdlerOffsetSlider(
+        Slider? slider, TextBlock? label, double offsetDeg, int planetCount, double planetOffsetDeg,
+        ClockGearGeometry.FaceMeshLayout? layout = null, int? lockSunTeeth = null)
+    {
+        if (slider == null)
+            return;
+        var lay = layout ?? ClockGearGeometry.LayoutFaceMesh(120);
+        var ticks = ClockGearGeometry.ExactIdlerOffsetDegs(lay, planetCount, planetOffsetDeg, lockSunTeeth);
+        slider.Minimum = ClockGearGeometry.IdlerOffsetMinDeg;
+        slider.Maximum = ClockGearGeometry.IdlerOffsetMaxDeg;
+        slider.Ticks = ticks.Count > 0 ? new DoubleCollection(ticks) : new DoubleCollection();
+        if (ticks.Count == 0)
+        {
+            if (label != null)
+            {
+                var want = lockSunTeeth is int n ? $"{n}T " : "";
+                label.Text = $"{want}no valid seat";
+            }
+            return;
+        }
+        offsetDeg = ClockGearGeometry.SnapIdlerOffsetDeg(
+            lay, offsetDeg, planetCount, planetOffsetDeg, lockSunTeeth);
+        if (Math.Abs(slider.Value - offsetDeg) > 0.001)
+            slider.Value = offsetDeg;
+        if (label != null)
+            label.Text = FormatIdlerOffsetLabel(lay, offsetDeg, planetCount, planetOffsetDeg, lockSunTeeth);
+    }
+
+    static string FormatIdlerOffsetLabel(
+        ClockGearGeometry.FaceMeshLayout layout,
+        double offsetDeg, int planetCount, double planetOffsetDeg, int? lockSunTeeth = null)
+    {
+        var fit = ClockGearGeometry.FitInnerRing(
+            layout, planetCount, planetOffsetDeg, offsetDeg, lockSunTeeth);
+        var mark = fit.AssemblyOk ? "OK" : "BAD";
+        return $"{offsetDeg:+0.#;-0.#;0}° → {fit.Teeth}T {mark}";
+    }
+
+    // auto model
+    void ClockGearIdlerOffsetChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || ClockGearIdlerOffsetSlider == null)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        EnsureIdlerOffsets(s);
+        s.ClockGearIdlersPerCompound = 1;
+        s.ClockGearIdlerOffsetsDeg[0] = ClockGearGeometry.ClampIdlerOffsetDeg(ClockGearIdlerOffsetSlider.Value);
+        s.ClockGearIdlerOffsetDeg = s.ClockGearIdlerOffsetsDeg[0];
+        ResnapAllIdlerOffsets(s);
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    // auto model
+    void ClockGearIdlerOffset1Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || ClockGearIdlerOffset1Slider == null)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        EnsureIdlerOffsets(s);
+        s.ClockGearIdlersPerCompound = 1;
+        s.ClockGearIdlerOffsetsDeg[1] = ClockGearGeometry.ClampIdlerOffsetDeg(ClockGearIdlerOffset1Slider.Value);
+        ResnapAllIdlerOffsets(s);
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    // auto model
+    void ClockGearIdlerOffset2Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || ClockGearIdlerOffset2Slider == null)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        EnsureIdlerOffsets(s);
+        s.ClockGearIdlersPerCompound = 1;
+        s.ClockGearIdlerOffsetsDeg[2] = ClockGearGeometry.ClampIdlerOffsetDeg(ClockGearIdlerOffset2Slider.Value);
+        ResnapAllIdlerOffsets(s);
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    // auto model
+    void ClockGearIdlerOffset3Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || ClockGearIdlerOffset3Slider == null)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        EnsureIdlerOffsets(s);
+        s.ClockGearIdlersPerCompound = 1;
+        s.ClockGearIdlerOffsetsDeg[3] = ClockGearGeometry.ClampIdlerOffsetDeg(ClockGearIdlerOffset3Slider.Value);
+        ResnapAllIdlerOffsets(s);
         AppHost.Instance.SyncClockOverlay();
         AppHost.Instance.RequestSave();
     }
@@ -3195,17 +4720,25 @@ public partial class ConfigWindow : Window
         return true;
     }
 
-    static readonly string[] DefaultSettingsOpen = ["overlay", "temphide"];
+    static readonly string[] DefaultSettingsOpen = ["overlay", "temphide", "clock-options", "clock-aesthetics"];
 
     void LoadSettingsSections(AppSettings s)
     {
         var open = s.SettingsOpen ?? DefaultSettingsOpen.ToList();
+        // First time after clock sections existed: default them open.
+        if (!open.Exists(id => id.StartsWith("clock-", StringComparison.Ordinal)))
+        {
+            open.Add("clock-options");
+            open.Add("clock-aesthetics");
+        }
         ApplySectionOpen(SettingsOverlay, open);
         ApplySectionOpen(SettingsTempHide, open);
         ApplySectionOpen(SettingsLook, open);
         ApplySectionOpen(SettingsColors, open);
         ApplySectionOpen(SettingsList, open);
         ApplySectionOpen(SettingsSystem, open);
+        ApplySectionOpen(ClockOptions, open);
+        ApplySectionOpen(ClockAesthetics, open);
     }
 
     static void ApplySectionOpen(Expander? box, List<string> open)
@@ -3227,7 +4760,9 @@ public partial class ConfigWindow : Window
             IdIfOpen(SettingsLook),
             IdIfOpen(SettingsColors),
             IdIfOpen(SettingsList),
-            IdIfOpen(SettingsSystem)
+            IdIfOpen(SettingsSystem),
+            IdIfOpen(ClockOptions),
+            IdIfOpen(ClockAesthetics)
         ];
         s.SettingsOpen.RemoveAll(string.IsNullOrEmpty);
         AppHost.Instance.RequestSave();

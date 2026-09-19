@@ -736,6 +736,11 @@
                         <CheckBox x:Name="ClockModuleBox" Style="{StaticResource DarkCheck}"
                                   Content="Show clock module"
                                   Checked="ClockModuleChanged" Unchecked="ClockModuleChanged"/>
+
+                        <Expander x:Name="ClockOptions" Style="{StaticResource SettingsExpander}"
+                                  Header="Options" Tag="clock-options" IsExpanded="True" Margin="0,8,0,0"
+                                  Expanded="SettingsSectionChanged" Collapsed="SettingsSectionChanged">
+                            <StackPanel>
                         <TextBlock Text="Lock mode" Foreground="#9AA0A8" Margin="0,16,0,4"/>
                         <ComboBox x:Name="ClockLockModeBox" Style="{StaticResource DarkCombo}"
                                   SelectionChanged="ClockLockChanged">
@@ -917,6 +922,11 @@
                                 ValueChanged="ClockTimeOutlineStrengthChanged"/>
                         <local:ColorRow x:Name="ClockColorCaretRow"/>
                         <local:ColorRow x:Name="ClockColorFaceRow"/>
+                        <CheckBox x:Name="ClockAttentionTintBox" Style="{StaticResource DarkCheck}"
+                                  Content="Tint clock face when a recurring/scheduled task needs attention"
+                                  Margin="0,8,0,0"
+                                  Checked="ClockFilterChanged" Unchecked="ClockFilterChanged"/>
+                        <local:ColorRow x:Name="ClockColorAttentionRow"/>
 
                         <TextBlock Text="Event colors" Foreground="#9AA0A8" Margin="0,16,0,4"/>
                         <local:ColorRow x:Name="ClockColorRecurringRow"/>
@@ -964,6 +974,375 @@
                         </Border>
                         <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
                                    Text="Uncheck All folders to limit the ring to selected folders (nested items follow a selected parent). Unlock the clock above to move or resize it."/>
+                            </StackPanel>
+                        </Expander>
+                        <Expander x:Name="ClockAesthetics" Style="{StaticResource SettingsExpander}"
+                                  Header="Aesthetics" Tag="clock-aesthetics" IsExpanded="True"
+                                  Expanded="SettingsSectionChanged" Collapsed="SettingsSectionChanged">
+                            <StackPanel>
+                                <TextBlock Text="Gear drive" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                                <ComboBox x:Name="ClockGearDriveModeBox" Style="{StaticResource DarkCombo}"
+                                          MaxDropDownHeight="360"
+                                          SelectionChanged="ClockGearDriveModeChanged"/>
+                                <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                           Text="Precomputed trains. Each ring can have its own equally-spaced planet count — sliders only offer counts that still assemble."/>
+                                <CheckBox x:Name="ClockGearDebugLabelsBox" Style="{StaticResource DarkCheck}"
+                                          Content="Show gear debug (tooth counts, RPM, spin diameters)"
+                                          Margin="0,8,0,0"
+                                          Checked="ClockFilterChanged" Unchecked="ClockFilterChanged"/>
+                                <CheckBox x:Name="ClockGearDebugRingCenterBox" Style="{StaticResource DarkCheck}"
+                                          Content="Show ring center (midpoint circle on ring gears)"
+                                          Margin="0,6,0,0"
+                                          Checked="ClockFilterChanged" Unchecked="ClockFilterChanged"/>
+                                <local:ColorRow x:Name="ClockGearColorRow" Margin="0,10,0,0"/>
+                                <local:ColorRow x:Name="ClockGearCompoundColorRow"/>
+                                <local:ColorRow x:Name="ClockGearPlanetColorRow"/>
+                                <local:ColorRow x:Name="ClockGearIdlerColorRow"/>
+                                <local:ColorRow x:Name="ClockGearSunColorRow"/>
+                                <local:ColorRow x:Name="ClockGearCarriageColorRow"/>
+                                <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
+                                           Text="Blank compound / planet / idler / sun follow the ring color. Outer drive teeth use the hour-tick color."/>
+                                <TextBlock Text="Carriage (per ring)" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                                <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,0,0,4"
+                                           Text="Each annulus has its own frame. Pin links bow from a compound pin to an idler pin; repeats copy that link evenly toward the next planet; stride reaches another planet’s idler (cross-set)."/>
+                                <StackPanel x:Name="ClockGearCarriageHost"/>
+                                <DockPanel Margin="0,10,0,0">
+                                    <TextBlock x:Name="ClockGearOpacityLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="48" Text="42%"/>
+                                    <TextBlock Text="Gear drive opacity" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearOpacitySlider" Minimum="5" Maximum="100" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearOpacityChanged"/>
+                                <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
+                                           Text="Dims planets, compounds, idlers, and the carriage. Outer drive teeth and the center sun stay full strength."/>
+
+                                <DockPanel Margin="0,12,0,0">
+                                    <TextBlock x:Name="ClockGearAnimSpeedLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="48" Text="1×"/>
+                                    <TextBlock Text="Animation speed override" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearAnimSpeedSlider" Minimum="1" Maximum="1440" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearAnimSpeedChanged"/>
+
+                                <StackPanel x:Name="ClockGearFiddlePanel" Visibility="Collapsed">
+                                <TextBlock Text="Planets per ring (equally spaced)" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                                <StackPanel x:Name="ClockGearPlanetStage0">
+                                <DockPanel Margin="0,2,0,0">
+                                    <TextBlock x:Name="ClockGearPlanetsGap0Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="24" Text="3"/>
+                                    <TextBlock Text="Ring 1 planets (equally spaced)" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearPlanetsGap0Slider" Minimum="1" Maximum="12" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearPlanetCountChanged"/>
+                                <DockPanel Margin="0,8,0,0">
+                                    <TextBlock x:Name="ClockGearIdlerOffsetLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="72" Text="0°"/>
+                                    <TextBlock Text="Idler offset (0° toward center)" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearIdlerOffsetSlider" Minimum="-180" Maximum="180"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearIdlerOffsetChanged"/>
+                                </StackPanel>
+                                <StackPanel Visibility="Collapsed">
+                                <DockPanel Margin="0,2,0,0">
+                                    <TextBlock x:Name="ClockGearPlanetOffset0Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="40" Text="0°"/>
+                                    <TextBlock Text="Rotation offset" Foreground="#7A8088" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearPlanetOffset0Slider" Minimum="0" Maximum="120" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearPlanetOffsetChanged"/>
+                                </StackPanel>
+                                <StackPanel x:Name="ClockGearPlanetStage1">
+                                <DockPanel Margin="0,8,0,0">
+                                    <TextBlock x:Name="ClockGearPlanetsGap1Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="24" Text="3"/>
+                                    <TextBlock Text="Ring 2 planets (equally spaced)" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearPlanetsGap1Slider" Minimum="1" Maximum="12" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearPlanetCountChanged"/>
+                                <DockPanel Margin="0,8,0,0">
+                                    <TextBlock x:Name="ClockGearIdlerOffset1Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="72" Text="0°"/>
+                                    <TextBlock Text="Idler offset" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearIdlerOffset1Slider" Minimum="-180" Maximum="180"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearIdlerOffset1Changed"/>
+                                </StackPanel>
+                                <StackPanel Visibility="Collapsed">
+                                <DockPanel Margin="0,2,0,0">
+                                    <TextBlock x:Name="ClockGearPlanetOffset1Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="40" Text="0°"/>
+                                    <TextBlock Text="Rotation offset" Foreground="#7A8088" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearPlanetOffset1Slider" Minimum="0" Maximum="120" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearPlanetOffsetChanged"/>
+                                </StackPanel>
+                                <StackPanel x:Name="ClockGearPlanetStage2">
+                                <DockPanel Margin="0,8,0,0">
+                                    <TextBlock x:Name="ClockGearPlanetsGap2Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="24" Text="3"/>
+                                    <TextBlock Text="Ring 3 planets (equally spaced)" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearPlanetsGap2Slider" Minimum="1" Maximum="12" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearPlanetCountChanged"/>
+                                <DockPanel Margin="0,8,0,0">
+                                    <TextBlock x:Name="ClockGearIdlerOffset2Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="72" Text="0°"/>
+                                    <TextBlock Text="Idler offset" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearIdlerOffset2Slider" Minimum="-180" Maximum="180"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearIdlerOffset2Changed"/>
+                                </StackPanel>
+                                <StackPanel Visibility="Collapsed">
+                                <DockPanel Margin="0,2,0,0">
+                                    <TextBlock x:Name="ClockGearPlanetOffset2Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="40" Text="0°"/>
+                                    <TextBlock Text="Rotation offset" Foreground="#7A8088" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearPlanetOffset2Slider" Minimum="0" Maximum="120" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearPlanetOffsetChanged"/>
+                                </StackPanel>
+                                <StackPanel x:Name="ClockGearPlanetStage3">
+                                <DockPanel Margin="0,8,0,0">
+                                    <TextBlock x:Name="ClockGearPlanetsGap3Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="24" Text="3"/>
+                                    <TextBlock Text="Ring 4 planets (equally spaced)" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearPlanetsGap3Slider" Minimum="1" Maximum="12" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearPlanetCountChanged"/>
+                                <DockPanel Margin="0,8,0,0">
+                                    <TextBlock x:Name="ClockGearIdlerOffset3Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="72" Text="0°"/>
+                                    <TextBlock Text="Idler offset" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearIdlerOffset3Slider" Minimum="-180" Maximum="180"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearIdlerOffset3Changed"/>
+                                </StackPanel>
+                                <StackPanel Visibility="Collapsed">
+                                <DockPanel Margin="0,2,0,0">
+                                    <TextBlock x:Name="ClockGearPlanetOffset3Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="40" Text="0°"/>
+                                    <TextBlock Text="Rotation offset" Foreground="#7A8088" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearPlanetOffset3Slider" Minimum="0" Maximum="120" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearPlanetOffsetChanged"/>
+                                </StackPanel>
+
+                                <TextBlock Text="Planet carousel (°/min)" Foreground="#9AA0A8" Margin="0,14,0,4"/>
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="132"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox x:Name="ClockGearAutoCarrierBox" Style="{StaticResource DarkCheck}"
+                                              Content="Auto carousel"
+                                              VerticalAlignment="Center"
+                                              Checked="ClockGearAutoCarrierChanged" Unchecked="ClockGearAutoCarrierChanged"/>
+                                    <Slider x:Name="ClockGearCarrierMinSlider" Grid.Column="1"
+                                            Minimum="0" Maximum="360" TickFrequency="1"
+                                            IsSnapToTickEnabled="True" Margin="8,0,8,0"
+                                            VerticalAlignment="Center"
+                                            PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                            MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                            ValueChanged="ClockGearCarrierMinChanged"/>
+                                    <TextBlock x:Name="ClockGearCarrierMinLabel" Grid.Column="2"
+                                               Foreground="#9AA0A8" VerticalAlignment="Center"
+                                               MinWidth="48" Text="off"/>
+                                </Grid>
+                                <CheckBox x:Name="ClockGearHideCarouselBox" Style="{StaticResource DarkCheck}"
+                                          Content="Hide carousel frame"
+                                          Margin="0,0,0,4"
+                                          Checked="ClockFilterChanged" Unchecked="ClockFilterChanged"/>
+                                <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,0,0,4"
+                                           Text="Auto keeps the outer ring on the face rate and the center sun at 1 rpm. No direction parks that carousel (0°/m) while Auto solves the others — park the middle and run the other two opposite ways, for example. Drag a slider to lock a non-zero speed. Click a locked rate to let Auto pick again. The min slider floors moving rings only. Equal speed when it can. Clockwise / counter-clockwise per ring; Uncheck Auto to set every °/min by hand."/>
+                                <StackPanel x:Name="ClockGearCarousel0">
+                                <DockPanel Margin="0,2,0,0">
+                                    <TextBlock x:Name="ClockGearCarrier0Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="56" Text="0°/m"
+                                               Cursor="Hand" MouseLeftButtonUp="ClockGearCarrierPinClick"/>
+                                    <TextBlock Text="Ring 1" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearCarrier0Slider" Minimum="-720" Maximum="720" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearCarrierRateChanged"/>
+                                <ComboBox x:Name="ClockGearCarrier0DirBox" Style="{StaticResource DarkCombo}"
+                                          Margin="0,4,0,0"
+                                          SelectionChanged="ClockGearCarrierDirChanged">
+                                    <ComboBoxItem Content="Auto direction"/>
+                                    <ComboBoxItem Content="Clockwise"/>
+                                    <ComboBoxItem Content="Counter-clockwise"/>
+                                    <ComboBoxItem Content="No direction"/>
+                                </ComboBox>
+                                </StackPanel>
+                                <StackPanel x:Name="ClockGearCarousel1">
+                                <DockPanel Margin="0,6,0,0">
+                                    <TextBlock x:Name="ClockGearCarrier1Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="56" Text="0°/m"
+                                               Cursor="Hand" MouseLeftButtonUp="ClockGearCarrierPinClick"/>
+                                    <TextBlock Text="Ring 2" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearCarrier1Slider" Minimum="-720" Maximum="720" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearCarrierRateChanged"/>
+                                <ComboBox x:Name="ClockGearCarrier1DirBox" Style="{StaticResource DarkCombo}"
+                                          Margin="0,4,0,0"
+                                          SelectionChanged="ClockGearCarrierDirChanged">
+                                    <ComboBoxItem Content="Auto direction"/>
+                                    <ComboBoxItem Content="Clockwise"/>
+                                    <ComboBoxItem Content="Counter-clockwise"/>
+                                    <ComboBoxItem Content="No direction"/>
+                                </ComboBox>
+                                </StackPanel>
+                                <StackPanel x:Name="ClockGearCarousel2">
+                                <DockPanel Margin="0,6,0,0">
+                                    <TextBlock x:Name="ClockGearCarrier2Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="56" Text="0°/m"
+                                               Cursor="Hand" MouseLeftButtonUp="ClockGearCarrierPinClick"/>
+                                    <TextBlock Text="Ring 3" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearCarrier2Slider" Minimum="-720" Maximum="720" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearCarrierRateChanged"/>
+                                <ComboBox x:Name="ClockGearCarrier2DirBox" Style="{StaticResource DarkCombo}"
+                                          Margin="0,4,0,0"
+                                          SelectionChanged="ClockGearCarrierDirChanged">
+                                    <ComboBoxItem Content="Auto direction"/>
+                                    <ComboBoxItem Content="Clockwise"/>
+                                    <ComboBoxItem Content="Counter-clockwise"/>
+                                    <ComboBoxItem Content="No direction"/>
+                                </ComboBox>
+                                </StackPanel>
+                                <StackPanel x:Name="ClockGearCarousel3">
+                                <DockPanel Margin="0,6,0,0">
+                                    <TextBlock x:Name="ClockGearCarrier3Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="56" Text="0°/m"
+                                               Cursor="Hand" MouseLeftButtonUp="ClockGearCarrierPinClick"/>
+                                    <TextBlock Text="Ring 4" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearCarrier3Slider" Minimum="-720" Maximum="720" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearCarrierRateChanged"/>
+                                <ComboBox x:Name="ClockGearCarrier3DirBox" Style="{StaticResource DarkCombo}"
+                                          Margin="0,4,0,0"
+                                          SelectionChanged="ClockGearCarrierDirChanged">
+                                    <ComboBoxItem Content="Auto direction"/>
+                                    <ComboBoxItem Content="Clockwise"/>
+                                    <ComboBoxItem Content="Counter-clockwise"/>
+                                    <ComboBoxItem Content="No direction"/>
+                                </ComboBox>
+                                </StackPanel>
+
+                                <TextBlock x:Name="ClockGearCarrierWarn" TextWrapping="Wrap"
+                                           Foreground="#FF8A65" Margin="0,8,0,0"
+                                           Visibility="Collapsed"/>
+
+                                <TextBlock Text="Compound size" Foreground="#9AA0A8" Margin="0,14,0,4"/>
+                                <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,0,0,4"
+                                           Text="Steps keep the same tooth size and Nc/Ni ratio (compound and idler grow together). 1× is the real train."/>
+                                <StackPanel x:Name="ClockGearSize0">
+                                <DockPanel Margin="0,2,0,0">
+                                    <TextBlock x:Name="ClockGearScale0Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="40" Text="1×"/>
+                                    <TextBlock Text="Ring 1" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearScale0Slider" Minimum="1" Maximum="8" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearCompoundScaleChanged"/>
+                                </StackPanel>
+                                <StackPanel x:Name="ClockGearSize1">
+                                <DockPanel Margin="0,6,0,0">
+                                    <TextBlock x:Name="ClockGearScale1Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="40" Text="1×"/>
+                                    <TextBlock Text="Ring 2" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearScale1Slider" Minimum="1" Maximum="8" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearCompoundScaleChanged"/>
+                                </StackPanel>
+                                <StackPanel x:Name="ClockGearSize2">
+                                <DockPanel Margin="0,6,0,0">
+                                    <TextBlock x:Name="ClockGearScale2Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="40" Text="1×"/>
+                                    <TextBlock Text="Ring 3" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearScale2Slider" Minimum="1" Maximum="8" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearCompoundScaleChanged"/>
+                                </StackPanel>
+                                <StackPanel x:Name="ClockGearSize3">
+                                <DockPanel Margin="0,6,0,0">
+                                    <TextBlock x:Name="ClockGearScale3Label" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="40" Text="1×"/>
+                                    <TextBlock Text="Ring 4" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearScale3Slider" Minimum="1" Maximum="8" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearCompoundScaleChanged"/>
+                                </StackPanel>
+
+                                <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,8,0,0"
+                                           Text="Planet count is decoration on a fixed train — rings stay at their 1-planet sizes. Ticks are counts that still mesh that same inner sun."/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Expander>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -985,6 +1364,18 @@
                                   Checked="UsageFilterChanged" Unchecked="UsageFilterChanged"/>
                         <CheckBox x:Name="UsageDockPlainGrayBox" Style="{StaticResource DarkCheck}"
                                   Content="Docked rows: plain gray % / time (not usage tint)"
+                                  Margin="0,8,0,0"
+                                  Checked="UsageFilterChanged" Unchecked="UsageFilterChanged"/>
+                        <CheckBox x:Name="UsageDockPlainGrayBarBox" Style="{StaticResource DarkCheck}"
+                                  Content="Docked rows: plain gray usage bar"
+                                  Margin="0,8,0,0"
+                                  Checked="UsageFilterChanged" Unchecked="UsageFilterChanged"/>
+                        <CheckBox x:Name="UsageDockDimAtLimitBox" Style="{StaticResource DarkCheck}"
+                                  Content="Docked rows: dim + strikethrough when at 100% (unavailable)"
+                                  Margin="0,8,0,0"
+                                  Checked="UsageFilterChanged" Unchecked="UsageFilterChanged"/>
+                        <CheckBox x:Name="UsageDockWeekInherit5hDimBox" Style="{StaticResource DarkCheck}"
+                                  Content="Docked rows: Claude week inherits 5h dim/strikethrough"
                                   Margin="0,8,0,0"
                                   Checked="UsageFilterChanged" Unchecked="UsageFilterChanged"/>
                         <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"

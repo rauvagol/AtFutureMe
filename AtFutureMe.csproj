@@ -17,6 +17,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="_probe\**" />
+    <None Remove="_probe\**" />
+    <Page Remove="_probe\**" />
+    <EmbeddedResource Remove="_probe\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Remove="System.Drawing" />
     <Using Remove="System.Windows.Forms" />
   </ItemGroup>

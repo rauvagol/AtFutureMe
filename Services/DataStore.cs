@@ -12,7 +12,7 @@ public sealed class DataStore
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
+        Converters = { new TolerantJsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
@@ -115,6 +115,20 @@ public sealed class DataStore
                         App.Log($"Refusing to overwrite {existingLen}-byte data file with empty dataset");
                         return;
                     }
+
+                    // Unreadable (e.g. unknown enum) but still large — do not wipe it.
+                    try
+                    {
+                        var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                        var orphan = FilePath + $".unloadable-{stamp}";
+                        File.Copy(FilePath, orphan, overwrite: false);
+                        App.Log($"Refusing empty overwrite of unreadable {existingLen}-byte file; kept copy at {orphan}");
+                    }
+                    catch (Exception ex)
+                    {
+                        App.Log("Failed to preserve unreadable data file: " + ex.Message);
+                    }
+                    return;
                 }
             }
 

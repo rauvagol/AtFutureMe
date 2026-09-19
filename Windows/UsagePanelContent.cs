@@ -23,6 +23,9 @@ static class UsagePanelContent
         var sb = new System.Text.StringBuilder();
         sb.Append(s.ClickThrough ? 'L' : 'U')
             .Append(s.UsageDockPlainGray ? 'G' : 'T')
+            .Append(s.UsageDockPlainGrayBar ? 'B' : 'b')
+            .Append(s.UsageDockDimAtLimit ? 'D' : 'd')
+            .Append(s.UsageDockWeekInherit5hDim ? 'W' : 'w')
             .Append(s.UsageDockShowPercent ? 'P' : 'N')
             .Append(s.UsageShowClaude ? 'C' : '-')
             .Append(s.UsageShowCursor ? 'R' : '-');
@@ -66,10 +69,12 @@ static class UsagePanelContent
                 AddMuted(meters, snap.ClaudeError, compact);
             else if (snap.Claude != null)
             {
+                var fiveAtLimit = snap.Claude.FiveHour?.UsedPercent >= 99.5;
+                var weekInherit = compact && s.UsageDockDimAtLimit && s.UsageDockWeekInherit5hDim && fiveAtLimit;
                 AddMeter(meters, compact ? "Claude 5h" : "5-hour session", snap.Claude.FiveHour, now, weight,
                     TimeSpan.FromHours(5), compact, s);
                 AddMeter(meters, compact ? "Claude week" : "Weekly", snap.Claude.SevenDay, now, weight,
-                    TimeSpan.FromDays(7), compact, s);
+                    TimeSpan.FromDays(7), compact, s, forceUnavailable: weekInherit);
                 if (snap.Claude.SevenDayOpus != null)
                     AddMeter(meters, compact ? "Claude Opus" : "Weekly Opus", snap.Claude.SevenDayOpus, now, weight,
                         TimeSpan.FromDays(7), compact, s);
@@ -155,12 +160,12 @@ static class UsagePanelContent
 
     static void AddMeter(
         StackPanel meters, string label, UsageWindow? window, DateTime now, FontWeight weight,
-        TimeSpan assumedLength, bool compact, AppSettings s)
+        TimeSpan assumedLength, bool compact, AppSettings s, bool forceUnavailable = false)
     {
         if (window == null)
         {
             if (compact)
-                AddCompactRow(meters, label, 0, "—", weight, s, null);
+                AddCompactRow(meters, label, 0, "—", weight, s, null, forceUnavailable);
             else
                 AddMeterRow(meters, label, "—", 0, "Not started", weight);
             return;
@@ -173,7 +178,7 @@ static class UsagePanelContent
         if (compact)
         {
             var tip = UsageTracker.FormatWindowPaceHint(window, now, assumedLength);
-            AddCompactRow(meters, label, window.UsedPercent, reset, weight, s, tip);
+            AddCompactRow(meters, label, window.UsedPercent, reset, weight, s, tip, forceUnavailable);
             return;
         }
 
@@ -188,19 +193,23 @@ static class UsagePanelContent
     // auto model: name | equal-length bar | optional % | time — shared columns across rows
     static void AddCompactRow(
         StackPanel meters, string label, double usedPercent, string reset, FontWeight weight, AppSettings s,
-        string? tip)
+        string? tip, bool forceUnavailable = false)
     {
         var font = Math.Max(10, AppHost.Instance.Data.Settings.FontSize - 2);
         var tintHex = UsageTracker.UsageTintHex(usedPercent);
-        var textHex = s.UsageDockPlainGray ? PlainGray : tintHex;
+        var atLimit = forceUnavailable || (s.UsageDockDimAtLimit && usedPercent >= 99.5);
+        var barHex = atLimit || s.UsageDockPlainGrayBar ? PlainGray : tintHex;
+        var textHex = atLimit || s.UsageDockPlainGray ? PlainGray : tintHex;
         var textBrush = Brush(textHex);
         var showPct = s.UsageDockShowPercent;
         var unlocked = !AppHost.Instance.Data.Settings.ClickThrough;
+        var strike = atLimit ? TextDecorations.Strikethrough : null;
 
         var grid = new Grid
         {
             Margin = new Thickness(0, 2, 0, 2),
             Background = System.Windows.Media.Brushes.Transparent,
+            Opacity = atLimit ? 0.45 : 1,
             IsHitTestVisible = unlocked
         };
         grid.ColumnDefinitions.Add(new ColumnDefinition
@@ -230,11 +239,12 @@ static class UsagePanelContent
         var name = new TextBlock
         {
             Text = label,
-            Foreground = Brush(NameGray),
+            Foreground = atLimit ? Brush(PlainGray) : Brush(NameGray),
             FontSize = font,
             FontWeight = weight,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 8, 0),
+            TextDecorations = strike,
             IsHitTestVisible = false
         };
         Grid.SetColumn(name, 0);
@@ -252,21 +262,30 @@ static class UsagePanelContent
             IsHitTestVisible = false
         };
         var fillW = Math.Clamp(usedPercent, 0, 100) / 100.0;
-        track.Child = new Grid
+        var barHost = new Grid();
+        barHost.Children.Add(new Rectangle
         {
-            Children =
+            Fill = Brush(barHex),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Width = 1,
+            RadiusX = 2,
+            RadiusY = 2,
+            IsHitTestVisible = false
+        });
+        if (atLimit)
+        {
+            // Strike through the bar so a full meter still reads as unavailable.
+            barHost.Children.Add(new Border
             {
-                new Rectangle
-                {
-                    Fill = Brush(tintHex),
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                    Width = 1,
-                    RadiusX = 2,
-                    RadiusY = 2,
-                    IsHitTestVisible = false
-                }
-            }
-        };
+                Height = 1.5,
+                Background = Brush("#C5C9D0"),
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Opacity = 0.85,
+                IsHitTestVisible = false
+            });
+        }
+        track.Child = barHost;
         track.SizeChanged += (_, _) =>
         {
             if (track.Child is Grid g && g.Children[0] is Rectangle r)
@@ -287,6 +306,7 @@ static class UsagePanelContent
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 8, 0),
                 TextAlignment = TextAlignment.Right,
+                TextDecorations = strike,
                 IsHitTestVisible = false
             };
             Grid.SetColumn(pct, col++);
@@ -301,6 +321,7 @@ static class UsagePanelContent
             FontWeight = weight,
             VerticalAlignment = VerticalAlignment.Center,
             TextAlignment = TextAlignment.Right,
+            TextDecorations = strike,
             IsHitTestVisible = false
         };
         Grid.SetColumn(time, col);

@@ -63,6 +63,8 @@ public sealed partial class AppHost : IDisposable
     public UsageTracker? Usage { get; private set; }
 
     public bool OverlayDragActive => _overlayDrag;
+    /// <summary>Last computed clock rim (px). Gear sliders snap against this, not a dummy 120.</summary>
+    public double ClockFaceRim { get; set; } = 140;
     public const string MainOverlayId = "reminders";
     public const string ClockOverlayId = "clock";
     public const string UsageOverlayId = "usage";
@@ -96,6 +98,7 @@ public sealed partial class AppHost : IDisposable
         Usage.Start();
         SyncClockOverlay();
         SyncUsageOverlay();
+        _ = Task.Run(() => ClockGearGeometry.PrecomputedCombos());
         EnsureDesktop();
         SnapshotPairings();
         SnapshotLayouts();
@@ -3181,6 +3184,60 @@ public sealed partial class AppHost : IDisposable
         Data.Settings.ClockColorWedgeLine = ColorText.NormalizeOr(Data.Settings.ClockColorWedgeLine, "#FFFFFF");
         Data.Settings.ClockColorTime = ColorText.NormalizeOr(Data.Settings.ClockColorTime, "#E8EAED");
         Data.Settings.ClockColorTimeOutline = ColorText.NormalizeOr(Data.Settings.ClockColorTimeOutline, "#000000");
+        Data.Settings.ClockColorAttention = ColorText.NormalizeOr(Data.Settings.ClockColorAttention, "#FF8A65");
+        if (!Enum.IsDefined(Data.Settings.ClockGearDriveMode))
+            Data.Settings.ClockGearDriveMode = ClockGearDriveMode.Off;
+        Data.Settings.ConfigTabIndex = Math.Max(0, Data.Settings.ConfigTabIndex);
+        // auto model
+        Data.Settings.ClockGearAnimSpeed = Math.Clamp(
+            Data.Settings.ClockGearAnimSpeed <= 0 ? 1 : Data.Settings.ClockGearAnimSpeed, 1, 1440);
+        Data.Settings.ClockGearPlanetCounts = NormalizeGearPlanetCounts(Data.Settings.ClockGearPlanetCounts);
+        Data.Settings.ClockGearPlanetOffsetsDeg = NormalizeGearPlanetOffsets(
+            Data.Settings.ClockGearPlanetOffsetsDeg, Data.Settings.ClockGearPlanetCounts);
+        Data.Settings.ClockGearCarrierDegPerMin = NormalizeGearCarrierRates(
+            Data.Settings.ClockGearCarrierDegPerMin);
+        Data.Settings.ClockGearCarrierDirs = NormalizeGearCarrierDirs(
+            Data.Settings.ClockGearCarrierDirs);
+        Data.Settings.ClockGearCarrierMinDegPerMin = Math.Clamp(
+            Data.Settings.ClockGearCarrierMinDegPerMin, 0, 360);
+        Data.Settings.ClockGearCarrierPinned = NormalizeGearCarrierPinned(
+            Data.Settings.ClockGearCarrierPinned);
+        Data.Settings.ClockGearCompoundScale = NormalizeGearCompoundScales(
+            Data.Settings.ClockGearCompoundScale);
+        Data.Settings.ClockGearIdlersPerCompound = 1;
+        Data.Settings.ClockGearIdlerOffsetsDeg = NormalizeGearIdlerOffsets(
+            Data.Settings.ClockGearIdlerOffsetsDeg, Data.Settings.ClockGearIdlerOffsetDeg);
+        SnapGearIdlerOffsetsForDrive(Data.Settings);
+        Data.Settings.ClockGearToothDepthFrac = Math.Clamp(
+            Data.Settings.ClockGearToothDepthFrac <= 0 ? 0.14 : Data.Settings.ClockGearToothDepthFrac, 0.04, 0.35);
+        Data.Settings.ClockGearToothWidthFrac = Math.Clamp(
+            Data.Settings.ClockGearToothWidthFrac <= 0 ? 0.48 : Data.Settings.ClockGearToothWidthFrac, 0.15, 0.85);
+        Data.Settings.ClockGearColor = ColorText.NormalizeOr(Data.Settings.ClockGearColor, "#7A8088");
+        if (!string.IsNullOrWhiteSpace(Data.Settings.ClockGearCompoundColor)
+            && !ColorText.TryNormalize(Data.Settings.ClockGearCompoundColor, out _))
+            Data.Settings.ClockGearCompoundColor = "";
+        if (!string.IsNullOrWhiteSpace(Data.Settings.ClockGearPlanetColor)
+            && !ColorText.TryNormalize(Data.Settings.ClockGearPlanetColor, out _))
+            Data.Settings.ClockGearPlanetColor = "";
+        if (!string.IsNullOrWhiteSpace(Data.Settings.ClockGearIdlerColor)
+            && !ColorText.TryNormalize(Data.Settings.ClockGearIdlerColor, out _))
+            Data.Settings.ClockGearIdlerColor = "";
+        if (!string.IsNullOrWhiteSpace(Data.Settings.ClockGearSunColor)
+            && !ColorText.TryNormalize(Data.Settings.ClockGearSunColor, out _))
+            Data.Settings.ClockGearSunColor = "";
+        Data.Settings.ClockGearCarriageColor = ColorText.NormalizeOr(
+            Data.Settings.ClockGearCarriageColor, "#C4A882");
+        Data.Settings.ClockGearCarriageRail = Math.Clamp(
+            Data.Settings.ClockGearCarriageRail <= 0 ? 4 : Data.Settings.ClockGearCarriageRail, 1, 12);
+        Data.Settings.ClockGearCarriageRung = Math.Clamp(
+            Data.Settings.ClockGearCarriageRung <= 0 ? 2.4 : Data.Settings.ClockGearCarriageRung, 1, 10);
+        Data.Settings.ClockGearCarriageSweepDeg = Math.Clamp(
+            Data.Settings.ClockGearCarriageSweepDeg, 0, 45);
+        Data.Settings.ClockGearCarriageHub = Math.Clamp(
+            Data.Settings.ClockGearCarriageHub, 0, 14);
+        Data.Settings.ClockGearCarriageStages = NormalizeGearCarriageStages(Data.Settings);
+        Data.Settings.ClockGearOpacity = Math.Clamp(
+            Data.Settings.ClockGearOpacity <= 0 ? 0.42 : Data.Settings.ClockGearOpacity, 0.05, 1);
         Data.Settings.ClockTimeOutlineStrength = Math.Clamp(
             Data.Settings.ClockTimeOutlineStrength <= 0 ? 2 : Data.Settings.ClockTimeOutlineStrength, 1, 6);
         // auto model
@@ -3299,6 +3356,174 @@ public sealed partial class AppHost : IDisposable
     // auto model
     static double ClampUsageLead(double value, double fallback) =>
         Math.Clamp(value <= 0 ? fallback : value, 0.25, 14 * 24);
+
+    // auto model
+    static List<int> NormalizeGearPlanetCounts(List<int>? counts)
+    {
+        const int gaps = 5;
+        var result = new List<int>(gaps);
+        for (var i = 0; i < gaps; i++)
+        {
+            var v = counts != null && i < counts.Count ? counts[i] : 3;
+            result.Add(Math.Clamp(v <= 0 ? 3 : v, 1, 12));
+        }
+        return result;
+    }
+
+    // auto model
+    static List<double> NormalizeGearPlanetOffsets(List<double>? offsets, List<int>? counts)
+    {
+        const int gaps = 5;
+        var result = new List<double>(gaps);
+        for (var i = 0; i < gaps; i++)
+        {
+            var count = counts != null && i < counts.Count ? Math.Clamp(counts[i] <= 0 ? 3 : counts[i], 1, 12) : 3;
+            var period = 360.0 / count;
+            var v = offsets != null && i < offsets.Count ? offsets[i] : 0;
+            result.Add(ClockGearGeometry.WrapOffsetDeg(v, period));
+        }
+        return result;
+    }
+
+    static List<double> NormalizeGearCarrierRates(List<double>? rates)
+    {
+        const int gaps = 5;
+        var result = new List<double>(gaps);
+        for (var i = 0; i < gaps; i++)
+        {
+            var v = rates != null && i < rates.Count ? rates[i] : 0;
+            if (double.IsNaN(v) || double.IsInfinity(v))
+                v = 0;
+            result.Add(Math.Clamp(v, -3600, 3600));
+        }
+        return result;
+    }
+
+    static List<ClockGearCarrierDir> NormalizeGearCarrierDirs(List<ClockGearCarrierDir>? dirs)
+    {
+        const int gaps = 5;
+        var result = new List<ClockGearCarrierDir>(gaps);
+        for (var i = 0; i < gaps; i++)
+        {
+            var d = dirs != null && i < dirs.Count ? dirs[i] : ClockGearCarrierDir.Auto;
+            result.Add(Enum.IsDefined(d) ? d : ClockGearCarrierDir.Auto);
+        }
+        return result;
+    }
+
+    static List<bool> NormalizeGearCarrierPinned(List<bool>? pinned)
+    {
+        const int gaps = 5;
+        var result = new List<bool>(gaps);
+        for (var i = 0; i < gaps; i++)
+            result.Add(pinned != null && i < pinned.Count && pinned[i]);
+        return result;
+    }
+
+    static List<double> NormalizeGearCompoundScales(List<double>? scales)
+    {
+        const int gaps = 5;
+        var result = new List<double>(gaps);
+        for (var i = 0; i < gaps; i++)
+        {
+            var v = scales != null && i < scales.Count ? scales[i] : 0;
+            if (double.IsNaN(v) || double.IsInfinity(v))
+                v = 0;
+            result.Add(Math.Clamp(Math.Round(v < 1.5 ? 1 : v), 1, 24));
+        }
+        return result;
+    }
+
+    static List<ClockGearCarriageStage> NormalizeGearCarriageStages(AppSettings s)
+    {
+        const int gaps = 5;
+        var src = s.ClockGearCarriageStages;
+        var seeded = src == null || src.Count == 0;
+        var result = new List<ClockGearCarriageStage>(gaps);
+        for (var i = 0; i < gaps; i++)
+        {
+            ClockGearCarriageStage st;
+            if (src != null && i < src.Count && src[i] != null)
+                st = src[i].Clone();
+            else if (seeded)
+                st = ClockGearCarriageStage.FromLegacy(s);
+            else
+                st = result.Count > 0 ? result[^1].Clone() : ClockGearCarriageStage.FromLegacy(s);
+            result.Add(st.Clamped());
+        }
+        s.ClockGearCarriageRail = result[0].Rail;
+        s.ClockGearCarriageRung = result[0].Rung;
+        s.ClockGearCarriageSweepDeg = result[0].SweepDeg;
+        s.ClockGearCarriageReverse = result[0].Reverse;
+        s.ClockGearCarriagePins = result[0].Pins;
+        s.ClockGearCarriageHub = result[0].Hub;
+        return result;
+    }
+
+    // auto model
+    static List<double> NormalizeGearIdlerOffsets(List<double>? offsets, double legacyGap0)
+    {
+        const int gaps = 5;
+        var result = new List<double>(gaps);
+        for (var i = 0; i < gaps; i++)
+        {
+            double v;
+            if (offsets != null && i < offsets.Count)
+                v = offsets[i];
+            else if (i == 0)
+                v = legacyGap0;
+            else
+                v = 0;
+            result.Add(ClockGearGeometry.ClampIdlerOffsetDeg(v));
+        }
+        return result;
+    }
+
+    // auto model
+    static void SnapGearIdlerOffsetsForDrive(AppSettings s)
+    {
+        try
+        {
+            var planet0 = s.ClockGearPlanetCounts[0];
+            var planetOff0 = s.ClockGearPlanetOffsetsDeg[0];
+            var hasProg = ClockGearGeometry.TryGetProgression(s, out var prog);
+            int? lock1 = hasProg && prog.Inner1 > 0 ? prog.Inner1 : null;
+            int? lock2 = hasProg && prog.Inner2 > 0 ? prog.Inner2 : null;
+            int? lock3 = hasProg && prog.Inner3 > 0 ? prog.Inner3 : null;
+            var nc1 = hasProg ? prog.Compound1 : ClockGearGeometry.FaceCompoundTeeth;
+            var nc2 = hasProg ? prog.Compound2 : ClockGearGeometry.Stage2CompoundTeeth;
+            var nc3 = hasProg ? prog.Compound3 : ClockGearGeometry.Stage2CompoundTeeth;
+
+            var layout0 = ClockGearGeometry.LayoutFaceMesh(120, nc1);
+            s.ClockGearIdlerOffsetsDeg[0] = ClockGearGeometry.SnapIdlerOffsetDeg(
+                layout0, s.ClockGearIdlerOffsetsDeg[0], planet0, planetOff0, lock1);
+            s.ClockGearIdlerOffsetDeg = s.ClockGearIdlerOffsetsDeg[0];
+            var fit0 = ClockGearGeometry.FitInnerRing(
+                layout0, planet0, planetOff0, s.ClockGearIdlerOffsetsDeg[0], lock1);
+            var band0 = ClockGearGeometry.ResolveInnerRingBand(fit0);
+            var layout1 = ClockGearGeometry.LayoutFromInternalHost(band0, fit0.Teeth, nc2);
+            var planet1 = s.ClockGearPlanetCounts[1];
+            var planetOff1 = s.ClockGearPlanetOffsetsDeg[1];
+            s.ClockGearIdlerOffsetsDeg[1] = ClockGearGeometry.SnapIdlerOffsetDeg(
+                layout1, s.ClockGearIdlerOffsetsDeg[1], planet1, planetOff1, lock2);
+            var fit1 = ClockGearGeometry.FitInnerRing(
+                layout1, planet1, planetOff1, s.ClockGearIdlerOffsetsDeg[1], lock2);
+            if (nc3 > 0)
+            {
+                var band1 = ClockGearGeometry.ResolveInnerRingBand(fit1);
+                var layout2 = ClockGearGeometry.LayoutFromInternalHost(band1, fit1.Teeth, nc3);
+                var planet2 = s.ClockGearPlanetCounts[2];
+                var planetOff2 = s.ClockGearPlanetOffsetsDeg[2];
+                s.ClockGearIdlerOffsetsDeg[2] = ClockGearGeometry.SnapIdlerOffsetDeg(
+                    layout2, s.ClockGearIdlerOffsetsDeg[2], planet2, planetOff2, lock3);
+            }
+        }
+        catch
+        {
+            // Provisional rim (120) can undersize deep stages; overlay uses the real rim.
+            // Don't kill startup — leave offsets as normalized clamps.
+        }
+    }
 
     static void NormalizeCheckRule(IHasCheckRule item)
     {

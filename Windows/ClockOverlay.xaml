@@ -24,6 +24,9 @@
                 </DockPanel>
             </Border>
             <Grid x:Name="FaceHost" Grid.Row="1" Margin="8,4,8,10" ClipToBounds="True">
+                <Canvas x:Name="FaceFill" IsHitTestVisible="False"/>
+                <Canvas x:Name="Gears" IsHitTestVisible="False"
+                        SnapsToDevicePixels="False" UseLayoutRounding="False"/>
                 <Canvas x:Name="Face"/>
                 <Canvas x:Name="Hands" IsHitTestVisible="False"/>
                 <Canvas x:Name="Marks" IsHitTestVisible="False"/>
