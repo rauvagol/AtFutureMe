@@ -13,20 +13,21 @@ static class LinkText
             return false;
         raw = Environment.ExpandEnvironmentVariables(raw);
 
+        // Desktop shortcut Target: "C:\...\steam.exe" -applaunch 123  (or steam://…)
+        if (TryQuotedCommand(raw, out start))
+            return true;
+
         if (LooksLikePath(raw))
             return TryFile(FilePath(raw), out start);
 
-        if (Uri.TryCreate(raw, UriKind.Absolute, out var uri))
+        if (Uri.TryCreate(raw, UriKind.Absolute, out var uri) && uri.Scheme.Length > 0)
         {
-            if (uri.Scheme is "http" or "https")
-            {
-                start = Shell(uri.AbsoluteUri);
-                return true;
-            }
-
             if (uri.IsFile)
                 return TryFile(uri.LocalPath, out start);
-            return false;
+
+            // http/https and custom protocols (steam:, discord:, …)
+            start = Shell(uri.AbsoluteUri);
+            return true;
         }
 
         if (Uri.TryCreate("https://" + raw, UriKind.Absolute, out var web)
@@ -45,6 +46,40 @@ static class LinkText
         if (raw.Length >= 2 && raw[0] == '"' && raw[^1] == '"')
             raw = raw[1..^1].Trim();
         return raw;
+    }
+
+    static bool TryQuotedCommand(string raw, out ProcessStartInfo start)
+    {
+        start = null!;
+        if (raw.Length < 2 || raw[0] != '"')
+            return false;
+        var end = raw.IndexOf('"', 1);
+        if (end <= 1)
+            return false;
+        var file = raw[1..end].Trim();
+        if (file.Length == 0 || !LooksLikePath(file))
+            return false;
+        var args = raw[(end + 1)..].Trim();
+        start = new ProcessStartInfo(file)
+        {
+            UseShellExecute = true,
+            Arguments = args
+        };
+        try
+        {
+            if (File.Exists(file))
+            {
+                var dir = Path.GetDirectoryName(Path.GetFullPath(file));
+                if (!string.IsNullOrEmpty(dir))
+                    start.WorkingDirectory = dir;
+            }
+        }
+        catch
+        {
+            // Still try to launch.
+        }
+
+        return true;
     }
 
     static bool LooksLikePath(string raw) =>

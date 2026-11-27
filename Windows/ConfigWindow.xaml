@@ -4,15 +4,84 @@
         xmlns:local="clr-namespace:AtFutureMe.Windows"
         Title="AtFutureMe — Configure"
         Style="{StaticResource DarkWindow}"
-        Width="860" Height="620"
-        MinWidth="720" MinHeight="480"
+        Width="980" Height="680"
+        MinWidth="860" MinHeight="520"
         WindowStartupLocation="CenterScreen"
         Topmost="True">
     <DockPanel Margin="16">
-        <TextBlock DockPanel.Dock="Top" Text="Configure overlay items and window behavior."
-                   Foreground="#9AA0A8" Margin="0,0,0,12"/>
-
-        <TabControl x:Name="MainTabs" SelectionChanged="MainTabsChanged">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="210"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <DockPanel Grid.Column="0">
+                <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <TextBox x:Name="SettingsSearch" Style="{StaticResource DarkTextBox}" Padding="8,6"
+                             TextChanged="SettingsSearchChanged"/>
+                    <TextBlock x:Name="SettingsSearchHint" Text="Search settings" Foreground="#7A8088"
+                               Margin="10,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                </Grid>
+                <ListBox x:Name="SettingsNav" Background="Transparent" BorderThickness="0"
+                         Foreground="#E8EAED"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         SelectionChanged="SettingsNavChanged">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="8,5"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border x:Name="Bd" Background="Transparent" CornerRadius="6"
+                                                Padding="{TemplateBinding Padding}" Margin="0,1">
+                                            <ContentPresenter/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="#FF2F323A"/>
+                                            </Trigger>
+                                            <MultiTrigger>
+                                                <MultiTrigger.Conditions>
+                                                    <Condition Property="IsMouseOver" Value="True"/>
+                                                    <Condition Property="IsSelected" Value="False"/>
+                                                </MultiTrigger.Conditions>
+                                                <Setter TargetName="Bd" Property="Background" Value="#FF2A2D34"/>
+                                            </MultiTrigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Group}" FontSize="11" Foreground="#8AB4F8" Margin="0,8,0,1">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowGroup}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="{Binding Title}" Foreground="#E8EAED"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+            <TabControl x:Name="MainTabs" Grid.Column="2" SelectionChanged="MainTabsChanged">
+            <TabControl.Template>
+                <ControlTemplate TargetType="TabControl">
+                    <ContentPresenter ContentSource="SelectedContent"/>
+                </ControlTemplate>
+            </TabControl.Template>
             <TabItem Header="Layout">
                 <Grid Margin="4,8,0,0">
                     <Grid.ColumnDefinitions>
@@ -23,20 +92,37 @@
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="#9AA0A8" Margin="0,0,0,8"
                                    Text="The full overlay layout. Click a task or folder to edit it here."/>
-                        <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
-                            <Button Style="{StaticResource DarkButton}" Content="Add" Click="AddTask"/>
-                            <Button Style="{StaticResource DarkButton}" Content="Add folder" Click="AddCategory"/>
-                            <Button Style="{StaticResource DarkButton}" Content="Add inside" Click="AddSubcategory"/>
-                            <Button Style="{StaticResource DarkButton}" Content="↑" Click="MoveLayoutUp" Width="36" Padding="0,6"/>
-                            <Button Style="{StaticResource DarkButton}" Content="↓" Click="MoveLayoutDown" Width="36" Padding="0,6"/>
-                            <Button Style="{StaticResource DarkButton}" Content="Delete" Click="DeleteLayout"/>
-                        </WrapPanel>
+                        <Grid DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="8"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <WrapPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
+                                <Button Style="{StaticResource DarkButton}" Content="Add" Click="AddTask"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Add folder" Click="AddCategory"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Add inside" Click="AddSubcategory"/>
+                            </WrapPanel>
+                            <Button Grid.Row="0" Grid.Column="1" Style="{StaticResource DarkButton}" Content="↑"
+                                    Click="MoveLayoutUp" Width="36" Padding="0,6" Margin="0" VerticalAlignment="Center"/>
+                            <WrapPanel Grid.Row="2" Grid.Column="0" VerticalAlignment="Center">
+                                <Button Style="{StaticResource DarkButton}" Content="Duplicate" Click="DuplicateLayout"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Delete" Click="DeleteLayout"/>
+                            </WrapPanel>
+                            <Button Grid.Row="2" Grid.Column="1" Style="{StaticResource DarkButton}" Content="↓"
+                                    Click="MoveLayoutDown" Width="36" Padding="0,6" Margin="0" VerticalAlignment="Center"/>
+                        </Grid>
                         <TreeView x:Name="LayoutTree" SelectedItemChanged="LayoutSelected"
                                   PreviewMouseLeftButtonDown="LayoutTreeMouseDown"
                                   PreviewMouseRightButtonDown="LayoutTreeRightDown"
                                   PreviewKeyDown="LayoutKeyDown">
                             <TreeView.ContextMenu>
                                 <ContextMenu Style="{x:Null}">
+                                    <MenuItem Header="Duplicate" Style="{x:Null}" Click="DuplicateLayout"/>
                                     <MenuItem Header="Move to…" Style="{x:Null}" Click="OpenMoveToFolder"/>
                                 </ContextMenu>
                             </TreeView.ContextMenu>
@@ -125,6 +211,27 @@
                             <TextBlock Text="URL" Foreground="#9AA0A8" Margin="0,10,0,4"/>
                             <TextBox x:Name="OnceUrl" Style="{StaticResource DarkTextBox}"
                                      TextChanged="OnceFieldChanged"/>
+                            <WrapPanel x:Name="OnceUrlSteam" Margin="0,6,0,0" Visibility="Collapsed">
+                                <Button Style="{StaticResource DarkButton}" Content="Run steam game" Tag="rungameid"
+                                        Click="ConvertUrlToSteam"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Steam storefront" Tag="store"
+                                        Click="ConvertUrlToSteam"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Steam news" Tag="appnews"
+                                        Click="ConvertUrlToSteam"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Steam library" Tag="library"
+                                        Click="ConvertUrlToSteam"/>
+                            </WrapPanel>
+                            <TextBlock Text="Focus window" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource DarkButton}" Content="Clear"
+                                        Margin="6,0,0,0" Click="ClearFocusWindow" Tag="once"/>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource DarkButton}" Content="Pick…"
+                                        Click="PickFocusWindow" Tag="once"/>
+                                <TextBlock x:Name="OnceFocusLabel" Foreground="#C5C9D0" VerticalAlignment="Center"
+                                           TextWrapping="Wrap" Text="Automatic"/>
+                            </DockPanel>
+                            <TextBlock Text="Bring this window forward when the link is already open. Automatic uses the linked exe or Steam game."
+                                       Foreground="#7A8088" TextWrapping="Wrap" Margin="0,4,0,0"/>
                             <TextBlock Text="Folder" Foreground="#9AA0A8" Margin="0,10,0,4"/>
                             <ComboBox x:Name="OnceCategory" Style="{StaticResource DarkCombo}"
                                       ItemTemplate="{StaticResource CategoryItemTemplate}" SelectionChanged="OnceFieldChanged"/>
@@ -173,6 +280,27 @@
                             <TextBlock Text="URL" Foreground="#9AA0A8" Margin="0,10,0,4"/>
                             <TextBox x:Name="TodoUrl" Style="{StaticResource DarkTextBox}"
                                      TextChanged="TodoFieldChanged"/>
+                            <WrapPanel x:Name="TodoUrlSteam" Margin="0,6,0,0" Visibility="Collapsed">
+                                <Button Style="{StaticResource DarkButton}" Content="Run steam game" Tag="rungameid"
+                                        Click="ConvertUrlToSteam"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Steam storefront" Tag="store"
+                                        Click="ConvertUrlToSteam"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Steam news" Tag="appnews"
+                                        Click="ConvertUrlToSteam"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Steam library" Tag="library"
+                                        Click="ConvertUrlToSteam"/>
+                            </WrapPanel>
+                            <TextBlock Text="Focus window" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource DarkButton}" Content="Clear"
+                                        Margin="6,0,0,0" Click="ClearFocusWindow" Tag="todo"/>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource DarkButton}" Content="Pick…"
+                                        Click="PickFocusWindow" Tag="todo"/>
+                                <TextBlock x:Name="TodoFocusLabel" Foreground="#C5C9D0" VerticalAlignment="Center"
+                                           TextWrapping="Wrap" Text="Automatic"/>
+                            </DockPanel>
+                            <TextBlock Text="Bring this window forward when the link is already open. Automatic uses the linked exe or Steam game."
+                                       Foreground="#7A8088" TextWrapping="Wrap" Margin="0,4,0,0"/>
                             <TextBlock Text="Folder" Foreground="#9AA0A8" Margin="0,10,0,4"/>
                             <ComboBox x:Name="TodoCategory" Style="{StaticResource DarkCombo}"
                                       ItemTemplate="{StaticResource CategoryItemTemplate}" SelectionChanged="TodoFieldChanged"/>
@@ -271,6 +399,25 @@
                                     <TextBox x:Name="TodoInterval" Style="{StaticResource DarkTextBox}" TextChanged="TodoFieldChanged"/>
                                 </StackPanel>
                             </Grid>
+                            <StackPanel x:Name="TodoDueByRow">
+                            <TextBlock Text="Due by (optional)" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                            <TextBox x:Name="TodoDueByTime" Style="{StaticResource DarkTextBox}"
+                                     MaxLength="5"
+                                     TextChanged="TodoFieldChanged"
+                                     LostFocus="TodoDueByTimeLostFocus"/>
+                            <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                       Text="Leave empty for a single time. Set a later time (or earlier to wrap past midnight) so the clock shows a line at Time, a line at Due by, and a filled band between."/>
+                            <DockPanel Margin="0,10,0,0">
+                                <TextBlock x:Name="TodoClockOpacityLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                           VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="40" Text="100%"/>
+                                <TextBlock Text="Clock opacity" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <Slider x:Name="TodoClockOpacitySlider" Minimum="5" Maximum="100" TickFrequency="1"
+                                    IsSnapToTickEnabled="True"
+                                    PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                    MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                    ValueChanged="TodoClockOpacityChanged"/>
+                            </StackPanel>
 
                             <TextBlock x:Name="WeekdaysLabel" Text="Days" Foreground="#9AA0A8" Margin="0,12,0,4"/>
                             <WrapPanel x:Name="WeekdaysPanel">
@@ -331,6 +478,27 @@
                             <TextBlock Text="URL" Foreground="#9AA0A8" Margin="0,10,0,4"/>
                             <TextBox x:Name="EventUrl" Style="{StaticResource DarkTextBox}"
                                      TextChanged="EventFieldChanged"/>
+                            <WrapPanel x:Name="EventUrlSteam" Margin="0,6,0,0" Visibility="Collapsed">
+                                <Button Style="{StaticResource DarkButton}" Content="Run steam game" Tag="rungameid"
+                                        Click="ConvertUrlToSteam"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Steam storefront" Tag="store"
+                                        Click="ConvertUrlToSteam"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Steam news" Tag="appnews"
+                                        Click="ConvertUrlToSteam"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Steam library" Tag="library"
+                                        Click="ConvertUrlToSteam"/>
+                            </WrapPanel>
+                            <TextBlock Text="Focus window" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource DarkButton}" Content="Clear"
+                                        Margin="6,0,0,0" Click="ClearFocusWindow" Tag="event"/>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource DarkButton}" Content="Pick…"
+                                        Click="PickFocusWindow" Tag="event"/>
+                                <TextBlock x:Name="EventFocusLabel" Foreground="#C5C9D0" VerticalAlignment="Center"
+                                           TextWrapping="Wrap" Text="Automatic"/>
+                            </DockPanel>
+                            <TextBlock Text="Bring this window forward when the link is already open. Automatic uses the linked exe or Steam game."
+                                       Foreground="#7A8088" TextWrapping="Wrap" Margin="0,4,0,0"/>
                             <TextBlock Text="Folder" Foreground="#9AA0A8" Margin="0,12,0,4"/>
                             <ComboBox x:Name="EventCategory" Style="{StaticResource DarkCombo}"
                                       ItemTemplate="{StaticResource CategoryItemTemplate}" SelectionChanged="EventFieldChanged"/>
@@ -424,7 +592,25 @@
                                      MaxLength="5"
                                      TextChanged="EventFieldChanged"
                                      LostFocus="EventTimeLostFocus"/>
-                            <TextBlock Text="Scheduled countdown. Turns the due color when the date and time arrive. The overlay checkbox appears after that, so you can dismiss it."
+                            <TextBlock Text="Due by (optional)" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                            <DatePicker x:Name="EventDueByDate" SelectedDateChanged="EventFieldChanged"/>
+                            <TextBox x:Name="EventDueByTime" Style="{StaticResource DarkTextBox}"
+                                     MaxLength="5" Margin="0,8,0,0"
+                                     TextChanged="EventFieldChanged"
+                                     LostFocus="EventDueByTimeLostFocus"/>
+                            <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                       Text="Leave blank for a single moment. With a due-by, the clock draws lines at start and end with a filled band between. Clears if the time box is empty."/>
+                            <DockPanel Margin="0,10,0,0">
+                                <TextBlock x:Name="EventClockOpacityLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                           VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="40" Text="100%"/>
+                                <TextBlock Text="Clock opacity" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <Slider x:Name="EventClockOpacitySlider" Minimum="5" Maximum="100" TickFrequency="1"
+                                    IsSnapToTickEnabled="True"
+                                    PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                    MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                    ValueChanged="EventClockOpacityChanged"/>
+                            <TextBlock Text="Scheduled countdown. Turns the due color when the date and time arrive (or when due-by passes). The overlay checkbox appears after the start, so you can dismiss it."
                                        Foreground="#7A8088" TextWrapping="Wrap" Margin="0,16,0,0"/>
                             <TextBlock Text="Only show this long before it happens" Foreground="#9AA0A8" Margin="0,12,0,4"/>
                             <DockPanel>
@@ -461,6 +647,27 @@
                                 <TextBlock Text="URL" Foreground="#9AA0A8" Margin="0,10,0,4"/>
                                 <TextBox x:Name="NoteUrl" Style="{StaticResource DarkTextBox}"
                                          TextChanged="NoteFieldChanged"/>
+                                <WrapPanel x:Name="NoteUrlSteam" Margin="0,6,0,0" Visibility="Collapsed">
+                                    <Button Style="{StaticResource DarkButton}" Content="Run steam game" Tag="rungameid"
+                                            Click="ConvertUrlToSteam"/>
+                                    <Button Style="{StaticResource DarkButton}" Content="Steam storefront" Tag="store"
+                                            Click="ConvertUrlToSteam"/>
+                                    <Button Style="{StaticResource DarkButton}" Content="Steam news" Tag="appnews"
+                                            Click="ConvertUrlToSteam"/>
+                                    <Button Style="{StaticResource DarkButton}" Content="Steam library" Tag="library"
+                                            Click="ConvertUrlToSteam"/>
+                                </WrapPanel>
+                                <TextBlock Text="Focus window" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource DarkButton}" Content="Clear"
+                                            Margin="6,0,0,0" Click="ClearFocusWindow" Tag="note"/>
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource DarkButton}" Content="Pick…"
+                                            Click="PickFocusWindow" Tag="note"/>
+                                    <TextBlock x:Name="NoteFocusLabel" Foreground="#C5C9D0" VerticalAlignment="Center"
+                                               TextWrapping="Wrap" Text="Automatic"/>
+                                </DockPanel>
+                                <TextBlock Text="Bring this window forward when the link is already open. Automatic uses the linked exe or Steam game."
+                                           Foreground="#7A8088" TextWrapping="Wrap" Margin="0,4,0,0"/>
                                 <TextBlock Text="Folder" Foreground="#9AA0A8" Margin="0,12,0,4"/>
                                 <ComboBox x:Name="NoteCategory" Style="{StaticResource DarkCombo}"
                                           ItemTemplate="{StaticResource CategoryItemTemplate}" SelectionChanged="NoteFieldChanged"/>
@@ -641,48 +848,280 @@
             </TabItem>
 
             <TabItem x:Name="IntegrationTab" Header="Integration">
-                <Grid Margin="4,8,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="16"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="300"/>
-                            <ColumnDefinition Width="16"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <DockPanel>
-                            <TextBlock DockPanel.Dock="Top" Text="App layouts" Foreground="#E8EAED" Margin="0,0,0,4"/>
-                            <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="#9AA0A8" Margin="0,0,0,8"
-                                       Text="Flag a running program to give it its own overlay layout. Desktop is saved separately and comes back when none of these are running."/>
-                            <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
-                                <Button Style="{StaticResource DarkButton}" Content="Flag program…" Click="AddAppLayout"/>
-                                <Button Style="{StaticResource DarkButton}" Content="Remove" Click="RemoveAppLayout"/>
+                <ScrollViewer Margin="4,8,0,0" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Style="{StaticResource DarkScrollViewer}">
+                    <StackPanel>
+                        <TextBlock Text="Clock" Foreground="#E8EAED" Margin="0,0,0,4"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,0,0,8"
+                                   Text="Enable the clock on the Clock tab. These keep it visible when the main overlay is put away."/>
+                        <CheckBox x:Name="ClockStayWhenMainHiddenBox" Style="{StaticResource DarkCheck}"
+                                  Content="Show when main overlay is hidden"
+                                  Checked="IntegrationPopoutChanged" Unchecked="IntegrationPopoutChanged"/>
+                        <CheckBox x:Name="ClockKeepOnTopBox" Style="{StaticResource DarkCheck}"
+                                  Content="Keep above other windows"
+                                  Margin="0,6,0,0"
+                                  Checked="IntegrationPopoutChanged" Unchecked="IntegrationPopoutChanged"/>
+
+                        <TextBlock x:Name="IntegrationDiscordHead" Text="Discord messages" Foreground="#E8EAED" Margin="0,24,0,4"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,0,0,8"
+                                   Text="Reads your personal Discord inbox from the AtFutureMe Inbox Vencord plugin. Clock-face cues need the clock overlay on."/>
+                        <CheckBox x:Name="DiscordModuleBox" Style="{StaticResource DarkCheck}"
+                                  Content="Watch Discord inbox"
+                                  Checked="IntegrationPopoutChanged" Unchecked="IntegrationPopoutChanged"/>
+                        <CheckBox x:Name="DiscordInboxDebugBox" Style="{StaticResource DarkCheck}"
+                                  Content="Debug missed alerts in a popout"
+                                  Margin="0,8,0,0"
+                                  Checked="DiscordInboxDebugChanged" Unchecked="DiscordInboxDebugChanged"/>
+                        <TextBlock Text="Show alerts" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                            <ComboBox x:Name="DiscordDisplayBox" Style="{StaticResource DarkCombo}"
+                                      SelectionChanged="DiscordDisplayChanged">
+                                <ComboBoxItem Content="Own window"/>
+                                <ComboBoxItem Content="Clock face"/>
+                                <ComboBoxItem Content="Window and clock"/>
+                            </ComboBox>
+                            <TextBlock Text="Clock cue" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                            <ComboBox x:Name="DiscordClockCueBox" Style="{StaticResource DarkCombo}"
+                                      SelectionChanged="DiscordClockCueChanged">
+                                <ComboBoxItem Content="Pulse face"/>
+                                <ComboBoxItem Content="Solid tint (like a due task)"/>
+                                <ComboBoxItem Content="Pulse ring"/>
+                                <ComboBoxItem Content="Dot on the rim"/>
+                            </ComboBox>
+                            <local:ColorRow x:Name="DiscordClockColorRow"/>
+                            <DockPanel Margin="0,4,0,0">
+                            <TextBlock x:Name="DiscordClockOpacityLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="70%"/>
+                            <TextBlock Text="Cue opacity" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <Slider x:Name="DiscordClockOpacitySlider" Minimum="10" Maximum="100" TickFrequency="1"
+                                    IsSnapToTickEnabled="True"
+                                    PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                    MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                    ValueChanged="DiscordClockOpacityChanged"/>
+                            <DockPanel Margin="0,4,0,0">
+                            <TextBlock x:Name="DiscordClockRingInsetLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="8%"/>
+                            <TextBlock Text="Pulse ring inward size" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <Slider x:Name="DiscordClockRingInsetSlider" Minimum="0.04" Maximum="0.55" TickFrequency="0.01"
+                                    IsSnapToTickEnabled="True"
+                                    PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                    MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                    ValueChanged="DiscordClockRingInsetChanged"/>
+                            <TextBlock Text="Sender on clock" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                            <ComboBox x:Name="DiscordClockSenderBox" Style="{StaticResource DarkCombo}"
+                                      SelectionChanged="DiscordClockSenderChanged">
+                                <ComboBoxItem Content="Hidden"/>
+                                <ComboBoxItem Content="On the face"/>
+                                <ComboBoxItem Content="Below the clock"/>
+                            </ComboBox>
+                            <local:ColorRow x:Name="DiscordClockTextColorRow"/>
+                            <CheckBox x:Name="DiscordClockNameOnlyBox" Style="{StaticResource DarkCheck}"
+                                      Content="Name only — hide “New message from”"
+                                      Margin="0,2,0,0"
+                                      Checked="DiscordClockNameOnlyChanged" Unchecked="DiscordClockNameOnlyChanged"/>
+                            <TextBlock Text="Plugin missing on clock" Foreground="#9AA0A8" Margin="0,14,0,4"/>
+                            <ComboBox x:Name="DiscordMissingClockCueBox" Style="{StaticResource DarkCombo}"
+                                      SelectionChanged="DiscordMissingClockCueChanged">
+                                <ComboBoxItem Content="Off"/>
+                                <ComboBoxItem Content="Pulse face"/>
+                                <ComboBoxItem Content="Solid tint"/>
+                                <ComboBoxItem Content="Pulse ring"/>
+                                <ComboBoxItem Content="Dot on the rim"/>
+                            </ComboBox>
+                            <TextBlock Text="Missing text" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                            <ComboBox x:Name="DiscordMissingClockLabelBox" Style="{StaticResource DarkCombo}"
+                                      SelectionChanged="DiscordMissingClockLabelChanged">
+                                <ComboBoxItem Content="Hidden"/>
+                                <ComboBoxItem Content="On the face"/>
+                                <ComboBoxItem Content="Below the clock"/>
+                            </ComboBox>
+                            <local:ColorRow x:Name="DiscordMissingClockColorRow"/>
+                            <DockPanel Margin="0,4,0,0">
+                            <TextBlock x:Name="DiscordMissingClockOpacityLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="70%"/>
+                            <TextBlock Text="Missing cue opacity" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <Slider x:Name="DiscordMissingClockOpacitySlider" Minimum="10" Maximum="100" TickFrequency="1"
+                                    IsSnapToTickEnabled="True"
+                                    PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                    MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                    ValueChanged="DiscordMissingClockOpacityChanged"/>
+                            <TextBlock Text="Name aliases" Foreground="#9AA0A8" Margin="0,14,0,4"/>
+                            <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,0,0,6"
+                                       Text="Match a Discord username, display name, or user ID and show a shorter name instead."/>
+                            <ListBox x:Name="DiscordAliasList" Background="#FF2A2D34" Foreground="#E8EAED"
+                                     BorderBrush="#FF3A3D45" MinHeight="72" MaxHeight="140" Margin="0,0,0,8"
+                                     PreviewMouseWheel="NestedListPreviewMouseWheel"
+                                     SelectionChanged="DiscordAliasSelected"/>
+                            <TextBlock Text="Discord name or ID" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                            <TextBox x:Name="DiscordAliasFromBox" Style="{StaticResource DarkTextBox}" Margin="0,0,0,6"/>
+                            <TextBlock Text="Show as" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                            <TextBox x:Name="DiscordAliasToBox" Style="{StaticResource DarkTextBox}" Margin="0,0,0,6"/>
+                            <WrapPanel Margin="0,0,0,10">
+                                <Button Style="{StaticResource DarkButton}" Content="Add / update" Click="DiscordAliasAdd"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Remove" Click="DiscordAliasRemove"/>
                             </WrapPanel>
-                            <ListBox x:Name="AppLayoutList" Background="#FF2A2D34" Foreground="#E8EAED"
-                                     BorderBrush="#FF3A3D45"
-                                     SelectionChanged="AppLayoutSelected">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Margin="0,2">
-                                            <TextBlock Text="{Binding ExeName}" Foreground="#E8EAED"/>
-                                            <TextBlock Text="{Binding ExePath}" Foreground="#7A8088" FontSize="11"
-                                                       TextTrimming="CharacterEllipsis"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </DockPanel>
-                        <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"
-                                      Style="{StaticResource DarkScrollViewer}">
-                            <StackPanel>
+                            <TextBlock Text="Name colors" Foreground="#9AA0A8" Margin="0,8,0,4"/>
+                            <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,0,0,6"
+                                       Text="Give specific people their own cue color, and optionally name text color, size, and outline."/>
+                            <ListBox x:Name="DiscordNameColorList" Background="#FF2A2D34" Foreground="#E8EAED"
+                                     BorderBrush="#FF3A3D45" MinHeight="56" MaxHeight="120" Margin="0,0,0,8"
+                                     PreviewMouseWheel="NestedListPreviewMouseWheel"
+                                     SelectionChanged="DiscordNameColorSelected"/>
+                            <TextBlock Text="Name or ID" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                            <TextBox x:Name="DiscordNameColorNameBox" Style="{StaticResource DarkTextBox}" Margin="0,0,0,6"/>
+                            <local:ColorRow x:Name="DiscordNameColorRow"/>
+                            <local:ColorRow x:Name="DiscordNameColorTextRow"/>
+                            <CheckBox x:Name="DiscordNameColorTextSizeBox" Style="{StaticResource DarkCheck}"
+                                      Content="Custom text size"
+                                      Margin="0,0,0,4"
+                                      Checked="DiscordNameColorTextSizeToggle" Unchecked="DiscordNameColorTextSizeToggle"/>
+                            <StackPanel x:Name="DiscordNameColorTextSizeRow" Margin="0,0,0,8" Visibility="Collapsed">
+                                <DockPanel>
+                                    <TextBlock x:Name="DiscordNameColorTextSizeLabel" DockPanel.Dock="Right"
+                                               Foreground="#9AA0A8" VerticalAlignment="Center" Margin="8,0,0,0"
+                                               MinWidth="36" Text="14"/>
+                                    <TextBlock Text="Text size" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="DiscordNameColorTextSizeSlider" Minimum="8" Maximum="48"
+                                        TickFrequency="1" IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="DiscordNameColorTextSizeChanged"/>
+                            </StackPanel>
+                            <local:ColorRow x:Name="DiscordNameColorOutlineRow"/>
+                            <StackPanel x:Name="DiscordNameColorOutlineStrengthRow" Margin="0,0,0,8" Visibility="Collapsed">
+                                <DockPanel>
+                                    <TextBlock x:Name="DiscordNameColorOutlineStrengthLabel" DockPanel.Dock="Right"
+                                               Foreground="#9AA0A8" VerticalAlignment="Center" Margin="8,0,0,0"
+                                               MinWidth="24" Text="2"/>
+                                    <TextBlock Text="Outline strength" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="DiscordNameColorOutlineStrengthSlider" Minimum="1" Maximum="6"
+                                        TickFrequency="1" IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="DiscordNameColorOutlineStrengthChanged"/>
+                            </StackPanel>
+                            <WrapPanel Margin="0,0,0,10">
+                                <Button Style="{StaticResource DarkButton}" Content="Add / update" Click="DiscordNameColorAdd"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Remove" Click="DiscordNameColorRemove"/>
+                            </WrapPanel>
+                            <TextBlock Text="Priority names" Foreground="#9AA0A8" Margin="0,8,0,4"/>
+                            <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,0,0,6"
+                                       Text="When an unread DM arrives from one of these names (username, display name, alias, or user ID), play a sound."/>
+                            <ListBox x:Name="DiscordPriorityList" Background="#FF2A2D34" Foreground="#E8EAED"
+                                     BorderBrush="#FF3A3D45" MinHeight="56" MaxHeight="120" Margin="0,0,0,8"
+                                     PreviewMouseWheel="NestedListPreviewMouseWheel"
+                                     SelectionChanged="DiscordPrioritySelected"/>
+                            <TextBlock Text="Name or ID" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                            <TextBox x:Name="DiscordPriorityNameBox" Style="{StaticResource DarkTextBox}" Margin="0,0,0,6"/>
+                            <WrapPanel Margin="0,0,0,10">
+                                <Button Style="{StaticResource DarkButton}" Content="Add" Click="DiscordPriorityAdd"/>
+                                <Button Style="{StaticResource DarkButton}" Content="Remove" Click="DiscordPriorityRemove"/>
+                            </WrapPanel>
+                            <TextBlock Text="Priority sound" Foreground="#9AA0A8" Margin="0,0,0,4"/>
+                            <ComboBox x:Name="DiscordPrioritySoundBox" Style="{StaticResource DarkCombo}"
+                                      SelectionChanged="DiscordPrioritySoundChanged"/>
+                            <DockPanel Margin="0,8,0,0">
+                                <TextBlock x:Name="DiscordPriorityVolumeLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                           VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="70%"/>
+                                <TextBlock Text="Volume" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <Slider x:Name="DiscordPriorityVolumeSlider" Minimum="0" Maximum="100" TickFrequency="1"
+                                    IsSnapToTickEnabled="True"
+                                    PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                    MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                    ValueChanged="DiscordPriorityVolumeChanged"/>
+                            <TextBlock Text="Repeat" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                            <ComboBox x:Name="DiscordPriorityRepeatBox" Style="{StaticResource DarkCombo}"
+                                      SelectionChanged="DiscordPriorityRepeatChanged">
+                                <ComboBoxItem Content="Once per unread message"/>
+                                <ComboBoxItem Content="Every X minutes while unread"/>
+                                <ComboBoxItem Content="Every X minutes after Y minutes unread"/>
+                            </ComboBox>
+                            <StackPanel x:Name="DiscordPriorityIntervalRow" Margin="0,8,0,0" Visibility="Collapsed">
+                                <DockPanel>
+                                    <TextBlock x:Name="DiscordPriorityIntervalLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="48" Text="5 min"/>
+                                    <TextBlock Text="Every (X)" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="DiscordPriorityIntervalSlider" Minimum="1" Maximum="60" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="DiscordPriorityIntervalChanged"/>
+                                <StackPanel x:Name="DiscordPriorityGraceRow" Margin="0,8,0,0" Visibility="Collapsed">
+                                    <DockPanel>
+                                        <TextBlock x:Name="DiscordPriorityGraceLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                                   VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="48" Text="10 min"/>
+                                        <TextBlock Text="After unread (Y)" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                    </DockPanel>
+                                    <Slider x:Name="DiscordPriorityGraceSlider" Minimum="1" Maximum="120" TickFrequency="1"
+                                            IsSnapToTickEnabled="True"
+                                            PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                            MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                            ValueChanged="DiscordPriorityGraceChanged"/>
+                                </StackPanel>
+                            </StackPanel>
+                            <Button Style="{StaticResource DarkButton}" Content="Test sound" HorizontalAlignment="Left"
+                                    Margin="0,10,0,0" Click="DiscordPriorityTestSound"/>
+                            <CheckBox x:Name="DiscordStayWhenMainHiddenBox" Style="{StaticResource DarkCheck}"
+                                      Content="Show window when main overlay is hidden"
+                                      Margin="0,12,0,0"
+                                      Checked="IntegrationPopoutChanged" Unchecked="IntegrationPopoutChanged"/>
+                            <CheckBox x:Name="DiscordKeepOnTopBox" Style="{StaticResource DarkCheck}"
+                                      Content="Keep window above other windows"
+                                      Margin="0,6,0,0"
+                                      Checked="IntegrationPopoutChanged" Unchecked="IntegrationPopoutChanged"/>
+                            <TextBlock Text="Window lock mode" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                            <ComboBox x:Name="DiscordLockModeBox" Style="{StaticResource DarkCombo}"
+                                      SelectionChanged="DiscordLockChanged">
+                                <ComboBoxItem Content="Locked — click-through"/>
+                                <ComboBoxItem Content="Semi-locked — drag to position"/>
+                                <ComboBoxItem Content="Unlocked — chrome + resize"/>
+                            </ComboBox>
+
+                        <Grid x:Name="IntegrationApps" Margin="0,28,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="300"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Top" Text="App layouts" Foreground="#E8EAED" Margin="0,0,0,4"/>
+                                <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="#9AA0A8" Margin="0,0,0,8"
+                                           Text="Flag a running program to give it its own overlay layout. Desktop is saved separately and comes back when none of these are running."/>
+                                <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                                    <Button Style="{StaticResource DarkButton}" Content="Flag program…" Click="AddAppLayout"/>
+                                    <Button Style="{StaticResource DarkButton}" Content="Remove" Click="RemoveAppLayout"/>
+                                </WrapPanel>
+                                <ListBox x:Name="AppLayoutList" Background="#FF2A2D34" Foreground="#E8EAED"
+                                         BorderBrush="#FF3A3D45" Height="200"
+                                         PreviewMouseWheel="NestedListPreviewMouseWheel"
+                                         SelectionChanged="AppLayoutSelected">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="0,2">
+                                                <TextBlock Text="{Binding ExeName}" Foreground="#E8EAED"/>
+                                                <TextBlock Text="{Binding ExePath}" Foreground="#7A8088" FontSize="11"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </DockPanel>
+                            <StackPanel Grid.Column="2">
                                 <TextBlock x:Name="AppLayoutHint" TextWrapping="Wrap" Foreground="#9AA0A8"
                                            Text="Select a flagged program, or flag one that is running now."/>
                                 <StackPanel x:Name="AppLayoutEditor" IsEnabled="False">
                                     <TextBlock Text="While this program is running" Foreground="#9AA0A8" Margin="0,0,0,4"/>
                                     <ComboBox x:Name="AppLayoutHideBox" Style="{StaticResource DarkCombo}"
+                                              SelectionChanged="AppLayoutFieldChanged"/>
+                                    <TextBlock Text="Clock while this program is running" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                                    <ComboBox x:Name="AppLayoutClockBox" Style="{StaticResource DarkCombo}"
                                               SelectionChanged="AppLayoutFieldChanged"/>
                                     <CheckBox x:Name="AppLayoutLockBox" Style="{StaticResource DarkCheck}"
                                               Content="Lock overlay"
@@ -692,53 +1131,70 @@
                                                Text="Flag first, then launch the program and arrange overlays. Moves, pop in/out, and folder collapse save to this program. Hide and lock are set here. Tray hide and lock are frozen while this layout is in control. Important tasks still force the main overlay visible when due or within their lead. Closing the last flagged program restores desktop. Folder pairs still pop their folder on top if that program is not a full layout."/>
                                 </StackPanel>
                             </StackPanel>
-                        </ScrollViewer>
-                    </Grid>
-                    <Grid Grid.Row="2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="16"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <DockPanel>
-                            <TextBlock DockPanel.Dock="Top" Text="Folder pairing — running" Foreground="#E8EAED" Margin="0,0,0,4"/>
-                            <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="#9AA0A8" Margin="0,0,0,8"
-                                       Text="Programs you can pair to a folder from Layout. Hide anything you will not pair."/>
-                            <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
-                                <Button Style="{StaticResource DarkButton}" Content="Refresh" Click="RefreshPairTargets"/>
-                                <Button Style="{StaticResource DarkButton}" Content="Don't offer"
-                                        Click="HidePairTarget"/>
-                            </WrapPanel>
-                            <ListBox x:Name="PairAvailableList" Background="#FF2A2D34" Foreground="#E8EAED"
-                                     BorderBrush="#FF3A3D45"
-                                     ItemTemplate="{StaticResource PairExeTemplate}"
-                                     MouseDoubleClick="HidePairTarget"/>
-                        </DockPanel>
-                        <DockPanel Grid.Column="2">
-                            <TextBlock DockPanel.Dock="Top" Text="Folder pairing — hidden" Foreground="#E8EAED" Margin="0,0,0,4"/>
-                            <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="#9AA0A8" Margin="0,0,0,8"
-                                       Text="These stay off the pair picker. Double-click or Offer again to show them."/>
-                            <Button DockPanel.Dock="Bottom" Style="{StaticResource DarkButton}" HorizontalAlignment="Left"
-                                    Margin="0,8,0,0" Content="Offer again" Click="RestorePairTarget"/>
-                            <ListBox x:Name="PairHiddenList" Background="#FF2A2D34" Foreground="#E8EAED"
-                                     BorderBrush="#FF3A3D45"
-                                     ItemTemplate="{StaticResource PairExeTemplate}"
-                                     MouseDoubleClick="RestorePairTarget"/>
-                        </DockPanel>
-                    </Grid>
-                </Grid>
+                        </Grid>
+
+                        <Grid Margin="0,28,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Top" Text="Folder pairing — running" Foreground="#E8EAED" Margin="0,0,0,4"/>
+                                <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="#9AA0A8" Margin="0,0,0,8"
+                                           Text="Programs you can pair to a folder from Layout. Hide anything you will not pair."/>
+                                <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                                    <Button Style="{StaticResource DarkButton}" Content="Refresh" Click="RefreshPairTargets"/>
+                                    <Button Style="{StaticResource DarkButton}" Content="Don't offer"
+                                            Click="HidePairTarget"/>
+                                </WrapPanel>
+                                <ListBox x:Name="PairAvailableList" Background="#FF2A2D34" Foreground="#E8EAED"
+                                         BorderBrush="#FF3A3D45" Height="200"
+                                         PreviewMouseWheel="NestedListPreviewMouseWheel"
+                                         ItemTemplate="{StaticResource PairExeTemplate}"
+                                         MouseDoubleClick="HidePairTarget"/>
+                            </DockPanel>
+                            <DockPanel Grid.Column="2">
+                                <TextBlock DockPanel.Dock="Top" Text="Folder pairing — hidden" Foreground="#E8EAED" Margin="0,0,0,4"/>
+                                <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="#9AA0A8" Margin="0,0,0,8"
+                                           Text="These stay off the pair picker. Double-click or Offer again to show them."/>
+                                <Button DockPanel.Dock="Bottom" Style="{StaticResource DarkButton}" HorizontalAlignment="Left"
+                                        Margin="0,8,0,0" Content="Offer again" Click="RestorePairTarget"/>
+                                <ListBox x:Name="PairHiddenList" Background="#FF2A2D34" Foreground="#E8EAED"
+                                         BorderBrush="#FF3A3D45" Height="200"
+                                         PreviewMouseWheel="NestedListPreviewMouseWheel"
+                                         ItemTemplate="{StaticResource PairExeTemplate}"
+                                         MouseDoubleClick="RestorePairTarget"/>
+                            </DockPanel>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
 
-            <TabItem Header="Clock">
+            <TabItem x:Name="ClockTab" Header="Clock">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                               Style="{StaticResource DarkScrollViewer}" Margin="4,8,0,0">
                     <StackPanel MaxWidth="560">
                         <CheckBox x:Name="ClockModuleBox" Style="{StaticResource DarkCheck}"
                                   Content="Show clock module"
                                   Checked="ClockModuleChanged" Unchecked="ClockModuleChanged"/>
+                        <TextBlock Text="Style, when no app layout is running" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                        <ComboBox x:Name="ClockStyleBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="ClockStyleChanged">
+                            <ComboBoxItem Content="Full clock"/>
+                            <ComboBoxItem Content="Lightweight — upcoming times only"/>
+                        </ComboBox>
+                        <TextBlock Text="Lightweight look-ahead" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                        <ComboBox x:Name="MiniClockHoursBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="MiniClockHoursChanged"/>
+                        <TextBlock Text="Hide lightweight clock when empty" Foreground="#9AA0A8" Margin="0,10,0,4"/>
+                        <ComboBox x:Name="MiniClockHideBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="MiniClockHideChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                   Text="After the empty countdown, the lightweight clock stays hidden until a Discord alert or a task inside the look-ahead needs attention."/>
 
                         <Expander x:Name="ClockOptions" Style="{StaticResource SettingsExpander}"
-                                  Header="Options" Tag="clock-options" IsExpanded="True" Margin="0,8,0,0"
+                                  Header="Face" Tag="clock-options" IsExpanded="True" Margin="0,8,0,0"
                                   Expanded="SettingsSectionChanged" Collapsed="SettingsSectionChanged">
                             <StackPanel>
                         <TextBlock Text="Lock mode" Foreground="#9AA0A8" Margin="0,16,0,4"/>
@@ -764,16 +1220,10 @@
                                    Text="Semi-lock and locked hide the title bar and top-align the face so you can place it at the edge of the screen. Semi-lock: drag the face to move. Second hand: :00 up, :15 right, :30 down, :45 left."/>
 
                         <TextBlock Text="Covers the next" Foreground="#9AA0A8" Margin="0,16,0,4"/>
-                        <DockPanel>
-                            <ComboBox x:Name="ClockHorizonUnitBox" DockPanel.Dock="Right" Width="110"
-                                      Style="{StaticResource DarkCombo}"
-                                      SelectionChanged="ClockHorizonUnitChanged">
-                                <ComboBoxItem Content="Hours"/>
-                                <ComboBoxItem Content="Days"/>
-                            </ComboBox>
-                            <TextBox x:Name="ClockHorizonBox" Style="{StaticResource DarkTextBox}" Margin="0,0,8,0"
-                                     LostFocus="ClockHorizonCommit" KeyDown="ClockHorizonKey"/>
-                        </DockPanel>
+                        <ComboBox x:Name="ClockHorizonBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="ClockHorizonChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                   Text="Only spans that divide the 144 outer teeth, so one colored tooth marks each hour on the face."/>
 
                         <TextBlock Text="Time format" Foreground="#9AA0A8" Margin="0,16,0,4"/>
                         <ComboBox x:Name="ClockHourFormatBox" Style="{StaticResource DarkCombo}"
@@ -885,18 +1335,9 @@
                                 MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
                                 ValueChanged="ClockTickLengthChanged"/>
 
-                        <DockPanel Margin="0,8,0,0">
-                            <TextBlock x:Name="ClockWedgeWidthLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
-                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="2%"/>
-                            <TextBlock Text="Task wedge width" Foreground="#9AA0A8" VerticalAlignment="Center"/>
-                        </DockPanel>
-                        <Slider x:Name="ClockWedgeWidthSlider" Minimum="0.01" Maximum="0.15" TickFrequency="0.01"
-                                IsSnapToTickEnabled="True"
-                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
-                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
-                                ValueChanged="ClockTickLengthChanged"/>
                         <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
-                                   Text="Lengths snap to whole percents. Tick/second-hand % is of the ring radius; wedge width % is of the full circle."/>
+                                   Text="Lengths snap to whole percents. Tick and hand lengths are a percent of the ring radius."/>
+
 
                         <TextBlock Text="Face colors" Foreground="#9AA0A8" Margin="0,16,0,4"/>
                         <local:ColorRow x:Name="ClockColorRingRow"/>
@@ -927,14 +1368,6 @@
                                   Margin="0,8,0,0"
                                   Checked="ClockFilterChanged" Unchecked="ClockFilterChanged"/>
                         <local:ColorRow x:Name="ClockColorAttentionRow"/>
-
-                        <TextBlock Text="Event colors" Foreground="#9AA0A8" Margin="0,16,0,4"/>
-                        <local:ColorRow x:Name="ClockColorRecurringRow"/>
-                        <local:ColorRow x:Name="ClockColorScheduledRow"/>
-                        <local:ColorRow x:Name="ClockColorDueRow"/>
-                        <local:ColorRow x:Name="ClockColorWedgeLineRow"/>
-                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
-                                   Text="Exact-time line is the opaque line through the middle of each task wedge."/>
 
                         <TextBlock Text="Show on the ring" Foreground="#9AA0A8" Margin="0,16,0,4"/>
                         <CheckBox x:Name="ClockShowRecurringBox" Style="{StaticResource DarkCheck}"
@@ -976,8 +1409,254 @@
                                    Text="Uncheck All folders to limit the ring to selected folders (nested items follow a selected parent). Unlock the clock above to move or resize it."/>
                             </StackPanel>
                         </Expander>
+                        <Expander x:Name="ClockWedges" Style="{StaticResource SettingsExpander}"
+                                  Header="Wedges" Tag="clock-wedges" IsExpanded="True" Margin="0,8,0,0"
+                                  Expanded="SettingsSectionChanged" Collapsed="SettingsSectionChanged">
+                            <StackPanel>
+                        <TextBlock Text="Stack overlapping wedges" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                        <ComboBox x:Name="ClockWedgeBlendBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="ClockFilterChanged">
+                            <ComboBoxItem Content="Normal"/>
+                            <ComboBoxItem Content="Multiply"/>
+                            <ComboBoxItem Content="Darken"/>
+                            <ComboBoxItem Content="Add"/>
+                            <ComboBoxItem Content="Screen"/>
+                            <ComboBoxItem Content="Overlay"/>
+                        </ComboBox>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                   Text="Normal lays each wedge over the one under it. The other modes combine the wedge layers first, then that result is drawn on the clock so the gears still show through."/>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockWedgeWidthLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="2%"/>
+                            <TextBlock Text="Task wedge width" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockWedgeWidthSlider" Minimum="0.01" Maximum="0.15" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+
+                        <TextBlock Text="Wedge start" Foreground="#9AA0A8" Margin="0,12,0,4"/>
+                        <ComboBox x:Name="ClockWedgeInnerModeBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="ClockFilterChanged">
+                            <ComboBoxItem Content="Move the point"/>
+                            <ComboBoxItem Content="Round center cutout"/>
+                        </ComboBox>
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockWedgeInnerLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="0%"/>
+                            <TextBlock Text="Start from center" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockWedgeInnerSlider" Minimum="0" Maximum="0.80" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockWedgeFadeLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="0%"/>
+                            <TextBlock Text="Fade toward center" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockWedgeFadeSlider" Minimum="0" Maximum="1" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockWedgeFadeReachLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="100%"/>
+                            <TextBlock Text="Fade distance" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockWedgeFadeReachSlider" Minimum="0" Maximum="1" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
+                                   Text="Wedge width is a percent of the full circle. Start % is how far from the center the wedge and its fade begin. Fade % is how clear that inner end is, on the wedge and its center line. Fade distance is how far out from the center the color becomes solid."/>
+
+                        <TextBlock Text="Wedge end (due-by)" Foreground="#9AA0A8" Margin="0,16,0,4"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,0,0,8"
+                                   Text="For due-by windows, this profile is used at last-chance / due-by. Point wedges ignore it. With the window gradient on, the start→end shape blends along the band."/>
+                        <ComboBox x:Name="ClockWedgeInnerModeEndBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="ClockFilterChanged">
+                            <ComboBoxItem Content="Move the point"/>
+                            <ComboBoxItem Content="Round center cutout"/>
+                        </ComboBox>
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockWedgeInnerEndLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="0%"/>
+                            <TextBlock Text="Start from center" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockWedgeInnerEndSlider" Minimum="0" Maximum="0.80" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockWedgeFadeEndLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="0%"/>
+                            <TextBlock Text="Fade toward center" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockWedgeFadeEndSlider" Minimum="0" Maximum="1" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockWedgeFadeReachEndLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="100%"/>
+                            <TextBlock Text="Fade distance" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockWedgeFadeReachEndSlider" Minimum="0" Maximum="1" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+                        <DockPanel Margin="0,10,0,0">
+                            <TextBlock x:Name="ClockWedgeEndWarnPercentLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="40" Text="50%"/>
+                            <TextBlock Text="End shape starts blending at" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockWedgeEndWarnPercentSlider" Minimum="5" Maximum="95" TickFrequency="1"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockWedgeEndWarnPercentChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
+                                   Text="Percent of the way through the window before the start shape starts shifting toward the end shape."/>
+                        <DockPanel Margin="0,10,0,0">
+                            <TextBlock x:Name="ClockWedgeEndLastHoursLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="48" Text="1 h"/>
+                            <TextBlock Text="End shape maxed within" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockWedgeEndLastHoursSlider" Minimum="0.25" Maximum="12" TickFrequency="0.25"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockWedgeEndLastHoursChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
+                                   Text="Hours before due-by when the end shape is fully applied — same idea as last-chance color."/>
+
+                        <TextBlock Text="Event colors" Foreground="#9AA0A8" Margin="0,16,0,4"/>
+                        <local:ColorRow x:Name="ClockColorRecurringRow"/>
+                        <local:ColorRow x:Name="ClockColorScheduledRow"/>
+                        <local:ColorRow x:Name="ClockColorDueRow"/>
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockWedgeOpacityRecurringLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="63%"/>
+                            <TextBlock Text="Recurring wedge opacity" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockWedgeOpacityRecurringSlider" Minimum="0.05" Maximum="1" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockWedgeOpacityScheduledLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="63%"/>
+                            <TextBlock Text="Scheduled wedge opacity" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockWedgeOpacityScheduledSlider" Minimum="0.05" Maximum="1" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockWedgeOpacityDueLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="78%"/>
+                            <TextBlock Text="Due wedge opacity" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockWedgeOpacityDueSlider" Minimum="0.05" Maximum="1" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+                        <local:ColorRow x:Name="ClockColorWedgeLineRow"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
+                                   Text="Exact-time line is the opaque line through the middle of each task wedge. These three opacities are for point-in-time wedges (no due-by window). Due-by windows use the open / last-chance opacities below."/>
+
+                        <TextBlock Text="Due-by window urgency" Foreground="#9AA0A8" Margin="0,16,0,4"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,0,0,8"
+                                   Text="Tasks with a due-by stay the open color until the warning point, then shift toward last-chance, and go fully last-chance in the final hours before the deadline."/>
+                        <local:ColorRow x:Name="ClockWindowOpenColorRow"/>
+                        <local:ColorRow x:Name="ClockWindowLastColorRow"/>
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockWindowOpenOpacityLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="28%"/>
+                            <TextBlock Text="Window open opacity" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockWindowOpenOpacitySlider" Minimum="0.05" Maximum="1" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+                        <DockPanel Margin="0,8,0,0">
+                            <TextBlock x:Name="ClockWindowLastOpacityLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="36" Text="80%"/>
+                            <TextBlock Text="Last chance opacity" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockWindowLastOpacitySlider" Minimum="0.05" Maximum="1" TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockTickLengthChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
+                                   Text="With gradient on, opacity ramps with the open→last-chance colors. Example: 20% green at the start of the window to 80% red near due-by."/>
+                        <DockPanel Margin="0,4,0,0">
+                            <TextBlock x:Name="ClockWindowWarnPercentLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="40" Text="50%"/>
+                            <TextBlock Text="Warning starts at" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockWindowWarnPercentSlider" Minimum="5" Maximum="95" TickFrequency="1"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockWindowWarnPercentChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
+                                   Text="Percent of the way through the window before the color starts shifting."/>
+                        <DockPanel Margin="0,10,0,0">
+                            <TextBlock x:Name="ClockWindowLastHoursLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="48" Text="1 h"/>
+                            <TextBlock Text="Last chance within" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider x:Name="ClockWindowLastHoursSlider" Minimum="0.25" Maximum="12" TickFrequency="0.25"
+                                IsSnapToTickEnabled="True"
+                                PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                ValueChanged="ClockWindowLastHoursChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
+                                   Text="Hours before due-by when the wedge is fully last-chance color."/>
+                        <CheckBox x:Name="ClockWindowStartOnlyBox" Style="{StaticResource DarkCheck}"
+                                  Content="Mark start time only before the window opens"
+                                  Margin="0,12,0,0"
+                                  Checked="ClockFilterChanged" Unchecked="ClockFilterChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                   Text="On: upcoming windows show a single start mark; once you’re inside start→due-by, the band fills as usual. Off: always fill the band when a due-by is set."/>
+                        <CheckBox x:Name="ClockWindowShowGradientBox" Style="{StaticResource DarkCheck}"
+                                  Content="Show urgency as a gradient along the window"
+                                  Margin="0,12,0,0"
+                                  Checked="ClockFilterChanged" Unchecked="ClockFilterChanged"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                   Text="Band colors follow the urgency curve over real time (open → warn% → last-chance hours → due-by). Solid: one color for now. Gradient: that same curve painted along the band, so the edge at now matches solid — it does not restart at green."/>
+                        <TextBlock Text="Last-chance clock face" Foreground="#9AA0A8" Margin="0,14,0,4"/>
+                        <ComboBox x:Name="ClockLastChanceCueBox" Style="{StaticResource DarkCombo}"
+                                  SelectionChanged="ClockLastChanceCueChanged">
+                            <ComboBoxItem Content="Off"/>
+                            <ComboBoxItem Content="Pulse face"/>
+                            <ComboBoxItem Content="Solid tint"/>
+                            <ComboBoxItem Content="Pulse ring"/>
+                            <ComboBoxItem Content="Dot on the rim"/>
+                        </ComboBox>
+                        <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,6,0,0"
+                                   Text="When any due-by task is in last-chance (or overdue), paint the whole face with the last-chance color using the same overlay shapes as Discord notifications."/>
+
+                            </StackPanel>
+                        </Expander>
                         <Expander x:Name="ClockAesthetics" Style="{StaticResource SettingsExpander}"
-                                  Header="Aesthetics" Tag="clock-aesthetics" IsExpanded="True"
+                                  Header="Gears" Tag="clock-aesthetics" IsExpanded="True"
                                   Expanded="SettingsSectionChanged" Collapsed="SettingsSectionChanged">
                             <StackPanel>
                                 <TextBlock Text="Gear drive" Foreground="#9AA0A8" Margin="0,0,0,4"/>
@@ -996,12 +1675,16 @@
                                           Checked="ClockFilterChanged" Unchecked="ClockFilterChanged"/>
                                 <local:ColorRow x:Name="ClockGearColorRow" Margin="0,10,0,0"/>
                                 <local:ColorRow x:Name="ClockGearCompoundColorRow"/>
+                                <TextBlock Text="Compound large (per ring)" Foreground="#9AA0A8" Margin="0,8,0,4"/>
+                                <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,0,0,4"
+                                           Text="Each annulus can use solid, ring, holes, spokes, or slots. Spokes use constant width (no taper); openings are true holes so the carriage shows through. Hub is about 2x the small pinion tip radius."/>
+                                <StackPanel x:Name="ClockGearCompoundHost"/>
                                 <local:ColorRow x:Name="ClockGearPlanetColorRow"/>
                                 <local:ColorRow x:Name="ClockGearIdlerColorRow"/>
                                 <local:ColorRow x:Name="ClockGearSunColorRow"/>
                                 <local:ColorRow x:Name="ClockGearCarriageColorRow"/>
                                 <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
-                                           Text="Blank compound / planet / idler / sun follow the ring color. Outer drive teeth use the hour-tick color."/>
+                                           Text="Each compound is a large gear with a small co-axial pinion on top. Blank compound-large / planet / idler / sun follow the ring (large compound darkens the ring). Outer drive teeth use the hour-tick color."/>
                                 <TextBlock Text="Carriage (per ring)" Foreground="#9AA0A8" Margin="0,12,0,4"/>
                                 <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,0,0,4"
                                            Text="Each annulus has its own frame. Pin links bow from a compound pin to an idler pin; repeats copy that link evenly toward the next planet; stride reaches another planet’s idler (cross-set)."/>
@@ -1018,6 +1701,18 @@
                                         ValueChanged="ClockGearOpacityChanged"/>
                                 <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
                                            Text="Dims planets, compounds, idlers, and the carriage. Outer drive teeth and the center sun stay full strength."/>
+                                <DockPanel Margin="0,10,0,0">
+                                    <TextBlock x:Name="ClockGearRingOpacityLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
+                                               VerticalAlignment="Center" Margin="8,0,0,0" MinWidth="48" Text="100%"/>
+                                    <TextBlock Text="Intermediate ring opacity" Foreground="#9AA0A8" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider x:Name="ClockGearRingOpacitySlider" Minimum="5" Maximum="100" TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        PreviewMouseLeftButtonDown="SliderGoToClick" MouseMove="SliderDrag"
+                                        MouseLeftButtonUp="SliderEndDrag" LostMouseCapture="SliderEndDrag"
+                                        ValueChanged="ClockGearRingOpacityChanged"/>
+                                <TextBlock TextWrapping="Wrap" Foreground="#7A8088" Margin="0,4,0,0"
+                                           Text="Hollow toothed rings between the outer rim and the center sun. 100% matches the outer rim teeth."/>
 
                                 <DockPanel Margin="0,12,0,0">
                                     <TextBlock x:Name="ClockGearAnimSpeedLabel" DockPanel.Dock="Right" Foreground="#9AA0A8"
@@ -1347,7 +2042,7 @@
                 </ScrollViewer>
             </TabItem>
 
-            <TabItem Header="Usage">
+            <TabItem x:Name="UsageTab" Header="Usage">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                               Style="{StaticResource DarkScrollViewer}" Margin="4,8,0,0">
                     <StackPanel MaxWidth="560">
@@ -1596,7 +2291,7 @@
                 </ScrollViewer>
             </TabItem>
 
-            <TabItem Header="Settings">
+            <TabItem x:Name="SettingsTab" Header="Settings">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                               Style="{StaticResource DarkScrollViewer}">
                     <StackPanel Margin="4,8,12,8">
@@ -1892,5 +2587,6 @@
                 </ScrollViewer>
             </TabItem>
         </TabControl>
+        </Grid>
     </DockPanel>
 </Window>

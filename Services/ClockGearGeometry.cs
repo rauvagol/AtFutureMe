@@ -24,11 +24,81 @@ public static class ClockGearGeometry
     public const int Stage2CompoundTeeth = FacePlanetTeeth * Stage2CompoundRatio;
     /// <summary>Idlers mesh externally with the compound gear (same module as compound).</summary>
     public const int FaceIdlerTeeth = FacePlanetTeeth;
+    /// <summary>Legacy fixed stride (12 marks). Prefer <see cref="HourAccentStride"/>.</summary>
     public const int FaceHourToothStride = 12;
     public const int MinSunTeeth = 8;
     public const int MaxSunTeeth = 256;
     /// <summary>Tip radius below this is a speck — teeth are not readable.</summary>
     public const double MinVisibleGearTipR = 4.0;
+
+    /// <summary>
+    /// Allowed clock horizons (hours). Each divides <see cref="FaceRingTeeth"/> so
+    /// colored outer teeth map 1:1 to hours on the face.
+    /// </summary>
+    public static readonly int[] HorizonHourOptions =
+        [1, 2, 3, 4, 6, 8, 9, 12, 16, 18, 24, 36, 48, 72, 144];
+
+    public static int SnapHorizonHours(double hours)
+    {
+        var want = hours <= 0 ? 24 : hours;
+        var best = HorizonHourOptions[0];
+        var bestDist = Math.Abs(best - want);
+        foreach (var option in HorizonHourOptions)
+        {
+            var dist = Math.Abs(option - want);
+            if (dist < bestDist || (Math.Abs(dist - bestDist) < 1e-9 && option > best))
+            {
+                bestDist = dist;
+                best = option;
+            }
+        }
+
+        return best;
+    }
+
+    public static string HorizonOptionLabel(int hours) => hours switch
+    {
+        1 => "1 hour",
+        24 => "24 hours (1 day)",
+        48 => "48 hours (2 days)",
+        72 => "72 hours (3 days)",
+        144 => "144 hours (6 days)",
+        _ when hours % 24 == 0 => $"{hours} hours ({hours / 24} days)",
+        _ => $"{hours} hours"
+    };
+
+    /// <summary>
+    /// Outer-ring crown stride so colored teeth match the clock horizon in hours
+    /// (exact when tooth count divides by the rounded hour count; else nearest divisor).
+    /// 24h → stride 6 (24 accents); 12h → stride 12 (12 accents).
+    /// </summary>
+    public static int HourAccentStride(int toothCount, double horizonHours)
+    {
+        toothCount = Math.Max(1, toothCount);
+        var want = (int)Math.Round(Math.Max(1, horizonHours));
+        want = Math.Clamp(want, 1, toothCount);
+        var marks = NearestDivisor(toothCount, want);
+        return Math.Max(1, toothCount / marks);
+    }
+
+    static int NearestDivisor(int n, int target)
+    {
+        var best = 1;
+        var bestDist = Math.Abs(1 - target);
+        for (var d = 2; d <= n; d++)
+        {
+            if (n % d != 0)
+                continue;
+            var dist = Math.Abs(d - target);
+            if (dist < bestDist || (dist == bestDist && d > best))
+            {
+                bestDist = dist;
+                best = d;
+            }
+        }
+
+        return best;
+    }
 
     /// <summary>
     /// Locked sun teeth per stage + compound tooth counts so
@@ -255,6 +325,14 @@ public static class ClockGearGeometry
 
     public static double FaceToSecondRatio(double horizonHours) =>
         Math.Max(1, horizonHours) * 60.0;
+
+    /// <summary>
+    /// Outer face-ring secScale: one revolution over the displayed horizon, CCW
+    /// so colored hour teeth stay under face marks (future is clockwise from Now;
+    /// fixed hours approach the top counter-clockwise). 24h → −1/1440.
+    /// </summary>
+    public static double FaceRingSecScale(double horizonHours) =>
+        -1.0 / FaceToSecondRatio(horizonHours);
 
     public readonly record struct FaceMeshLayout(
         double RingOuter,
@@ -2243,7 +2321,37 @@ public static class ClockGearGeometry
         double cx, double cy, FaceMeshLayout layout, int toothCount) =>
         GearCutter.BuildExternal(cx, cy, layout.PlanetPitch, toothCount);
 
-    public static Geometry BuildCompoundGear(
-        double cx, double cy, FaceMeshLayout layout) =>
-        GearCutter.BuildExternal(cx, cy, layout.CompoundPitch, layout.MeshCompoundTeeth);
+    public static Geometry[] BuildCompoundGear(
+        double cx, double cy, FaceMeshLayout layout,
+        ClockGearCompoundStage? stage = null)
+    {
+        stage ??= new ClockGearCompoundStage().Clamped();
+        var style = stage.Style;
+        var hubR = CompoundHubRadius(layout, style);
+        if (style == ClockGearCompoundStyle.Spokes)
+            return GearCutter.BuildSpokeLayers(
+                cx, cy, layout.CompoundPitch, layout.MeshCompoundTeeth,
+                hubR, stage.SpokeCount, stage.SpokeSweepDeg, stage.SpokeWidth);
+        return
+        [
+            GearCutter.BuildExternalStyled(
+                cx, cy, layout.CompoundPitch, layout.MeshCompoundTeeth,
+                hubR, style, stage.SpokeCount, stage.SpokeSweepDeg, stage.SpokeWidth,
+                stage.HoleCount, stage.HoleSize, stage.HolePlace)
+        ];
+    }
+
+    /// <summary>
+    /// Solid hub covering the co-axial small pinion. Cutout styles use ~2× the
+    /// small pinion's tip radius so the planet sits fully on the hub.
+    /// </summary>
+    public static double CompoundHubRadius(FaceMeshLayout layout, ClockGearCompoundStyle style)
+    {
+        // Diameter ≈ 2× small pinion diameter → radius ≈ 2× PlanetTipR.
+        var cover = Math.Max(layout.PlanetTipR * 2.0, layout.PlanetTipR + Math.Max(0.8, layout.Module * 0.5));
+        cover = Math.Max(0.8, cover);
+        if (style == ClockGearCompoundStyle.Solid)
+            return Math.Max(cover, layout.CompoundRootR);
+        return cover;
+    }
 }

@@ -68,7 +68,7 @@ public partial class OverlayItemRow : UserControl
             return;
         if (!vm.HasLink)
             return;
-        AppHost.Instance.OpenTaskLink(vm.Url);
+        AppHost.Instance.OpenTaskLink(vm.Url, vm.FocusExePath, vm.FocusWindowTitle);
         if (vm.ItemKind == "event")
             AppHost.Instance.MarkCheckedNow(vm.ItemKind, vm.Id);
         e.Handled = true;
@@ -97,6 +97,12 @@ public partial class OverlayItemRow : UserControl
     {
         if (DataContext is OverlayItemVm vm)
             AppHost.Instance.PromptSetEventWhen(vm.Id, Window.GetWindow(this));
+    }
+
+    void OnDelay12(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is OverlayItemVm vm)
+            AppHost.Instance.DelayTodoHours(vm.Id, 12);
     }
 
     void OnCheckedNow(object sender, RoutedEventArgs e)

@@ -3,9 +3,9 @@ using System.Linq;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using AtFutureMe.Models;
@@ -35,30 +35,35 @@ public partial class ClockOverlay : OverlayWindowBase
     const string FallbackFace = "#202228";
 
     readonly DispatcherTimer _faceTick = new() { Interval = TimeSpan.FromSeconds(1) };
+    readonly DispatcherTimer _motion = new() { Interval = TimeSpan.FromMilliseconds(100) };
+    DateTime _lastFaceBuild = DateTime.MinValue;
+    int _faceMinuteKey = -1;
     readonly List<Rect> _usedLabelRects = [];
     readonly Dictionary<string, SolidColorBrush> _brushes = new(StringComparer.OrdinalIgnoreCase);
     readonly List<WedgeHotspot> _hotspots = [];
-    readonly Popup _tipPopup = new()
-    {
-        AllowsTransparency = true,
-        Placement = PlacementMode.Absolute,
-        IsHitTestVisible = false,
-        StaysOpen = true
-    };
-    readonly TextBlock _tipText = new()
-    {
-        Foreground = TipTextBrush,
-        FontSize = 12,
-        TextWrapping = TextWrapping.Wrap,
-        MaxWidth = 220
-    };
+    readonly List<UIElement> _wedgeLines = [];
+    WedgeLayerCompositor? _wedgeBlend;
+    readonly Window _tipWindow;
+    readonly Border _tipChrome;
+    readonly StackPanel _tipBody = new() { MaxWidth = 280 };
+    int _tipCursorX = int.MinValue;
+    int _tipCursorY = int.MinValue;
+    bool _tipVisible;
+    bool _tipWarmed;
+    bool _tipClosing;
 
     Line? _secondHand;
     Ellipse? _secondHub;
+    UIElement? _discordCue;
+    bool _discordCuePulses;
+    double _discordCuePeak = 0.7;
+    UIElement? _lastChanceCue;
+    bool _lastChanceCuePulses;
+    double _lastChanceCuePeak = 0.7;
     readonly List<RotateTransform> _gearRots = [];
     readonly List<double> _gearSecScale = [];
     readonly List<double> _gearBaseDeg = [];
-    bool _rendering;
+    bool _motionOn;
     double _handCx;
     double _handCy;
     double _handRadius;
@@ -68,8 +73,35 @@ public partial class ClockOverlay : OverlayWindowBase
 
     sealed class WedgeHotspot
     {
-        public required PathGeometry Geometry { get; init; }
+        public required double Cx { get; init; }
+        public required double Cy { get; init; }
+        public required double Rim { get; init; }
+        public required double A0 { get; init; }
+        public required double A1 { get; init; }
+        public double Inner { get; init; }
+        public bool Cutout { get; init; }
         public required string Tip { get; init; }
+
+        public bool Contains(Point p)
+        {
+            var dx = p.X - Cx;
+            var dy = p.Y - Cy;
+            var r2 = dx * dx + dy * dy;
+            if (r2 > Rim * Rim)
+                return false;
+            // Polar(): x = cx + r·sin(t), y = cy − r·cos(t) → t = atan2(dx, −dy)
+            var t = Math.Atan2(dx, -dy);
+            var a0 = A0;
+            var a1 = A1;
+            while (t < a0)
+                t += Math.PI * 2;
+            while (t > a0 + Math.PI * 2)
+                t -= Math.PI * 2;
+            if (t > a1)
+                return false;
+            var inner = WedgeInnerRadius(a0, a1, Rim, Inner, Cutout, t);
+            return r2 + 0.01 >= inner * inner;
+        }
     }
 
     static SolidColorBrush Freeze(Color color)
@@ -82,15 +114,42 @@ public partial class ClockOverlay : OverlayWindowBase
     public ClockOverlay()
     {
         InitializeComponent();
-        _tipPopup.Child = new Border
+        // Dedicated tip HWND: warmed once while the clock is visible, then only
+        // opacity/position change on hover — avoids Popup HWND churn (busy cursor)
+        // and stays outside the clipped clock window.
+        _tipChrome = new Border
         {
             Background = TipBg,
             BorderBrush = TipBorder,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 8, 10, 8),
-            Child = _tipText,
+            Child = _tipBody,
             IsHitTestVisible = false
+        };
+        _tipWindow = new Window
+        {
+            Content = _tipChrome,
+            AllowsTransparency = true,
+            Background = Brushes.Transparent,
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.NoResize,
+            ShowInTaskbar = false,
+            ShowActivated = false,
+            Topmost = true,
+            SizeToContent = SizeToContent.WidthAndHeight,
+            Focusable = false,
+            IsHitTestVisible = false,
+            Opacity = 0,
+            Left = -32000,
+            Top = -32000
+        };
+        // Owner is set in WarmTipHost after this window has been shown — setting it
+        // in the ctor throws (clock HWND does not exist yet).
+        _tipWindow.Closing += (_, e) =>
+        {
+            if (!_tipClosing)
+                e.Cancel = true;
         };
         LocationChanged += (_, _) => AppHost.Instance.ScheduleBoundsSave();
         SizeChanged += (_, _) =>
@@ -98,10 +157,12 @@ public partial class ClockOverlay : OverlayWindowBase
             AppHost.Instance.ScheduleBoundsSave();
             Refresh();
         };
-        AppHost.Instance.UiChanged += Refresh;
-        _faceTick.Tick += (_, _) => RefreshFace(restageGears: false);
+        AppHost.Instance.UiChanged += OnUiChanged;
+        _faceTick.Tick += (_, _) => OnFaceTick();
+        _motion.Tick += (_, _) => OnMotion();
         Loaded += (_, _) =>
         {
+            WarmTipHost();
             ApplyChrome();
             Refresh();
             StartMotion();
@@ -109,49 +170,121 @@ public partial class ClockOverlay : OverlayWindowBase
         IsVisibleChanged += (_, _) =>
         {
             if (IsVisible)
+            {
+                WarmTipHost();
                 StartMotion();
+            }
             else
             {
                 StopMotion();
-                HideTip();
+                SleepTipHost();
             }
         };
         Closed += (_, _) =>
         {
             StopMotion();
+            _tipClosing = true;
             HideTip();
-            AppHost.Instance.UiChanged -= Refresh;
+            try { _tipWindow.Close(); } catch { /* already closing */ }
+            AppHost.Instance.UiChanged -= OnUiChanged;
         };
+    }
+
+    /// <summary>
+    /// Create tip HWND once per clock-visible session (off-screen, opacity 0).
+    /// Styles applied once; later hover only moves + fades — no Show/Hide churn.
+    /// </summary>
+    void WarmTipHost()
+    {
+        if (_tipWarmed || !IsLoaded || !IsVisible)
+            return;
+        // Owner requires this window to have been shown already.
+        if (_tipWindow.Owner != this)
+            _tipWindow.Owner = this;
+        if (!_tipWindow.IsVisible)
+            _tipWindow.Show();
+        NativeMethods.ConfigureTipWindow(_tipWindow);
+        _tipWindow.Opacity = 0;
+        _tipWindow.Left = -32000;
+        _tipWindow.Top = -32000;
+        _tipWarmed = true;
+        _tipVisible = false;
+    }
+
+    /// <summary>Fully hide tip host when the clock module is hidden (rare path).</summary>
+    void SleepTipHost()
+    {
+        HideTip();
+        if (_tipWindow.IsVisible)
+            _tipWindow.Hide();
+        _tipWarmed = false;
+    }
+
+    public void RefreshDiscordCue()
+    {
+        if (!IsLoaded || !IsVisible)
+            return;
+        RefreshFace(restageGears: false);
+    }
+
+    void OnUiChanged() => RefreshFace(restageGears: false);
+
+    void OnFaceTick()
+    {
+        var now = DateTime.Now;
+        var minuteKey = now.Hour * 60 + now.Minute;
+        var minuteChanged = minuteKey != _faceMinuteKey;
+        // Wedge motion is sub-pixel for most horizons; rebuilding the face every
+        // second was the steady CPU cost. The minute flip still updates the time.
+        if (!minuteChanged && (now - _lastFaceBuild).TotalSeconds < 15)
+            return;
+        _faceMinuteKey = minuteKey;
+        RefreshFace(restageGears: false);
     }
 
     void StartMotion()
     {
         _faceTick.Start();
-        if (_rendering)
+        UpdateMotionRate();
+        if (_motionOn)
             return;
-        CompositionTarget.Rendering += OnRendering;
-        _rendering = true;
+        _motion.Start();
+        _motionOn = true;
     }
 
     void StopMotion()
     {
         _faceTick.Stop();
-        if (!_rendering)
+        if (!_motionOn)
             return;
-        CompositionTarget.Rendering -= OnRendering;
-        _rendering = false;
+        _motion.Stop();
+        _motionOn = false;
     }
 
-    void OnRendering(object? sender, EventArgs e)
+    void UpdateMotionRate()
+    {
+        var settings = AppHost.Instance.Data.Settings;
+        var animate = settings.ClockShowSecondHand
+            || settings.ClockGearDriveMode != ClockGearDriveMode.Off
+            || _discordCuePulses
+            || _lastChanceCuePulses;
+        var interval = animate ? TimeSpan.FromMilliseconds(33) : TimeSpan.FromMilliseconds(100);
+        if (_motion.Interval != interval)
+            _motion.Interval = interval;
+    }
+
+    void OnMotion()
     {
         if (!IsVisible || !IsLoaded || _buildingFace)
             return;
-        if (AppHost.Instance.Data.Settings.ClockShowSecondHand
-            || AppHost.Instance.Data.Settings.ClockGearDriveMode != ClockGearDriveMode.Off)
-            UpdateSecondHand(DateTime.Now);
-        if (AppHost.Instance.Data.Settings.ClockGearDriveMode != ClockGearDriveMode.Off)
-            UpdatePlanetaryDrive(DateTime.Now);
+        var now = DateTime.Now;
+        var settings = AppHost.Instance.Data.Settings;
+        if (settings.ClockShowSecondHand || settings.ClockGearDriveMode != ClockGearDriveMode.Off)
+            UpdateSecondHand(now);
+        if (settings.ClockGearDriveMode != ClockGearDriveMode.Off)
+            UpdatePlanetaryDrive(now);
         UpdateHoverTip();
+        UpdateFaceCuePulses(now);
     }
 
     public void ApplyChrome()
@@ -210,6 +343,10 @@ public partial class ClockOverlay : OverlayWindowBase
         finally
         {
             _buildingFace = false;
+            _lastFaceBuild = DateTime.Now;
+            UpdateMotionRate();
+            // Force tip hit-test next frame after hotspots change.
+            _tipCursorX = int.MinValue;
         }
     }
 
@@ -217,6 +354,7 @@ public partial class ClockOverlay : OverlayWindowBase
     {
         var now = DateTime.Now;
         FaceFill.Children.Clear();
+        Cues.Children.Clear();
         Face.Children.Clear();
         Marks.Children.Clear();
         _usedLabelRects.Clear();
@@ -255,7 +393,7 @@ public partial class ClockOverlay : OverlayWindowBase
         var clockEvents = host.ClockEvents(now);
         // auto model: optional face tint while a recurring/scheduled task is due
         var attention = settings.ClockAttentionTint
-            && clockEvents.Any(e => e.HoursAhead <= 0.02
+            && clockEvents.Any(e => ClockItemIsDue(e)
                 && (e.Kind is "todo" or "event"));
         var showFace = attention
             || (mode != ClockLockMode.Unlocked && settings.ClockKeepFaceWhenLocked);
@@ -290,6 +428,8 @@ public partial class ClockOverlay : OverlayWindowBase
             if (restageGears)
             {
                 Gears.Children.Clear();
+                OuterDrive.Children.Clear();
+                HourAccents.Children.Clear();
                 _gearRots.Clear();
                 _gearSecScale.Clear();
                 _gearBaseDeg.Clear();
@@ -299,6 +439,8 @@ public partial class ClockOverlay : OverlayWindowBase
         else if (restageGears)
         {
             Gears.Children.Clear();
+            OuterDrive.Children.Clear();
+            HourAccents.Children.Clear();
             _gearRots.Clear();
             _gearSecScale.Clear();
             _gearBaseDeg.Clear();
@@ -328,10 +470,9 @@ public partial class ClockOverlay : OverlayWindowBase
             foreach (var item in host.ClockEvents(now))
             {
                 var hours = Math.Clamp(item.HoursAhead, 0, spanHours);
-                var due = item.HoursAhead <= 0.02;
                 var title = item.Title.Length > 20 ? item.Title[..19] + "…" : item.Title;
                 TryPlaceEventLabel(cx, cy, rim, hours, spanHours, title,
-                    BrushFromHex(TypeColorHex(settings, item.Kind, due, item.UsedPercent), 255),
+                    BrushFromHex(MarkColorHex(settings, item, now), 255),
                     font - 1, weight);
             }
         }
@@ -375,6 +516,9 @@ public partial class ClockOverlay : OverlayWindowBase
             Face.Children.Add(hit);
         }
 
+        ApplyDiscordCue(settings, cx, cy, radius);
+        ApplyLastChanceCue(settings, clockEvents, now, cx, cy, radius);
+        ApplyDiscordSender(settings, cx, cy, radius);
         ApplyClickThrough();
     }
 
@@ -408,8 +552,25 @@ public partial class ClockOverlay : OverlayWindowBase
             DragIfUnlocked(e);
     }
 
+    static bool ClockItemIsDue(
+        (string Title, double HoursAhead, double? DueByHoursAhead, string Kind, DateTime At, DateTime? DueBy, double? UsedPercent, double Opacity) item) =>
+        (item.DueByHoursAhead ?? item.HoursAhead) <= 0.02;
+
+    static double WedgeTypeMax(AppSettings settings, string kind, bool due)
+    {
+        var typeOp = due
+            ? settings.ClockWedgeOpacityDue
+            : string.Equals(kind, "event", StringComparison.Ordinal)
+                ? settings.ClockWedgeOpacityScheduled
+                : settings.ClockWedgeOpacityRecurring;
+        return Math.Clamp(typeOp <= 0 ? (due ? 0.78 : 0.63) : typeOp, 0.05, 1);
+    }
+
+    static byte ItemAlpha(double itemOpacity) =>
+        (byte)Math.Clamp(Math.Round((itemOpacity <= 0 ? 1 : Math.Clamp(itemOpacity, 0.05, 1)) * 255), 1, 255);
+
     void DrawEventWedges(
-        List<(string Title, double HoursAhead, string Kind, DateTime At, double? UsedPercent)> events,
+        List<(string Title, double HoursAhead, double? DueByHoursAhead, string Kind, DateTime At, DateTime? DueBy, double? UsedPercent, double Opacity)> events,
         DateTime now,
         double spanHours,
         double cx,
@@ -418,106 +579,802 @@ public partial class ClockOverlay : OverlayWindowBase
         bool use12)
     {
         var settings = AppHost.Instance.Data.Settings;
-        var clusterGap = Math.Max(0.012, 0.4 / Math.Max(spanHours, 1));
-        var clusters = new List<List<(string Title, double HoursAhead, string Kind, DateTime At, double? UsedPercent)>>();
-        foreach (var item in events.OrderBy(e => e.HoursAhead))
+        // X is the configured wedge angle. Same-color marks closer than X+1° share one
+        // fill so opacity never stacks; X+1° apart leaves a 1° gap.
+        var wedgeTurns = Math.Clamp(settings.ClockWedgeWidth, 0.01, 0.15);
+        var halfTurns = wedgeTurns * 0.5;
+        var splitTurns = wedgeTurns + (1.0 / 360.0);
+        var span = Math.Max(spanHours, 0.001);
+
+        var bands = new List<(string Title, double HoursAhead, double? DueByHoursAhead, string Kind, DateTime At, DateTime? DueBy, double? UsedPercent, double Opacity)>();
+        var points = new List<(string Title, double HoursAhead, double? DueByHoursAhead, string Kind, DateTime At, DateTime? DueBy, double? UsedPercent, double Opacity)>();
+        foreach (var item in events)
         {
-            if (clusters.Count > 0
-                && Math.Abs(item.HoursAhead - clusters[^1][^1].HoursAhead) <= clusterGap * spanHours)
-                clusters[^1].Add(item);
+            if (ShowsAsTimeBand(item, settings))
+                bands.Add(item);
             else
-                clusters.Add([item]);
+                points.Add(item);
         }
 
-        foreach (var cluster in clusters)
+        // Furthest end underneath, nearest end on top, so a closer window darkens
+        // the one that runs past it instead of the later color covering the nearer one.
+        var layers = new List<(double FarHours, Action Draw)>();
+        foreach (var item in bands)
+            layers.Add((item.DueByHoursAhead ?? item.HoursAhead, () =>
+                DrawOneClockMark(item, spanHours, cx, cy, rim, use12, settings)));
+
+        foreach (var colorGroup in points.GroupBy(item => TypeColorHex(
+                     settings, item.Kind, ClockItemIsDue(item), item.UsedPercent)))
         {
-            var hours = Math.Clamp(cluster.Average(c => c.HoursAhead), 0, spanHours);
-            var due = cluster.Any(c => c.HoursAhead <= 0.02);
-            var kinds = cluster.Select(c => c.Kind).Distinct().ToList();
-            Brush fill;
-            if (kinds.Count == 1)
+            var sorted = colorGroup.OrderBy(c => c.HoursAhead).ToList();
+            var clusters = new List<List<(string Title, double HoursAhead, double? DueByHoursAhead, string Kind, DateTime At, DateTime? DueBy, double? UsedPercent, double Opacity)>>();
+            foreach (var item in sorted)
             {
-                fill = BrushFromHex(TypeColorHex(settings, kinds[0], due, cluster[0].UsedPercent), due ? (byte)0xC8 : (byte)0xA0);
+                if (clusters.Count == 0
+                    || (item.HoursAhead - clusters[^1][^1].HoursAhead) / span >= splitTurns)
+                    clusters.Add([item]);
+                else
+                    clusters[^1].Add(item);
+            }
+
+            foreach (var cluster in clusters)
+            {
+                // Already due at now: each item is its own layer so those opacities add.
+                if (cluster.All(c => c.HoursAhead <= 0.02))
+                {
+                    foreach (var item in cluster)
+                        layers.Add((0, () => DrawOneClockMark(item, spanHours, cx, cy, rim, use12, settings)));
+                    continue;
+                }
+
+                var times = new List<double>();
+                foreach (var hours in cluster.Select(c => c.HoursAhead).OrderBy(h => h))
+                {
+                    if (times.Count == 0 || hours - times[^1] > 1.0 / 3600.0)
+                        times.Add(hours);
+                }
+
+                var minH = times[0];
+                var maxH = times[^1];
+                var a0 = (minH / span - halfTurns) * Math.PI * 2;
+                var a1 = (maxH / span + halfTurns) * Math.PI * 2;
+                if (a1 - a0 > Math.PI * 2 - 0.01)
+                    a1 = a0 + Math.PI * 2 - 0.01;
+                LimitWedgeToHorizon(ref a0, ref a1);
+                var opacity = Math.Clamp(cluster.Max(c => c.Opacity <= 0 ? 1 : c.Opacity), 0.05, 1);
+                var typeMax = WedgeTypeMax(settings, cluster[0].Kind, cluster.All(ClockItemIsDue));
+                var alpha = ItemAlpha(opacity);
+                var fill = BrushFromHex(colorGroup.Key, alpha);
+                var tip = BuildClusterTip(cluster, use12);
+                var lineTimes = times.ToList();
+                var profile = WedgeProfileStart(settings);
+                layers.Add((maxH, () =>
+                {
+                    BeginWedgeLayer();
+                    AddWedgeFill(cx, cy, rim, a0, a1, fill, profile, typeMax);
+                    EndWedgeLayer();
+                    AddWedgeLines(lineTimes, spanHours, cx, cy, rim, a0, a1, settings, alpha, typeMax, profile);
+                    _hotspots.Add(MakeWedgeHotspot(cx, cy, rim, a0, a1, tip, profile));
+                }));
+            }
+        }
+
+        _wedgeLines.Clear();
+        _wedgeBlend = settings.ClockWedgeBlend == ClockWedgeBlend.Normal
+            ? null
+            : WedgeLayerCompositor.TryCreate(Face, settings.ClockWedgeBlend);
+        foreach (var layer in layers.OrderByDescending(layer => layer.FarHours))
+            layer.Draw();
+        FinishWedgeBlend();
+    }
+
+    void BeginWedgeLayer() => _wedgeBlend?.BeginLayer();
+
+    void EndWedgeLayer() => _wedgeBlend?.EndLayer();
+
+    void FinishWedgeBlend()
+    {
+        if (_wedgeBlend == null)
+            return;
+        Face.Children.Add(_wedgeBlend.CreateImage());
+        foreach (var line in _wedgeLines)
+            Face.Children.Add(line);
+        _wedgeLines.Clear();
+        _wedgeBlend = null;
+    }
+
+    static bool ShowsAsTimeBand(
+        (string Title, double HoursAhead, double? DueByHoursAhead, string Kind, DateTime At, DateTime? DueBy, double? UsedPercent, double Opacity) item,
+        AppSettings settings)
+    {
+        var windowOpen = item.HoursAhead <= 0.02;
+        return item.DueByHoursAhead is double endHours
+            && endHours > item.HoursAhead + 0.001
+            && item.DueBy is DateTime
+            && item.DueBy > item.At
+            && (!settings.ClockWindowStartOnly || windowOpen);
+    }
+
+    void DrawOneClockMark(
+        (string Title, double HoursAhead, double? DueByHoursAhead, string Kind, DateTime At, DateTime? DueBy, double? UsedPercent, double Opacity) item,
+        double spanHours,
+        double cx,
+        double cy,
+        double rim,
+        bool use12,
+        AppSettings settings)
+    {
+        var now = DateTime.Now;
+        var due = ClockItemIsDue(item);
+        var opacity = Math.Clamp(item.Opacity <= 0 ? 1 : item.Opacity, 0.05, 1);
+        var alpha = ItemAlpha(opacity);
+        var typeMax = WedgeTypeMax(settings, item.Kind, due);
+        var tip = BuildClusterTip([item], use12);
+
+        // Start-only: future windows get a classic start mark; once the window is open, show the band.
+        var windowOpen = item.HoursAhead <= 0.02;
+        var showBand = item.DueByHoursAhead is double endHours
+            && endHours > item.HoursAhead + 0.001
+            && item.DueBy is DateTime
+            && item.DueBy > item.At
+            && (!settings.ClockWindowStartOnly || windowOpen);
+
+        BeginWedgeLayer();
+        if (showBand && item.DueByHoursAhead is double bandEnd && item.DueBy is DateTime bandDue)
+        {
+            var startH = Math.Clamp(item.HoursAhead, 0, spanHours);
+            var endH = Math.Clamp(bandEnd, 0, spanHours);
+            var a0 = startH / Math.Max(spanHours, 0.001) * Math.PI * 2;
+            var a1 = endH / Math.Max(spanHours, 0.001) * Math.PI * 2;
+            if (a1 <= a0 + 0.0001)
+            {
+                var half = Math.Max(0.005, Math.Clamp(settings.ClockWedgeWidth, 0.01, 0.15) / 2.0);
+                var mid = startH / Math.Max(spanHours, 0.001);
+                a0 = (mid - half) * Math.PI * 2;
+                a1 = (mid + half) * Math.PI * 2;
+            }
+
+            LimitWedgeToHorizon(ref a0, ref a1);
+
+            if (settings.ClockWindowShowGradient)
+            {
+                AddWindowGradientFill(
+                    cx, cy, rim, a0, a1, startH, endH,
+                    item.At, bandDue, now, settings, alpha, typeMax);
             }
             else
             {
-                var c0 = (Color)ColorConverter.ConvertFromString(TypeColorHex(settings, kinds[0], due, cluster[0].UsedPercent))!;
-                var c1 = (Color)ColorConverter.ConvertFromString(TypeColorHex(settings, kinds[1], due, cluster.Count > 1 ? cluster[1].UsedPercent : null))!;
-                c0.A = due ? (byte)0xC8 : (byte)0xA0;
-                c1.A = due ? (byte)0xC8 : (byte)0xA0;
-                fill = new LinearGradientBrush(c0, c1, 45);
-                fill.Freeze();
+                var hex = MarkColorHex(settings, item, now);
+                var bandMax = WindowProgressOpacity(settings, item.At, bandDue, now, typeMax);
+                var profile = WindowProgressProfile(settings, item.At, bandDue, now);
+                AddWedgeFill(cx, cy, rim, a0, a1, BrushFromHex(hex, alpha), profile, bandMax);
             }
 
-            var halfTurns = Math.Max(0.005, Math.Clamp(settings.ClockWedgeWidth, 0.01, 0.15) / 2.0);
-            // Slightly widen stacked clusters so overlapping events stay readable.
-            halfTurns += Math.Max(0, cluster.Count - 1) * 0.001;
-            var centerTurn = hours / Math.Max(spanHours, 0.001);
-            var a0 = (centerTurn - halfTurns) * Math.PI * 2;
-            var a1 = (centerTurn + halfTurns) * Math.PI * 2;
-            // Fill flush to the ring's inner edge; no stroke so tips meet the hub cleanly.
-            var p0 = PolarPoint(cx, cy, rim, a0);
-            var p1 = PolarPoint(cx, cy, rim, a1);
+            EndWedgeLayer();
+            AddWedgeLines([startH, endH], spanHours, cx, cy, rim, a0, a1, settings, alpha, typeMax,
+                WedgeProfileStart(settings), WedgeProfileEnd(settings), item.At, bandDue, now);
+            _hotspots.Add(MakeWedgeHotspot(cx, cy, rim, a0, a1, tip,
+                WindowHitProfile(settings)));
+            return;
+        }
 
-            var fig = new PathFigure
+        // Classic: wedge at start time only (urgency color still uses due-by when set).
+        var hexPoint = MarkColorHex(settings, item, now);
+        var hours = Math.Clamp(item.HoursAhead, 0, spanHours);
+        var halfTurns = Math.Max(0.005, Math.Clamp(settings.ClockWedgeWidth, 0.01, 0.15) / 2.0);
+        var centerTurn = hours / Math.Max(spanHours, 0.001);
+        var fa0 = (centerTurn - halfTurns) * Math.PI * 2;
+        var fa1 = (centerTurn + halfTurns) * Math.PI * 2;
+        LimitWedgeToHorizon(ref fa0, ref fa1);
+        var pointProfile = WedgeProfileStart(settings);
+        AddWedgeFill(cx, cy, rim, fa0, fa1, BrushFromHex(hexPoint, alpha), pointProfile, typeMax);
+        EndWedgeLayer();
+        AddWedgeLines([hours], spanHours, cx, cy, rim, fa0, fa1, settings, alpha, typeMax, pointProfile);
+        _hotspots.Add(MakeWedgeHotspot(cx, cy, rim, fa0, fa1, tip, pointProfile));
+    }
+
+    /// <summary>
+    /// Paint urgency along the visible band as a true angle→color sweep.
+    /// WPF has no ConicGradientBrush, so this rasterizes one WriteableBitmap:
+    /// each pixel’s color/opacity/fade comes from its angle (and radius), with no slices.
+    /// </summary>
+    Brush AddWindowGradientFill(
+        double cx, double cy, double rim, double a0, double a1,
+        double startH, double endH,
+        DateTime windowStart, DateTime dueBy, DateTime now,
+        AppSettings settings, byte alpha, double typeFallback)
+    {
+        var openFallback = ColorText.NormalizeOr(settings.ClockWindowOpenColor, "#5DDC8A");
+        var visibleFrom = now.AddHours(Math.Min(startH, endH));
+        var visibleTo = now.AddHours(Math.Max(startH, endH));
+        if (visibleTo <= visibleFrom)
+        {
+            var hex = WindowProgressColorHex(settings, windowStart, dueBy, now, openFallback);
+            var op = WindowProgressOpacity(settings, windowStart, dueBy, now, typeFallback);
+            var profile = WindowProgressProfile(settings, windowStart, dueBy, now);
+            var solid = BrushFromHex(hex, ScaleAlpha(alpha, op));
+            AddWedgeFill(cx, cy, rim, a0, a1, solid, profile, 1);
+            return solid;
+        }
+
+        var dipW = Face.ActualWidth;
+        var dipH = Face.ActualHeight;
+        if (dipW < 2 || dipH < 2 || rim < 2)
+            return BrushFromHex(openFallback, alpha);
+
+        var bmp = BuildConicWindowBitmap(
+            dipW, dipH, cx, cy, rim, a0, a1,
+            visibleFrom, visibleTo, windowStart, dueBy,
+            settings, alpha, typeFallback, openFallback);
+        PresentConicWindowBitmap(bmp, dipW, dipH);
+        return BrushFromHex(openFallback, alpha);
+    }
+
+    void PresentConicWindowBitmap(WriteableBitmap bmp, double dipW, double dipH)
+    {
+        var brush = new ImageBrush(bmp)
+        {
+            Viewbox = new Rect(0, 0, bmp.PixelWidth, bmp.PixelHeight),
+            ViewboxUnits = BrushMappingMode.Absolute,
+            Viewport = new Rect(0, 0, dipW, dipH),
+            ViewportUnits = BrushMappingMode.Absolute,
+            Stretch = Stretch.Fill,
+            TileMode = TileMode.None
+        };
+        brush.Freeze();
+        var geometry = new RectangleGeometry(new Rect(0, 0, dipW, dipH));
+        geometry.Freeze();
+        if (_wedgeBlend is { LayerOpen: true })
+        {
+            _wedgeBlend.Draw(geometry, brush, null);
+            return;
+        }
+
+        Face.Children.Add(new System.Windows.Shapes.Path
+        {
+            Data = geometry,
+            Fill = brush,
+            Stroke = null,
+            IsHitTestVisible = false
+        });
+    }
+
+    WriteableBitmap BuildConicWindowBitmap(
+        double dipW, double dipH,
+        double cx, double cy, double rim,
+        double a0, double a1,
+        DateTime visibleFrom, DateTime visibleTo,
+        DateTime windowStart, DateTime dueBy,
+        AppSettings settings, byte alpha, double typeFallback, string openFallback)
+    {
+        var dpi = VisualTreeHelper.GetDpi(this);
+        var dpiX = dpi.PixelsPerInchX;
+        var dpiY = dpi.PixelsPerInchY;
+        var scaleX = dpi.DpiScaleX <= 0 ? 1 : dpi.DpiScaleX;
+        var scaleY = dpi.DpiScaleY <= 0 ? 1 : dpi.DpiScaleY;
+        var width = Math.Max(1, (int)Math.Ceiling(dipW * scaleX));
+        var height = Math.Max(1, (int)Math.Ceiling(dipH * scaleY));
+        var pixels = new byte[width * height * 4];
+        var span = a1 - a0;
+        if (span <= 1e-9)
+            span = 1e-9;
+
+        const int stops = 256;
+        var colors = new Color[stops + 1];
+        var profiles = new WedgeProfile[stops + 1];
+        var spanTicks = (visibleTo - visibleFrom).Ticks;
+        for (var i = 0; i <= stops; i++)
+        {
+            var u = i / (double)stops;
+            var at = spanTicks <= 0
+                ? visibleFrom
+                : visibleFrom + TimeSpan.FromTicks((long)(spanTicks * u));
+            var hex = WindowProgressColorHex(settings, windowStart, dueBy, at, openFallback);
+            var op = WindowProgressOpacity(settings, windowStart, dueBy, at, typeFallback);
+            colors[i] = ColorFromHex(hex, ScaleAlpha(alpha, op));
+            profiles[i] = WindowProgressProfile(settings, windowStart, dueBy, at);
+        }
+
+        for (var y = 0; y < height; y++)
+        {
+            var ly = (y + 0.5) / scaleY;
+            var dy = ly - cy;
+            for (var x = 0; x < width; x++)
             {
-                StartPoint = new Point(cx, cy),
-                IsClosed = true,
-                IsFilled = true
-            };
+                var lx = (x + 0.5) / scaleX;
+                var dx = lx - cx;
+                var r = Math.Sqrt(dx * dx + dy * dy);
+                if (r > rim + 0.75 || r < 0.25)
+                    continue;
+
+                // Match Polar(): x = sin(t), y = -cos(t)
+                var turn = Math.Atan2(dx, -dy);
+                var u = AngleToBandU(turn, a0, span);
+                if (u < 0)
+                    continue;
+
+                var stop = u * stops;
+                var i0 = Math.Clamp((int)stop, 0, stops);
+                var i1 = Math.Min(stops, i0 + 1);
+                var frac = stop - i0;
+                var color = LerpColor(colors[i0], colors[i1], frac);
+                var profile = LerpWedgeProfile(profiles[i0], profiles[i1], frac);
+                var fade = RadialFadeFactor(r / rim, profile);
+                if (fade <= 0.001)
+                    continue;
+
+                var edge = HorizonEdgeFade(turn);
+                var a = (byte)Math.Clamp(Math.Round(color.A * fade * edge), 0, 255);
+                if (a == 0)
+                    continue;
+                // Premultiply for Pbgra32
+                var o = (y * width + x) * 4;
+                pixels[o] = (byte)Math.Round(color.B * (a / 255.0));
+                pixels[o + 1] = (byte)Math.Round(color.G * (a / 255.0));
+                pixels[o + 2] = (byte)Math.Round(color.R * (a / 255.0));
+                pixels[o + 3] = a;
+            }
+        }
+
+        var bmp = new WriteableBitmap(width, height, dpiX, dpiY, PixelFormats.Pbgra32, null);
+        bmp.WritePixels(new Int32Rect(0, 0, width, height), pixels, width * 4, 0);
+        bmp.Freeze();
+        return bmp;
+    }
+
+    /// <summary>0–1 if <paramref name="turn"/> lies on the clockwise band starting at a0; else -1.</summary>
+    static double AngleToBandU(double turn, double a0, double span)
+    {
+        var t = turn - a0;
+        while (t < 0)
+            t += Math.PI * 2;
+        while (t >= Math.PI * 2)
+            t -= Math.PI * 2;
+        if (t > span + 1e-6)
+            return -1;
+        return Math.Clamp(t / span, 0, 1);
+    }
+
+    static Color LerpColor(Color a, Color b, double t)
+    {
+        t = Math.Clamp(t, 0, 1);
+        return Color.FromArgb(
+            (byte)Math.Round(a.A + (b.A - a.A) * t),
+            (byte)Math.Round(a.R + (b.R - a.R) * t),
+            (byte)Math.Round(a.G + (b.G - a.G) * t),
+            (byte)Math.Round(a.B + (b.B - a.B) * t));
+    }
+
+    /// <summary>Same radial falloff as <see cref="WedgeFadeMask"/>, plus inner cutout / truncation.</summary>
+    static double RadialFadeFactor(double fracRim, WedgeProfile profile)
+    {
+        fracRim = Math.Clamp(fracRim, 0, 1.5);
+        var inner = Math.Clamp(profile.Inner, 0, 0.80);
+        var cutout = profile.Mode == ClockWedgeInnerMode.Cutout;
+        if (cutout && fracRim < inner)
+            return 0;
+        if (!cutout && inner > 0.5 && fracRim < inner)
+            return 0;
+
+        var fade = Math.Clamp(profile.Fade, 0, 1);
+        var reach = Math.Clamp(profile.FadeReach, 0, 1);
+        var solidAt = Math.Max(reach, inner);
+        if (fade <= 0.001)
+            return 1;
+
+        double curve;
+        if (fracRim <= inner)
+            curve = 1 - fade;
+        else if (fracRim >= solidAt)
+            curve = 1;
+        else
+        {
+            var t = (fracRim - inner) / Math.Max(1e-6, solidAt - inner);
+            curve = (1 - fade) + fade * t;
+        }
+
+        return Math.Clamp(curve, 0, 1);
+    }
+
+    static byte ScaleAlpha(byte alpha, double opacity) =>
+        (byte)Math.Clamp(Math.Round(alpha * Math.Clamp(opacity, 0.05, 1)), 1, 255);
+
+    Color ColorFromHex(string hex, byte alpha)
+    {
+        try
+        {
+            var color = (Color)ColorConverter.ConvertFromString(hex)!;
+            color.A = alpha;
+            return color;
+        }
+        catch
+        {
+            return Color.FromArgb(alpha, 0xE8, 0xEA, 0xED);
+        }
+    }
+
+    readonly record struct WedgeProfile(
+        double Inner, double Fade, double FadeReach, ClockWedgeInnerMode Mode);
+
+    static WedgeProfile WedgeProfileStart(AppSettings settings) => new(
+        Math.Clamp(settings.ClockWedgeInner, 0, 0.80),
+        Math.Clamp(settings.ClockWedgeFade, 0, 1),
+        Math.Clamp(settings.ClockWedgeFadeReach, 0, 1),
+        Enum.IsDefined(settings.ClockWedgeInnerMode)
+            ? settings.ClockWedgeInnerMode
+            : ClockWedgeInnerMode.Vertex);
+
+    static WedgeProfile WedgeProfileEnd(AppSettings settings) => new(
+        Math.Clamp(settings.ClockWedgeInnerEnd, 0, 0.80),
+        Math.Clamp(settings.ClockWedgeFadeEnd, 0, 1),
+        Math.Clamp(settings.ClockWedgeFadeReachEnd, 0, 1),
+        Enum.IsDefined(settings.ClockWedgeInnerModeEnd)
+            ? settings.ClockWedgeInnerModeEnd
+            : WedgeProfileStart(settings).Mode);
+
+    static WedgeProfile WindowHitProfile(AppSettings settings)
+    {
+        var start = WedgeProfileStart(settings);
+        var end = WedgeProfileEnd(settings);
+        return new(
+            Math.Min(start.Inner, end.Inner),
+            Math.Max(start.Fade, end.Fade),
+            Math.Max(start.FadeReach, end.FadeReach),
+            start.Inner <= end.Inner ? start.Mode : end.Mode);
+    }
+
+    static WedgeProfile LerpWedgeProfile(WedgeProfile a, WedgeProfile b, double t)
+    {
+        t = Math.Clamp(t, 0, 1);
+        return new(
+            a.Inner + (b.Inner - a.Inner) * t,
+            a.Fade + (b.Fade - a.Fade) * t,
+            a.FadeReach + (b.FadeReach - a.FadeReach) * t,
+            t < 0.5 ? a.Mode : b.Mode);
+    }
+
+    static WedgeProfile WindowProgressProfile(
+        AppSettings settings, DateTime start, DateTime dueBy, DateTime now) =>
+        LerpWedgeProfile(WedgeProfileStart(settings), WedgeProfileEnd(settings),
+            WindowProgressAmount(
+                settings, start, dueBy, now,
+                settings.ClockWedgeEndWarnPercent <= 0
+                    ? (settings.ClockWindowWarnPercent <= 0 ? 0.5 : settings.ClockWindowWarnPercent)
+                    : settings.ClockWedgeEndWarnPercent,
+                settings.ClockWedgeEndLastHours <= 0
+                    ? (settings.ClockWindowLastHours <= 0 ? 1 : settings.ClockWindowLastHours)
+                    : settings.ClockWedgeEndLastHours));
+
+    void AddWedgeFill(
+        double cx, double cy, double rim, double a0, double a1, Brush fill,
+        WedgeProfile profile, double typeMax = 1)
+    {
+        var fadeStart = HorizonTurn - HorizonFade;
+        if (a1 <= fadeStart || a1 <= a0)
+        {
+            PaintWedge(cx, cy, rim, a0, a1, fill, profile, typeMax);
+            return;
+        }
+
+        var solidEnd = Math.Max(a0, fadeStart);
+        if (solidEnd > a0 + 1e-4)
+            PaintWedge(cx, cy, rim, a0, solidEnd, fill, profile, typeMax);
+
+        const int steps = 10;
+        var span = a1 - solidEnd;
+        if (span <= 1e-5)
+            return;
+        for (var i = 0; i < steps; i++)
+        {
+            var s0 = solidEnd + span * i / steps;
+            var s1 = solidEnd + span * (i + 1) / steps;
+            var opacity = HorizonEdgeFade((s0 + s1) * 0.5);
+            if (opacity <= 0.02)
+                continue;
+            PaintWedge(cx, cy, rim, s0, s1, ScaleFillAlpha(fill, opacity), profile, typeMax);
+        }
+    }
+
+    void PaintWedge(
+        double cx, double cy, double rim, double a0, double a1, Brush fill,
+        WedgeProfile profile, double typeMax)
+    {
+        var inner = profile.Inner * rim;
+        var cutout = profile.Mode == ClockWedgeInnerMode.Cutout;
+        var geometry = WedgeGeometry(cx, cy, rim, a0, a1, inner, cutout);
+        var mask = WedgeFadeMask(cx, cy, rim, profile, typeMax);
+        if (_wedgeBlend is { LayerOpen: true })
+        {
+            _wedgeBlend.Draw(geometry, fill, mask);
+            return;
+        }
+        Face.Children.Add(new System.Windows.Shapes.Path
+        {
+            Data = geometry,
+            Fill = fill,
+            OpacityMask = mask,
+            Stroke = null,
+            StrokeThickness = 0,
+            IsHitTestVisible = false
+        });
+    }
+
+    static Brush ScaleFillAlpha(Brush fill, double opacity)
+    {
+        if (opacity >= 0.999)
+            return fill;
+        if (fill is SolidColorBrush solid)
+        {
+            var c = solid.Color;
+            var scaled = new SolidColorBrush(Color.FromArgb(
+                (byte)Math.Clamp(Math.Round(c.A * opacity), 0, 255),
+                c.R, c.G, c.B));
+            scaled.Freeze();
+            return scaled;
+        }
+
+        var clone = fill.CloneCurrentValue();
+        clone.Opacity *= opacity;
+        if (clone.CanFreeze)
+            clone.Freeze();
+        return clone;
+    }
+
+    static RadialGradientBrush? WedgeFadeMask(
+        double cx, double cy, double rim, WedgeProfile profile, double maxOpacity = 1)
+    {
+        var fade = Math.Clamp(profile.Fade, 0, 1);
+        var cap = Math.Clamp(maxOpacity, 0.05, 1);
+        if (fade <= 0.001 && cap >= 0.999)
+            return null;
+        var start = Math.Clamp(profile.Inner, 0, 0.80);
+        var reach = Math.Clamp(profile.FadeReach, 0, 1);
+        var solidAt = Math.Max(reach, start);
+        byte StopAlpha(double curve) =>
+            (byte)Math.Clamp(Math.Round(255 * Math.Min(curve, cap)), 0, 255);
+        var innerA = StopAlpha(1 - fade);
+        var outerA = StopAlpha(1);
+        var brush = new RadialGradientBrush
+        {
+            MappingMode = BrushMappingMode.Absolute,
+            Center = new Point(cx, cy),
+            GradientOrigin = new Point(cx, cy),
+            RadiusX = Math.Max(1, rim),
+            RadiusY = Math.Max(1, rim)
+        };
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb(innerA, 255, 255, 255), 0));
+        if (start > 0.001)
+            brush.GradientStops.Add(new GradientStop(Color.FromArgb(innerA, 255, 255, 255), start));
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb(outerA, 255, 255, 255), solidAt));
+        if (solidAt < 0.999)
+            brush.GradientStops.Add(new GradientStop(Color.FromArgb(outerA, 255, 255, 255), 1));
+        brush.Freeze();
+        return brush;
+    }
+
+    static WedgeHotspot MakeWedgeHotspot(
+        double cx, double cy, double rim, double a0, double a1, string tip, WedgeProfile profile) =>
+        new()
+        {
+            Cx = cx, Cy = cy, Rim = rim, A0 = a0, A1 = a1, Tip = tip,
+            Inner = profile.Inner * rim,
+            Cutout = profile.Mode == ClockWedgeInnerMode.Cutout
+        };
+
+    const double HorizonTurn = Math.PI * 2;
+    /// <summary>Keep the arc end just off the now ray so the sweep cannot wrap.</summary>
+    static readonly double HorizonSeam = 0.08 * Math.PI / 180.0;
+    /// <summary>Short ease-out into the now line, about 3°.</summary>
+    static readonly double HorizonFade = 3.0 * Math.PI / 180.0;
+
+    /// <summary>
+    /// 1 away from the now line, 0 on it. Only the last <see cref="HorizonFade"/>
+    /// before a full turn is affected.
+    /// </summary>
+    static double HorizonEdgeFade(double angle)
+    {
+        var t = angle;
+        while (t < 0)
+            t += HorizonTurn;
+        while (t >= HorizonTurn)
+            t -= HorizonTurn;
+        var before = HorizonTurn - t;
+        if (before >= HorizonFade)
+            return 1;
+        var u = before / HorizonFade;
+        return u * u * (3 - 2 * u);
+    }
+
+    /// <summary>
+    /// A full horizon turn lands back on the now ray. Keep the wedge on the
+    /// future side of that ray so a mark near the far edge cannot read as current.
+    /// </summary>
+    static void LimitWedgeToHorizon(ref double a0, ref double a1)
+    {
+        var limit = HorizonTurn - HorizonSeam;
+        if (a0 < 0)
+            a0 = 0;
+        if (a1 > limit)
+            a1 = limit;
+        if (a0 > a1)
+            a0 = Math.Max(0, a1 - HorizonSeam);
+    }
+
+    static PathGeometry WedgeGeometry(
+        double cx, double cy, double rim, double a0, double a1, double inner, bool cutout)
+    {
+        var p0 = PolarPoint(cx, cy, rim, a0);
+        var p1 = PolarPoint(cx, cy, rim, a1);
+        var large = a1 - a0 > Math.PI;
+        var fig = new PathFigure { IsClosed = true, IsFilled = true };
+        if (inner <= 0.5)
+        {
+            fig.StartPoint = new Point(cx, cy);
             fig.Segments.Add(new LineSegment(p0, false));
             fig.Segments.Add(new ArcSegment
             {
                 Point = p1,
                 Size = new Size(rim, rim),
                 SweepDirection = SweepDirection.Clockwise,
-                IsLargeArc = a1 - a0 > Math.PI,
+                IsLargeArc = large,
                 IsStroked = false
             });
             fig.Segments.Add(new LineSegment(new Point(cx, cy), false));
-
-            var geo = new PathGeometry();
-            geo.Figures.Add(fig);
-            geo.Freeze();
-
-            var tip = BuildClusterTip(cluster, use12);
-            Face.Children.Add(new System.Windows.Shapes.Path
+        }
+        else if (cutout)
+        {
+            var i0 = PolarPoint(cx, cy, inner, a0);
+            var i1 = PolarPoint(cx, cy, inner, a1);
+            fig.StartPoint = i0;
+            fig.Segments.Add(new LineSegment(p0, false));
+            fig.Segments.Add(new ArcSegment
             {
-                Data = geo,
-                Fill = fill,
-                Stroke = null,
-                StrokeThickness = 0,
-                IsHitTestVisible = false
+                Point = p1,
+                Size = new Size(rim, rim),
+                SweepDirection = SweepDirection.Clockwise,
+                IsLargeArc = large,
+                IsStroked = false
             });
-
-            // Opaque radial lines mark each event's exact time down the wedge.
-            var lineBrush = BrushFromHex(
-                ColorText.NormalizeOr(settings.ClockColorWedgeLine, "#FFFFFF"), 255);
-            foreach (var item in cluster)
+            fig.Segments.Add(new LineSegment(i1, false));
+            fig.Segments.Add(new ArcSegment
             {
-                var exactHours = Math.Clamp(item.HoursAhead, 0, spanHours);
-                var lineTurn = exactHours / Math.Max(spanHours, 0.001) * Math.PI * 2;
-                var tipPt = PolarPoint(cx, cy, rim, lineTurn);
-                Face.Children.Add(new Line
-                {
-                    X1 = cx,
-                    Y1 = cy,
-                    X2 = tipPt.X,
-                    Y2 = tipPt.Y,
-                    Stroke = lineBrush,
-                    StrokeThickness = 1.75,
-                    StrokeStartLineCap = PenLineCap.Round,
-                    StrokeEndLineCap = PenLineCap.Round,
-                    IsHitTestVisible = false
-                });
-            }
+                Point = i0,
+                Size = new Size(inner, inner),
+                SweepDirection = SweepDirection.Counterclockwise,
+                IsLargeArc = large,
+                IsStroked = false
+            });
+        }
+        else
+        {
+            var mid = (a0 + a1) * 0.5;
+            fig.StartPoint = PolarPoint(cx, cy, inner, mid);
+            fig.Segments.Add(new LineSegment(p0, false));
+            fig.Segments.Add(new ArcSegment
+            {
+                Point = p1,
+                Size = new Size(rim, rim),
+                SweepDirection = SweepDirection.Clockwise,
+                IsLargeArc = large,
+                IsStroked = false
+            });
+        }
+        var geo = new PathGeometry();
+        geo.Figures.Add(fig);
+        geo.Freeze();
+        return geo;
+    }
 
-            _hotspots.Add(new WedgeHotspot { Geometry = geo, Tip = tip });
+    /// <summary>Radius where the wedge's inner edge crosses this angle.</summary>
+    static double WedgeInnerRadius(double a0, double a1, double rim, double inner, bool cutout, double angle)
+    {
+        if (inner <= 0.5)
+            return 0;
+        if (cutout)
+            return inner;
+        var mid = (a0 + a1) * 0.5;
+        var edge = angle <= mid ? a0 : a1;
+        var ax = inner * Math.Sin(mid);
+        var ay = inner * Math.Cos(mid);
+        var bx = rim * Math.Sin(edge);
+        var by = rim * Math.Cos(edge);
+        var cA = ax * Math.Cos(angle) - ay * Math.Sin(angle);
+        var cB = bx * Math.Cos(angle) - by * Math.Sin(angle);
+        var den = cA - cB;
+        if (Math.Abs(den) < 1e-8)
+            return inner;
+        var s = Math.Clamp(cA / den, 0, 1);
+        var px = (1 - s) * ax + s * bx;
+        var py = (1 - s) * ay + s * by;
+        return Math.Sqrt(px * px + py * py);
+    }
+
+    void AddWedgeLines(
+        IEnumerable<double> hoursAhead,
+        double spanHours,
+        double cx,
+        double cy,
+        double rim,
+        double a0,
+        double a1,
+        AppSettings settings,
+        byte alpha,
+        double typeMax,
+        WedgeProfile profile,
+        WedgeProfile? endProfile = null,
+        DateTime? windowStart = null,
+        DateTime? dueBy = null,
+        DateTime? now = null)
+    {
+        var lineBrush = BrushFromHex(
+            ColorText.NormalizeOr(settings.ClockColorWedgeLine, "#FFFFFF"), alpha);
+        var hoursList = hoursAhead.Distinct().OrderBy(h => h).ToList();
+        for (var i = 0; i < hoursList.Count; i++)
+        {
+            var hours = hoursList[i];
+            WedgeProfile lineProfile;
+            if (endProfile is { } end
+                && windowStart is DateTime ws
+                && dueBy is DateTime db
+                && now is DateTime n
+                && hoursList.Count >= 2)
+            {
+                lineProfile = i == 0
+                    ? profile
+                    : i == hoursList.Count - 1
+                        ? end
+                        : WindowProgressProfile(settings, ws, db, n.AddHours(hours));
+            }
+            else
+                lineProfile = profile;
+
+            var inner = lineProfile.Inner * rim;
+            var cutout = lineProfile.Mode == ClockWedgeInnerMode.Cutout;
+            var lineMask = WedgeFadeMask(cx, cy, rim, lineProfile, typeMax);
+            var exactHours = Math.Clamp(hours, 0, spanHours);
+            var lineTurn = exactHours / Math.Max(spanHours, 0.001) * Math.PI * 2;
+            var turnLo = Math.Min(a0, a1);
+            var turnHi = Math.Max(a0, a1);
+            if (lineTurn < turnLo || lineTurn > turnHi)
+                lineTurn = Math.Clamp(lineTurn, turnLo, turnHi);
+            var lineFade = HorizonEdgeFade(lineTurn);
+            var atSide = !cutout && inner > 0.5
+                && (Math.Abs(lineTurn - a0) < 1e-3 || Math.Abs(lineTurn - a1) < 1e-3);
+            Point startPt;
+            if (atSide)
+                startPt = PolarPoint(cx, cy, inner, (a0 + a1) * 0.5);
+            else
+            {
+                var startR = WedgeInnerRadius(a0, a1, rim, inner, cutout, lineTurn);
+                if (cutout && inner > 0.5)
+                    startR = Math.Min(rim - 1, startR + 1);
+                startPt = PolarPoint(cx, cy, startR, lineTurn);
+            }
+            var tipR = cutout && inner > 0.5 ? rim - 1 : rim;
+            var tipPt = PolarPoint(cx, cy, tipR, lineTurn);
+            var line = new Line
+            {
+                X1 = startPt.X,
+                Y1 = startPt.Y,
+                X2 = tipPt.X,
+                Y2 = tipPt.Y,
+                Stroke = lineBrush,
+                StrokeThickness = 1.75,
+                StrokeStartLineCap = cutout ? PenLineCap.Flat : PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round,
+                Opacity = lineFade,
+                OpacityMask = lineMask,
+                IsHitTestVisible = false
+            };
+            if (_wedgeBlend != null)
+                _wedgeLines.Add(line);
+            else
+                Face.Children.Add(line);
         }
     }
 
     static string BuildClusterTip(
-        List<(string Title, double HoursAhead, string Kind, DateTime At, double? UsedPercent)> cluster,
+        List<(string Title, double HoursAhead, double? DueByHoursAhead, string Kind, DateTime At, DateTime? DueBy, double? UsedPercent, double Opacity)> cluster,
         bool use12)
     {
         var now = DateTime.Now;
@@ -528,15 +1385,31 @@ public partial class ClockOverlay : OverlayWindowBase
                 sb.Append('\n');
             sb.Append(item.Title)
                 .Append("\n  ")
-                .Append(TypeLabel(item.Kind))
-                .Append(" · ")
-                .Append(FormatClockTime(item.At, use12, withSeconds: false));
-            // auto model
-            var remain = RecurrenceEngine.FormatRemainingLong(item.At, now);
-            if (item.HoursAhead <= 0.02 || string.Equals(remain, "now", StringComparison.Ordinal))
-                sb.Append(" · now");
+                .Append(TypeLabel(item.Kind));
+            if (item.DueBy is DateTime dueBy)
+            {
+                sb.Append(" · ")
+                    .Append(FormatClockTime(item.At, use12, withSeconds: false))
+                    .Append(" – ")
+                    .Append(FormatClockTime(dueBy, use12, withSeconds: false));
+                if (ClockItemIsDue(item))
+                    sb.Append(" · due");
+                else if (item.HoursAhead <= 0.02)
+                    sb.Append(" · window open · ends in ").Append(RecurrenceEngine.FormatRemainingLong(dueBy, now));
+                else
+                    sb.Append(" · in ").Append(RecurrenceEngine.FormatRemainingLong(item.At, now));
+            }
             else
-                sb.Append(" · in ").Append(remain);
+            {
+                sb.Append(" · ")
+                    .Append(FormatClockTime(item.At, use12, withSeconds: false));
+                var remain = RecurrenceEngine.FormatRemainingLong(item.At, now);
+                if (item.HoursAhead <= 0.02 || string.Equals(remain, "now", StringComparison.Ordinal))
+                    sb.Append(" · now");
+                else
+                    sb.Append(" · in ").Append(remain);
+            }
+
             if (item.UsedPercent is double used)
                 sb.Append(" · ").Append($"{Math.Clamp(100 - used, 0, 100):0}% left");
         }
@@ -581,25 +1454,135 @@ public partial class ClockOverlay : OverlayWindowBase
         };
     }
 
-    // Returns Y of the chevron tip (for placing the time just under it).
-    // Drawn on Marks so it stays above wedges and the second hand.
+    /// <summary>
+    /// Color for a due-by window: open color until warn%, then lerp to last-chance,
+    /// full last-chance color in the final N hours (and after due-by).
+    /// Before the window opens, returns <paramref name="beforeOpen"/>.
+    /// </summary>
+    static string WindowProgressColorHex(
+        AppSettings settings, DateTime start, DateTime dueBy, DateTime now, string beforeOpen)
+    {
+        var open = ColorText.NormalizeOr(settings.ClockWindowOpenColor, "#5DDC8A");
+        var last = ColorText.NormalizeOr(settings.ClockWindowLastColor, "#FF5A5A");
+        if (now < start)
+            return beforeOpen;
+        if (now >= dueBy)
+            return last;
+
+        var warnFrac = Math.Clamp(
+            settings.ClockWindowWarnPercent <= 0 ? 0.5 : settings.ClockWindowWarnPercent, 0.05, 0.95);
+        var lastHours = Math.Clamp(
+            settings.ClockWindowLastHours <= 0 ? 1 : settings.ClockWindowLastHours, 0.05, 24 * 14);
+        var duration = (dueBy - start).TotalHours;
+        if (duration <= 0)
+            return last;
+
+        var warnAt = start.AddHours(duration * warnFrac);
+        var lastAt = dueBy.AddHours(-lastHours);
+        if (lastAt < start)
+            lastAt = start;
+
+        if (now < warnAt)
+            return open;
+        if (now >= lastAt || lastAt <= warnAt)
+            return last;
+
+        var t = (now - warnAt).TotalHours / (lastAt - warnAt).TotalHours;
+        return ColorText.Lerp(open, last, t);
+    }
+
+    /// <summary>
+    /// 0 before warn, 1 at last-chance / due-by.
+    /// Optional warn/last overrides are used for the wedge-end shape schedule.
+    /// </summary>
+    static double WindowProgressAmount(
+        AppSettings settings, DateTime start, DateTime dueBy, DateTime now,
+        double? warnPercent = null, double? lastHoursOverride = null)
+    {
+        if (now < start)
+            return 0;
+        if (now >= dueBy)
+            return 1;
+
+        var warnFrac = Math.Clamp(
+            warnPercent ?? (settings.ClockWindowWarnPercent <= 0 ? 0.5 : settings.ClockWindowWarnPercent),
+            0.05, 0.95);
+        var lastHours = Math.Clamp(
+            lastHoursOverride ?? (settings.ClockWindowLastHours <= 0 ? 1 : settings.ClockWindowLastHours),
+            0.05, 24 * 14);
+        var duration = (dueBy - start).TotalHours;
+        if (duration <= 0)
+            return 1;
+
+        var warnAt = start.AddHours(duration * warnFrac);
+        var lastAt = dueBy.AddHours(-lastHours);
+        if (lastAt < start)
+            lastAt = start;
+
+        if (now < warnAt)
+            return 0;
+        if (now >= lastAt || lastAt <= warnAt)
+            return 1;
+
+        return Math.Clamp((now - warnAt).TotalHours / (lastAt - warnAt).TotalHours, 0, 1);
+    }
+
+    /// <summary>
+    /// Opacity for a due-by window: open opacity until warn%, then lerp to last-chance,
+    /// full last opacity in the final N hours (and after due-by). Same timing as color.
+    /// </summary>
+    static double WindowProgressOpacity(
+        AppSettings settings, DateTime start, DateTime dueBy, DateTime now, double beforeOpen)
+    {
+        var open = Math.Clamp(
+            settings.ClockWindowOpenOpacity <= 0 ? beforeOpen : settings.ClockWindowOpenOpacity, 0.05, 1);
+        var last = Math.Clamp(
+            settings.ClockWindowLastOpacity <= 0 ? beforeOpen : settings.ClockWindowLastOpacity, 0.05, 1);
+        if (now < start)
+            return Math.Clamp(beforeOpen, 0.05, 1);
+        var t = WindowProgressAmount(settings, start, dueBy, now);
+        return open + (last - open) * t;
+    }
+
+    static string MarkColorHex(
+        AppSettings settings,
+        (string Title, double HoursAhead, double? DueByHoursAhead, string Kind, DateTime At, DateTime? DueBy, double? UsedPercent, double Opacity) item,
+        DateTime now)
+    {
+        var due = ClockItemIsDue(item);
+        var fallback = TypeColorHex(settings, item.Kind, due, item.UsedPercent);
+        if (item.DueBy is not DateTime dueBy || dueBy <= item.At)
+            return fallback;
+        return WindowProgressColorHex(settings, item.At, dueBy, now, fallback);
+    }
+
+    // Drawn on Marks so they stay above wedges and the second hand.
     void DrawNowMark(double cx, double cy, double rim, AppSettings settings)
     {
-        var tipY = cy - rim + Math.Max(6, rim * 0.07);
-        var baseY = cy - rim;
+        var inset = Math.Max(6, rim * 0.07);
         var half = Math.Max(3.5, rim * 0.03);
         var fill = BrushFromHex(ColorText.NormalizeOr(settings.ClockColorCaret, FallbackCaret), 255);
-        Marks.Children.Add(new Polygon
+        // Same caret at Now (top) and the three quarter turns.
+        for (var i = 0; i < 4; i++)
         {
-            Points =
-            [
-                new Point(cx, tipY),
-                new Point(cx - half, baseY),
-                new Point(cx + half, baseY)
-            ],
-            Fill = fill,
-            IsHitTestVisible = false
-        });
+            var turn = i * Math.PI * 0.5;
+            var tip = PolarPoint(cx, cy, rim - inset, turn);
+            var bx = cx + rim * Math.Sin(turn);
+            var by = cy - rim * Math.Cos(turn);
+            var tx = -Math.Cos(turn) * half;
+            var ty = -Math.Sin(turn) * half;
+            Marks.Children.Add(new Polygon
+            {
+                Points =
+                [
+                    tip,
+                    new Point(bx + tx, by + ty),
+                    new Point(bx - tx, by - ty)
+                ],
+                Fill = fill,
+                IsHitTestVisible = false
+            });
+        }
     }
 
     void UpdateHoverTip()
@@ -607,11 +1590,28 @@ public partial class ClockOverlay : OverlayWindowBase
         // Don't tear down the tip while wedges are being rebuilt.
         if (_buildingFace)
             return;
-        if (_hotspots.Count == 0 || !NativeMethods.TryGetCursorInWindow(this, out var winPt))
+        if (!_tipWarmed || _hotspots.Count == 0 || !NativeMethods.TryGetCursorInWindow(this, out var winPt))
         {
             HideTip();
             return;
         }
+
+        if (!NativeMethods.GetCursorPos(out var cursorPx))
+        {
+            HideTip();
+            return;
+        }
+
+        // Same pixel: skip hit-test / layout. Still re-assert z-order so the topmost
+        // clock cannot cover an already-visible tip.
+        if (cursorPx.X == _tipCursorX && cursorPx.Y == _tipCursorY)
+        {
+            if (_tipVisible)
+                NativeMethods.RaiseTipZOrder(_tipWindow);
+            return;
+        }
+        _tipCursorX = cursorPx.X;
+        _tipCursorY = cursorPx.Y;
 
         Point facePt;
         try
@@ -624,46 +1624,146 @@ public partial class ClockOverlay : OverlayWindowBase
             return;
         }
 
-        string? tip = null;
-        for (var i = _hotspots.Count - 1; i >= 0; i--)
+        var tips = new List<string>();
+        foreach (var spot in _hotspots)
         {
-            if (_hotspots[i].Geometry.FillContains(facePt))
-            {
-                tip = _hotspots[i].Tip;
-                break;
-            }
+            if (!spot.Contains(facePt))
+                continue;
+            if (tips.Exists(t => string.Equals(t, spot.Tip, StringComparison.Ordinal)))
+                continue;
+            tips.Add(spot.Tip);
         }
 
-        if (tip == null)
-        {
-            HideTip();
-            return;
-        }
-
-        if (!NativeMethods.GetCursorPos(out var screen))
+        if (tips.Count == 0)
         {
             HideTip();
             return;
         }
 
+        var tip = tips.Count == 1 ? tips[0] : string.Join("\n\n", tips);
         if (!string.Equals(_openTip, tip, StringComparison.Ordinal))
         {
-            _tipText.Text = tip;
+            ApplyTipText(tip);
             _openTip = tip;
         }
 
+        _tipChrome.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var size = _tipChrome.DesiredSize;
+
+        var area = System.Windows.Forms.Screen.FromPoint(
+            new System.Drawing.Point(cursorPx.X, cursorPx.Y)).WorkingArea;
+        var preferRight = cursorPx.X < area.Left + area.Width * 0.5;
+        var preferDown = cursorPx.Y < area.Top + area.Height * 0.5;
+
         var dpi = VisualTreeHelper.GetDpi(this);
-        _tipPopup.HorizontalOffset = screen.X / (dpi.DpiScaleX <= 0 ? 1 : dpi.DpiScaleX) + 14;
-        _tipPopup.VerticalOffset = screen.Y / (dpi.DpiScaleY <= 0 ? 1 : dpi.DpiScaleY) + 18;
-        if (!_tipPopup.IsOpen)
-            _tipPopup.IsOpen = true;
+        var sx = dpi.DpiScaleX <= 0 ? 1 : dpi.DpiScaleX;
+        var sy = dpi.DpiScaleY <= 0 ? 1 : dpi.DpiScaleY;
+        var tipW = size.Width * sx;
+        var tipH = size.Height * sy;
+        var gapX = 14 * sx;
+        var gapY = 18 * sy;
+
+        // Prefer toward monitor center — clamp to the working area; do not flip.
+        var px = preferRight ? cursorPx.X + gapX : cursorPx.X - tipW - gapX * (8.0 / 14.0);
+        var py = preferDown ? cursorPx.Y + gapY : cursorPx.Y - tipH - gapY * (8.0 / 18.0);
+        px = Math.Clamp(px, area.Left, Math.Max(area.Left, area.Right - tipW));
+        py = Math.Clamp(py, area.Top, Math.Max(area.Top, area.Bottom - tipH));
+
+        _tipWindow.Left = px / sx;
+        _tipWindow.Top = py / sy;
+        _tipWindow.Opacity = 1;
+        // Z-order only (no exstyle/FRAMECHANGED) — keeps tip above this Topmost clock.
+        NativeMethods.RaiseTipZOrder(_tipWindow);
+        _tipVisible = true;
     }
 
     void HideTip()
     {
         _openTip = null;
-        if (_tipPopup.IsOpen)
-            _tipPopup.IsOpen = false;
+        _tipCursorX = int.MinValue;
+        _tipCursorY = int.MinValue;
+        if (!_tipVisible && _tipWindow.Opacity <= 0)
+            return;
+        _tipBody.Children.Clear();
+        _tipWindow.Opacity = 0;
+        _tipWindow.Left = -32000;
+        _tipWindow.Top = -32000;
+        _tipVisible = false;
+    }
+
+    /// <summary>
+    /// Tip text is "title\n  details" per item (blank line between hotspot groups).
+    /// Render as title + indented wrapping details so wrap keeps the indent.
+    /// </summary>
+    void ApplyTipText(string tip)
+    {
+        _tipBody.Children.Clear();
+        string? title = null;
+        var details = new StringBuilder();
+        var gapBeforeNext = false;
+
+        void Flush()
+        {
+            if (title == null && details.Length == 0)
+                return;
+            if (gapBeforeNext && _tipBody.Children.Count > 0)
+                _tipBody.Children.Add(new FrameworkElement { Height = 8 });
+            gapBeforeNext = false;
+
+            if (!string.IsNullOrEmpty(title))
+            {
+                _tipBody.Children.Add(new TextBlock
+                {
+                    Text = title,
+                    Foreground = TipTextBrush,
+                    FontSize = 12,
+                    FontWeight = FontWeights.SemiBold,
+                    TextWrapping = TextWrapping.Wrap,
+                    MaxWidth = 280
+                });
+            }
+
+            if (details.Length > 0)
+            {
+                _tipBody.Children.Add(new TextBlock
+                {
+                    Text = details.ToString(),
+                    Foreground = TipTextBrush,
+                    FontSize = 12,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(12, 2, 0, 0),
+                    MaxWidth = 268
+                });
+            }
+
+            title = null;
+            details.Clear();
+        }
+
+        foreach (var raw in tip.Replace("\r\n", "\n").Split('\n'))
+        {
+            if (raw.Length == 0)
+            {
+                Flush();
+                gapBeforeNext = true;
+                continue;
+            }
+
+            if (raw.StartsWith("  ", StringComparison.Ordinal) || raw.StartsWith('\t'))
+            {
+                var part = raw.TrimStart();
+                if (details.Length > 0)
+                    details.Append(' ');
+                details.Append(part);
+                continue;
+            }
+
+            // New item title — flush previous title/details first.
+            Flush();
+            title = raw;
+        }
+
+        Flush();
     }
 
     void PlaceCurrentTime(
@@ -682,15 +1782,14 @@ public partial class ClockOverlay : OverlayWindowBase
             Brushes.White,
             dpi);
 
-        double width = ft.Width;
         double height = ft.Height;
         var nearCenter = cy - height / 2;
-        var left = cx - width / 2;
         var top = nearChevron + (nearCenter - nearChevron) * pos;
+        var geo = ft.BuildGeometry(new Point(0, 0));
+        geo.Freeze();
 
         if (settings.ClockTimeOutline)
         {
-            var geo = ft.BuildGeometry(new Point(0, 0));
             // Widen the glyph edges into an outline ring, then paint the fill on top.
             // (Stroking the same path with Fill makes thick outlines blob into solid shapes.)
             var strength = Math.Clamp(settings.ClockTimeOutlineStrength, 1, 6);
@@ -705,6 +1804,7 @@ public partial class ClockOverlay : OverlayWindowBase
             pen.Freeze();
             var outlineGeo = geo.GetWidenedPathGeometry(pen);
             outlineGeo.Freeze();
+            var left = CanvasLeftCentered(cx, geo, outlineGeo);
 
             var outlinePath = new System.Windows.Shapes.Path
             {
@@ -730,18 +1830,28 @@ public partial class ClockOverlay : OverlayWindowBase
             return;
         }
 
-        var block = new TextBlock
+        var leftPlain = CanvasLeftCentered(cx, geo);
+        var fillOnly = new System.Windows.Shapes.Path
         {
-            Text = text,
-            Foreground = fill,
-            FontSize = fontSize,
-            FontWeight = weight,
-            FontFamily = SystemFonts.MessageFontFamily,
+            Data = geo,
+            Fill = fill,
+            Stroke = null,
             IsHitTestVisible = false
         };
-        Canvas.SetLeft(block, left);
-        Canvas.SetTop(block, top);
-        Marks.Children.Add(block);
+        Canvas.SetLeft(fillOnly, leftPlain);
+        Canvas.SetTop(fillOnly, top);
+        Marks.Children.Add(fillOnly);
+    }
+
+    /// <summary>Canvas.Left so the ink (and optional outline) is centered on <paramref name="cx"/>.</summary>
+    static double CanvasLeftCentered(double cx, Geometry geo, Geometry? outline = null)
+    {
+        var bounds = geo.Bounds;
+        if (outline != null && !outline.Bounds.IsEmpty)
+            bounds = Rect.Union(bounds, outline.Bounds);
+        if (bounds.IsEmpty || bounds.Width <= 0)
+            return cx;
+        return cx - (bounds.X + bounds.Width * 0.5);
     }
 
     // Fixed vertical Now hand — tapered needle pointing straight up.
@@ -916,8 +2026,9 @@ public partial class ClockOverlay : OverlayWindowBase
             CompoundMulAt(settings, 0), out idlerOffsetDeg);
         var ringTeeth = ClockGearGeometry.FaceRingTeeth;
         var planetTeeth = ClockGearGeometry.FacePlanetTeeth;
-        var hourStride = ClockGearGeometry.FaceHourToothStride;
+        var hourStride = ClockGearGeometry.HourAccentStride(ringTeeth, _gearHorizonHours);
         var trainOp = Math.Clamp(settings.ClockGearOpacity, 0.05, 1);
+        var ringOp = Math.Clamp(settings.ClockGearRingOpacity, 0.05, 1);
         const byte solidA = 255;
         var ringHex = ColorText.NormalizeOr(settings.ClockGearColor, "#7A8088");
         var compoundHex = DrivePartHex(settings.ClockGearCompoundColor, DarkenHex(ringHex, 0.55));
@@ -925,14 +2036,16 @@ public partial class ClockOverlay : OverlayWindowBase
         var idlerHex = DrivePartHex(settings.ClockGearIdlerColor, ringHex);
         var sunHex = DrivePartHex(settings.ClockGearSunColor, DarkenHex(ringHex, 0.72));
         var fill = BrushFromHex(ringHex, solidA);
+        // Same color as the outer rim teeth; intermediate stacks use ClockGearRingOpacity.
         var innerDimFill = BrushFromHex(ringHex, solidA);
         var planetFill = BrushFromHex(planetHex, solidA);
         var compoundFill = BrushFromHex(compoundHex, solidA);
+        ClockGearCompoundStage CompoundAt(int stage) =>
+            ClockGearCompoundStage.At(settings, stage);
         var hourFill = BrushFromHex(
             ColorText.NormalizeOr(settings.ClockColorMajorTick, FallbackMajorTick), 0xCC);
 
-        var ratio = ClockGearGeometry.FaceToSecondRatio(_gearHorizonHours);
-        var ringSpeed = 1.0 / ratio;
+        var ringSpeed = ClockGearGeometry.FaceRingSecScale(_gearHorizonHours);
         var carrierSecs = settings.ClockGearAutoCarrier != false
             ? ClockGearGeometry.SolveEqualCarrierSecScales(
                 solves, ringSpeed, 1.0, settings.ClockGearCarrierDirs,
@@ -974,7 +2087,8 @@ public partial class ClockOverlay : OverlayWindowBase
         var sunFill = BrushFromHex(sunHex, solidA);
         var innerFill = prog.StageCount == 1 ? sunFill : innerDimFill;
 
-        // Mask to the clock rim — compound gears may extend past it.
+        // Mid-train under alerts; plain outer teeth on OuterDrive under Face wedges;
+        // colored hour accents on HourAccents above the wedges.
         var clip = new EllipseGeometry(new Point(cx, cy), rim, rim);
         clip.Freeze();
         var gearLayer = new Canvas
@@ -987,6 +2101,28 @@ public partial class ClockOverlay : OverlayWindowBase
             UseLayoutRounding = false
         };
         Gears.Children.Add(gearLayer);
+
+        var outerLayer = new Canvas
+        {
+            Width = hostW,
+            Height = hostH,
+            Clip = clip,
+            IsHitTestVisible = false,
+            SnapsToDevicePixels = false,
+            UseLayoutRounding = false
+        };
+        OuterDrive.Children.Add(outerLayer);
+
+        var hourLayer = new Canvas
+        {
+            Width = hostW,
+            Height = hostH,
+            Clip = clip,
+            IsHitTestVisible = false,
+            SnapsToDevicePixels = false,
+            UseLayoutRounding = false
+        };
+        HourAccents.Children.Add(hourLayer);
 
         Path AddRotated(
             Geometry geo, Brush? fillBrush, double secScale, double baseDeg,
@@ -1012,6 +2148,14 @@ public partial class ClockOverlay : OverlayWindowBase
             return path;
         }
 
+        void AddCompound(
+            Geometry[] parts, Brush fill, double secScale, double baseDeg,
+            double rotCx, double rotCy, Canvas host)
+        {
+            foreach (var part in parts)
+                AddRotated(part, fill, secScale, baseDeg, rotCx, rotCy, host: host);
+        }
+
         Canvas MakeCarrierLayer(
             Geometry clipGeo, double carrierSec, bool behind,
             Canvas? parent = null, bool dim = true)
@@ -1035,13 +2179,55 @@ public partial class ClockOverlay : OverlayWindowBase
             return layer;
         }
 
-        Canvas MakeRingStack(bool dimRing)
+        // Clip frame: tooth-hole mask that spins with a ring. Nest carrier layers inside
+        // with relative secScale so compounds keep inertial spin while holes track the ring.
+        Canvas MakeClipFrame(
+            Geometry clipGeo, double spinSec, bool behind, Canvas? parent = null)
         {
+            var layer = new Canvas
+            {
+                Width = hostW,
+                Height = hostH,
+                Clip = clipGeo,
+                IsHitTestVisible = false,
+                SnapsToDevicePixels = false,
+                UseLayoutRounding = false
+            };
+            parent ??= gearLayer;
+            if (behind)
+                parent.Children.Insert(0, layer);
+            else
+                parent.Children.Add(layer);
+            SpinCarrier(layer, cx, cy, spinSec);
+            return layer;
+        }
+
+        Canvas MakeCarrierOn(
+            Canvas parent, double relativeSec, bool dim = true)
+        {
+            var layer = new Canvas
+            {
+                Width = hostW,
+                Height = hostH,
+                Opacity = dim ? trainOp : 1,
+                IsHitTestVisible = false,
+                SnapsToDevicePixels = false,
+                UseLayoutRounding = false
+            };
+            parent.Children.Add(layer);
+            SpinCarrier(layer, cx, cy, relativeSec);
+            return layer;
+        }
+
+        Canvas MakeRingStack()
+        {
+            // Stack stays Opacity 1 so planets/idlers parented here can use trainOp
+            // without multiplying with ClockGearRingOpacity. Dim ring paths instead.
             var stack = new Canvas
             {
                 Width = hostW,
                 Height = hostH,
-                Opacity = dimRing ? trainOp : 1,
+                Opacity = 1,
                 IsHitTestVisible = false,
                 SnapsToDevicePixels = false,
                 UseLayoutRounding = false
@@ -1050,6 +2236,13 @@ public partial class ClockOverlay : OverlayWindowBase
             return stack;
         }
 
+        void DimRingPath(UIElement path, bool dimRing)
+        {
+            if (dimRing)
+                path.Opacity = ringOp;
+        }
+
+        // Annulus: draw only for innerR ≤ r ≤ outerR.
         Geometry StageClip(double outerR, double innerR = 0)
         {
             outerR = Math.Max(2, outerR);
@@ -1066,6 +2259,23 @@ public partial class ClockOverlay : OverlayWindowBase
                 new EllipseGeometry(new Point(cx, cy), innerR, innerR));
             clip.Freeze();
             return clip;
+        }
+
+        Geometry ExcludeSolid(Geometry allow, Geometry solid)
+        {
+            var g = new CombinedGeometry(GeometryCombineMode.Exclude, allow, solid);
+            g.Freeze();
+            return g;
+        }
+
+        Geometry RotateGeo(Geometry geo, double baseDeg)
+        {
+            if (Math.Abs(baseDeg) < 1e-9)
+                return geo;
+            var clone = geo.Clone();
+            clone.Transform = new RotateTransform(baseDeg, cx, cy);
+            clone.Freeze();
+            return clone;
         }
 
         var deg = 180.0 / Math.PI;
@@ -1089,8 +2299,20 @@ public partial class ClockOverlay : OverlayWindowBase
             idlerToSun, refIdlerAlign, idlerTeeth, inner.Teeth) * deg;
 
         // Painter: carriage + large compound, then rings, then idlers/planet, then sun.
-        var midClip = StageClip(rim, innerBand.OuterRoot);
-        var backLayer = MakeCarrierLayer(midClip, c0, behind: false);
+        // Compounds sit in the mid annulus (including tooth bands) but Exclude the solid
+        // tooth/rim outlines; clip frames spin with each ring so gaps stay open while
+        // solid teeth mask. Relative carrier spin keeps compound ω_inertial = c0.
+        var midAllow = StageClip(rim, innerBand.OuterRoot);
+        var outerToothSolid = ClockGearGeometry.BuildInternalRing(cx, cy, layout, ringTeeth);
+        var outerPunch = ExcludeSolid(midAllow, outerToothSolid);
+        var hollowExtSolid = RotateGeo(
+            ClockGearGeometry.BuildInnerRingExteriorTeeth(cx, cy, layout, inner),
+            innerAlignDeg);
+        var outerClipFrame = MakeClipFrame(outerPunch, ringSpeed, behind: false);
+        var hollowExtFrame = MakeClipFrame(
+            ExcludeSolid(StageClip(rim), hollowExtSolid),
+            innerSpin - ringSpeed, behind: false, parent: outerClipFrame);
+        var backLayer = MakeCarrierOn(hollowExtFrame, c0 - innerSpin);
 
         var seats0 = new List<(double Px, double Py, (double X, double Y)[] Idlers, double Ang, double AlignDeg)>(planetCount);
         for (var i = 0; i < planetCount; i++)
@@ -1109,16 +2331,16 @@ public partial class ClockOverlay : OverlayWindowBase
             }
             seats0.Add((px, py, idlerPts, ang, alignRad * deg));
         }
-        AddCarriageTracks(
+        var carriage0 = AddCarriageTracks(
             backLayer, cx, cy, layout,
             seats0.ConvertAll(s => (s.Px, s.Py, s.Idlers)), carriageBrush, settings, 0);
 
         for (var i = 0; i < seats0.Count; i++)
         {
             var (px, py, _, _, alignDeg) = seats0[i];
-            AddRotated(
-                ClockGearGeometry.BuildCompoundGear(px, py, layout),
-                compoundFill, planetSpin, alignDeg, px, py, host: backLayer);
+            AddCompound(
+                ClockGearGeometry.BuildCompoundGear(px, py, layout, CompoundAt(0)),
+                compoundFill, planetSpin, alignDeg, px, py, backLayer);
             if (showSpinMarks && spinMarkStroke != null)
             {
                 var r = layout.CompoundTipR;
@@ -1130,20 +2352,24 @@ public partial class ClockOverlay : OverlayWindowBase
 
         AddRotated(
             ClockGearGeometry.BuildInternalRing(cx, cy, layout, ringTeeth),
-            fill, ringSpeed, 0, cx, cy);
+            fill, ringSpeed, 0, cx, cy, host: outerLayer);
 
         AddRotated(
             ClockGearGeometry.BuildInternalHourToothAccents(
                 cx, cy, layout, ringTeeth, hourStride),
-            hourFill, ringSpeed, 0, cx, cy);
+            hourFill, ringSpeed, 0, cx, cy, host: hourLayer);
 
-        var stack0 = MakeRingStack(innerFill != sunFill);
-        AddRotated(
+        var dimRing0 = innerFill != sunFill;
+        var stack0 = MakeRingStack();
+        DimRingPath(AddRotated(
             ClockGearGeometry.BuildInnerRingExteriorTeeth(cx, cy, layout, inner),
-            innerFill, innerSpin, innerAlignDeg, cx, cy, host: stack0);
+            innerFill, innerSpin, innerAlignDeg, cx, cy, host: stack0), dimRing0);
 
         var frontLayer = MakeCarrierLayer(
-            midClip, c0, behind: false, parent: stack0, dim: innerFill == sunFill);
+            StageClip(rim, innerBand.OuterRoot), c0, behind: false, parent: stack0, dim: true);
+        if (carriage0 != null)
+            AddCarriageUnderIdlers(frontLayer, carriage0,
+                seats0.ConvertAll(s => (s.Px, s.Py, s.Idlers)), layout.IdlerTipR, carriageBrush);
         for (var i = 0; i < seats0.Count; i++)
         {
             var (px, py, idlerPts, ang, alignDeg) = seats0[i];
@@ -1168,9 +2394,9 @@ public partial class ClockOverlay : OverlayWindowBase
             frontLayer, layout,
             seats0.ConvertAll(s => (s.Px, s.Py, s.Idlers)), carriageBrush, settings, 0);
 
-        AddRotated(
+        DimRingPath(AddRotated(
             ClockGearGeometry.BuildInnerRingMaskCore(cx, cy, layout, inner),
-            innerFill, innerSpin, innerAlignDeg, cx, cy, host: stack0);
+            innerFill, innerSpin, innerAlignDeg, cx, cy, host: stack0), dimRing0);
         if (showSpinMarks && spinMarkStroke != null)
         {
             var diameter = new LineGeometry(
@@ -1221,9 +2447,25 @@ public partial class ClockOverlay : OverlayWindowBase
         var inner2AlignDeg = ClockGearGeometry.IdlerAlignAngle(
             idlerToSun2, idlerAlign0, idlerTeeth2, inner2.Teeth) * deg;
 
-        // Stage-2: carriage+compound behind already-drawn ring-1; idlers/planet on top.
-        var stage2Clip = StageClip(innerBand.OuterRoot, inner2Band.OuterRoot);
-        var backLayer2 = MakeCarrierLayer(stage2Clip, c1, behind: true);
+        // Stage-2: radial band includes tooth valleys; punch host interior teeth + next
+        // exterior crowns (clip frames track each ring). Solid rims stay outside the band.
+        var radial2 = StageClip(innerBand.InnerRoot, inner2Band.OuterRoot);
+        var hostInteriorSolid = new CombinedGeometry(
+            GeometryCombineMode.Intersect,
+            RotateGeo(
+                ClockGearGeometry.BuildInnerRingMaskCore(cx, cy, layout, inner),
+                innerAlignDeg),
+            new EllipseGeometry(new Point(cx, cy), innerBand.InnerRoot, innerBand.InnerRoot));
+        hostInteriorSolid.Freeze();
+        var hostPunch2 = ExcludeSolid(radial2, hostInteriorSolid);
+        var nextExt2 = RotateGeo(
+            ClockGearGeometry.BuildInnerRingExteriorTeeth(cx, cy, layout2, inner2),
+            inner2AlignDeg);
+        var hostClip2 = MakeClipFrame(hostPunch2, innerSpin, behind: true);
+        var nextClip2 = MakeClipFrame(
+            ExcludeSolid(StageClip(rim), nextExt2),
+            inner2Spin - innerSpin, behind: false, parent: hostClip2);
+        var backLayer2 = MakeCarrierOn(nextClip2, c1 - inner2Spin);
 
         var seats2 = new List<(double Px, double Py, (double X, double Y)[] Idlers)>(planetCount1);
         for (var i = 0; i < planetCount1; i++)
@@ -1237,7 +2479,7 @@ public partial class ClockOverlay : OverlayWindowBase
             var iy = py + layout2.IdlerMeshRadius * Math.Sin(seat);
             seats2.Add((px, py, [(ix, iy)]));
         }
-        AddCarriageTracks(backLayer2, cx, cy, layout2, seats2, carriageBrush, settings, 1);
+        var carriage2 = AddCarriageTracks(backLayer2, cx, cy, layout2, seats2, carriageBrush, settings, 1);
 
         for (var i = 0; i < planetCount1; i++)
         {
@@ -1247,9 +2489,9 @@ public partial class ClockOverlay : OverlayWindowBase
             var py = cy + layout2.CarrierRadius * Math.Sin(ang);
             var alignRad = ClockGearGeometry.PlanetAlignAngle(localAng, planetTeeth2, hostTeeth2) + frameDelta2;
             var alignDeg = alignRad * deg;
-            AddRotated(
-                ClockGearGeometry.BuildCompoundGear(px, py, layout2),
-                compoundFill, planetSpin2, alignDeg, px, py, host: backLayer2);
+            AddCompound(
+                ClockGearGeometry.BuildCompoundGear(px, py, layout2, CompoundAt(1)),
+                compoundFill, planetSpin2, alignDeg, px, py, backLayer2);
             if (showSpinMarks && spinMarkStroke != null)
             {
                 var r = layout2.CompoundTipR;
@@ -1259,13 +2501,17 @@ public partial class ClockOverlay : OverlayWindowBase
             }
         }
 
-        var stack2 = MakeRingStack(inner2Fill != sunFill);
-        AddRotated(
+        var dimRing2 = inner2Fill != sunFill;
+        var stack2 = MakeRingStack();
+        DimRingPath(AddRotated(
             ClockGearGeometry.BuildInnerRingExteriorTeeth(cx, cy, layout2, inner2),
-            inner2Fill, inner2Spin, inner2AlignDeg, cx, cy, host: stack2);
+            inner2Fill, inner2Spin, inner2AlignDeg, cx, cy, host: stack2), dimRing2);
 
         var frontLayer2 = MakeCarrierLayer(
-            stage2Clip, c1, behind: false, parent: stack2, dim: inner2Fill == sunFill);
+            StageClip(innerBand.InnerRoot, inner2Band.OuterRoot), c1, behind: false,
+            parent: stack2, dim: true);
+        if (carriage2 != null)
+            AddCarriageUnderIdlers(frontLayer2, carriage2, seats2, layout2.IdlerTipR, carriageBrush);
         for (var i = 0; i < planetCount1; i++)
         {
             var localAng = ClockGearGeometry.PlanetCarrierAngle(i, planetCount1, hostTeeth2, offset1Deg);
@@ -1288,9 +2534,9 @@ public partial class ClockOverlay : OverlayWindowBase
         }
         AddCarriagePins(frontLayer2, layout2, seats2, carriageBrush, settings, 1);
 
-        AddRotated(
+        DimRingPath(AddRotated(
             ClockGearGeometry.BuildInnerRingMaskCore(cx, cy, layout2, inner2),
-            inner2Fill, inner2Spin, inner2AlignDeg, cx, cy, host: stack2);
+            inner2Fill, inner2Spin, inner2AlignDeg, cx, cy, host: stack2), dimRing2);
         if (showSpinMarks && spinMarkStroke != null)
         {
             var diameter = new LineGeometry(
@@ -1363,8 +2609,23 @@ public partial class ClockOverlay : OverlayWindowBase
         var inner3AlignDeg = ClockGearGeometry.IdlerAlignAngle(
             idlerToSun3, idlerAlign30, idlerTeeth3, inner3.Teeth) * deg;
 
-        var stage3Clip = StageClip(inner2Band.OuterRoot, inner3Band.OuterRoot);
-        var backLayer3 = MakeCarrierLayer(stage3Clip, c2, behind: true);
+        var radial3 = StageClip(inner2Band.InnerRoot, inner3Band.OuterRoot);
+        var hostInteriorSolid3 = new CombinedGeometry(
+            GeometryCombineMode.Intersect,
+            RotateGeo(
+                ClockGearGeometry.BuildInnerRingMaskCore(cx, cy, layout2, inner2),
+                inner2AlignDeg),
+            new EllipseGeometry(new Point(cx, cy), inner2Band.InnerRoot, inner2Band.InnerRoot));
+        hostInteriorSolid3.Freeze();
+        var hostPunch3 = ExcludeSolid(radial3, hostInteriorSolid3);
+        var nextExt3 = RotateGeo(
+            ClockGearGeometry.BuildInnerRingExteriorTeeth(cx, cy, layout3, inner3),
+            inner3AlignDeg);
+        var hostClip3 = MakeClipFrame(hostPunch3, inner2Spin, behind: true);
+        var nextClip3 = MakeClipFrame(
+            ExcludeSolid(StageClip(rim), nextExt3),
+            inner3Spin - inner2Spin, behind: false, parent: hostClip3);
+        var backLayer3 = MakeCarrierOn(nextClip3, c2 - inner3Spin);
 
         var seats3 = new List<(double Px, double Py, (double X, double Y)[] Idlers)>(planetCount2);
         for (var i = 0; i < planetCount2; i++)
@@ -1378,7 +2639,7 @@ public partial class ClockOverlay : OverlayWindowBase
             var iy = py + layout3.IdlerMeshRadius * Math.Sin(seat);
             seats3.Add((px, py, [(ix, iy)]));
         }
-        AddCarriageTracks(backLayer3, cx, cy, layout3, seats3, carriageBrush, settings, 2);
+        var carriage3 = AddCarriageTracks(backLayer3, cx, cy, layout3, seats3, carriageBrush, settings, 2);
 
         for (var i = 0; i < planetCount2; i++)
         {
@@ -1388,9 +2649,9 @@ public partial class ClockOverlay : OverlayWindowBase
             var py = cy + layout3.CarrierRadius * Math.Sin(ang);
             var alignRad = ClockGearGeometry.PlanetAlignAngle(localAng, planetTeeth3, hostTeeth3) + frameDelta3;
             var alignDeg = alignRad * deg;
-            AddRotated(
-                ClockGearGeometry.BuildCompoundGear(px, py, layout3),
-                compoundFill, planetSpin3, alignDeg, px, py, host: backLayer3);
+            AddCompound(
+                ClockGearGeometry.BuildCompoundGear(px, py, layout3, CompoundAt(2)),
+                compoundFill, planetSpin3, alignDeg, px, py, backLayer3);
             if (showSpinMarks && spinMarkStroke != null)
             {
                 var r = layout3.CompoundTipR;
@@ -1400,13 +2661,17 @@ public partial class ClockOverlay : OverlayWindowBase
             }
         }
 
-        var stack3 = MakeRingStack(inner3Fill != sunFill);
-        AddRotated(
+        var dimRing3 = inner3Fill != sunFill;
+        var stack3 = MakeRingStack();
+        DimRingPath(AddRotated(
             ClockGearGeometry.BuildInnerRingExteriorTeeth(cx, cy, layout3, inner3),
-            inner3Fill, inner3Spin, inner3AlignDeg, cx, cy, host: stack3);
+            inner3Fill, inner3Spin, inner3AlignDeg, cx, cy, host: stack3), dimRing3);
 
         var frontLayer3 = MakeCarrierLayer(
-            stage3Clip, c2, behind: false, parent: stack3, dim: inner3Fill == sunFill);
+            StageClip(inner2Band.InnerRoot, inner3Band.OuterRoot), c2, behind: false,
+            parent: stack3, dim: true);
+        if (carriage3 != null)
+            AddCarriageUnderIdlers(frontLayer3, carriage3, seats3, layout3.IdlerTipR, carriageBrush);
         for (var i = 0; i < planetCount2; i++)
         {
             var localAng = ClockGearGeometry.PlanetCarrierAngle(i, planetCount2, hostTeeth3, offset2Deg);
@@ -1429,9 +2694,9 @@ public partial class ClockOverlay : OverlayWindowBase
         }
         AddCarriagePins(frontLayer3, layout3, seats3, carriageBrush, settings, 2);
 
-        AddRotated(
+        DimRingPath(AddRotated(
             ClockGearGeometry.BuildInnerRingMaskCore(cx, cy, layout3, inner3),
-            inner3Fill, inner3Spin, inner3AlignDeg, cx, cy, host: stack3);
+            inner3Fill, inner3Spin, inner3AlignDeg, cx, cy, host: stack3), dimRing3);
         if (showSpinMarks && spinMarkStroke != null)
         {
             var diameter = new LineGeometry(
@@ -1445,6 +2710,7 @@ public partial class ClockOverlay : OverlayWindowBase
         var extraOk = true;
         var prevBand = inner3Band;
         var prevFit = inner3;
+        var prevLay = layout3;
         var prevSpin = inner3Spin;
         var prevAlign = inner3AlignDeg;
         for (var s = 3; s < prog.StageCount && extraOk; s++)
@@ -1481,8 +2747,23 @@ public partial class ClockOverlay : OverlayWindowBase
             var innerAlignN = ClockGearGeometry.IdlerAlignAngle(
                 idlerToSunN, idlerAlignN, lay.MeshIdlerTeeth, fit.Teeth) * deg;
             var innerFillN = s == prog.StageCount - 1 ? sunFill : innerDimFill;
-            var clipN = StageClip(prevBand.OuterRoot, band.OuterRoot);
-            var backN = MakeCarrierLayer(clipN, cN, behind: true);
+            var radialN = StageClip(prevBand.InnerRoot, band.OuterRoot);
+            var hostInteriorSolidN = new CombinedGeometry(
+                GeometryCombineMode.Intersect,
+                RotateGeo(
+                    ClockGearGeometry.BuildInnerRingMaskCore(cx, cy, prevLay, prevFit),
+                    prevAlign),
+                new EllipseGeometry(new Point(cx, cy), prevBand.InnerRoot, prevBand.InnerRoot));
+            hostInteriorSolidN.Freeze();
+            var hostPunchN = ExcludeSolid(radialN, hostInteriorSolidN);
+            var nextExtN = RotateGeo(
+                ClockGearGeometry.BuildInnerRingExteriorTeeth(cx, cy, lay, fit),
+                innerAlignN);
+            var hostClipN = MakeClipFrame(hostPunchN, prevSpin, behind: true);
+            var nextClipN = MakeClipFrame(
+                ExcludeSolid(StageClip(rim), nextExtN),
+                innerSpinN - prevSpin, behind: false, parent: hostClipN);
+            var backN = MakeCarrierOn(nextClipN, cN - innerSpinN);
             var seatsN = new List<(double Px, double Py, (double X, double Y)[] Idlers)>(pCount);
             for (var i = 0; i < pCount; i++)
             {
@@ -1495,7 +2776,7 @@ public partial class ClockOverlay : OverlayWindowBase
                 var iy = py + lay.IdlerMeshRadius * Math.Sin(seat);
                 seatsN.Add((px, py, [(ix, iy)]));
             }
-            AddCarriageTracks(backN, cx, cy, lay, seatsN, carriageBrush, settings, s);
+            var carriageN = AddCarriageTracks(backN, cx, cy, lay, seatsN, carriageBrush, settings, s);
             for (var i = 0; i < pCount; i++)
             {
                 var localAng = ClockGearGeometry.PlanetCarrierAngle(i, pCount, lay.RingTeeth, pOff);
@@ -1504,15 +2785,19 @@ public partial class ClockOverlay : OverlayWindowBase
                 var py = cy + lay.CarrierRadius * Math.Sin(ang);
                 var alignRad = ClockGearGeometry.PlanetAlignAngle(localAng, lay.PlanetTeeth, lay.RingTeeth) + frameN;
                 var alignDegN = alignRad * deg;
-                AddRotated(ClockGearGeometry.BuildCompoundGear(px, py, lay),
-                    compoundFill, planetSpinN, alignDegN, px, py, host: backN);
+                AddCompound(ClockGearGeometry.BuildCompoundGear(px, py, lay, CompoundAt(s)),
+                    compoundFill, planetSpinN, alignDegN, px, py, backN);
             }
-            var stackN = MakeRingStack(innerFillN != sunFill);
-            AddRotated(
+            var dimRingN = innerFillN != sunFill;
+            var stackN = MakeRingStack();
+            DimRingPath(AddRotated(
                 ClockGearGeometry.BuildInnerRingExteriorTeeth(cx, cy, lay, fit),
-                innerFillN, innerSpinN, innerAlignN, cx, cy, host: stackN);
+                innerFillN, innerSpinN, innerAlignN, cx, cy, host: stackN), dimRingN);
             var frontN = MakeCarrierLayer(
-                clipN, cN, behind: false, parent: stackN, dim: innerFillN == sunFill);
+                StageClip(prevBand.InnerRoot, band.OuterRoot), cN, behind: false,
+                parent: stackN, dim: true);
+            if (carriageN != null)
+                AddCarriageUnderIdlers(frontN, carriageN, seatsN, lay.IdlerTipR, carriageBrush);
             for (var i = 0; i < pCount; i++)
             {
                 var localAng = ClockGearGeometry.PlanetCarrierAngle(i, pCount, lay.RingTeeth, pOff);
@@ -1532,13 +2817,14 @@ public partial class ClockOverlay : OverlayWindowBase
                     planetFill, planetSpinN, alignDegN, px, py, host: frontN);
             }
             AddCarriagePins(frontN, lay, seatsN, carriageBrush, settings, s);
-            AddRotated(
+            DimRingPath(AddRotated(
                 ClockGearGeometry.BuildInnerRingMaskCore(cx, cy, lay, fit),
-                innerFillN, innerSpinN, innerAlignN, cx, cy, host: stackN);
+                innerFillN, innerSpinN, innerAlignN, cx, cy, host: stackN), dimRingN);
             extraFits.Add(fit);
             extraSpins.Add(innerSpinN);
             prevBand = band;
             prevFit = fit;
+            prevLay = lay;
             prevSpin = innerSpinN;
             prevAlign = innerAlignN;
         }
@@ -1795,14 +3081,14 @@ public partial class ClockOverlay : OverlayWindowBase
         _gearBaseDeg.Add(0);
     }
 
-    static void AddCarriageTracks(
+    static Geometry? AddCarriageTracks(
         Canvas host, double cx, double cy,
         ClockGearGeometry.FaceMeshLayout layout,
         IReadOnlyList<(double Px, double Py, (double X, double Y)[] Idlers)> seats,
         Brush brush, AppSettings settings, int stage)
     {
         if (settings.ClockGearHideCarousel || seats.Count == 0)
-            return;
+            return null;
         var style = ClockGearCarriageStage.At(settings, stage);
         var stroke = Math.Clamp(style.Rail, 1, 12);
         var rungHalf = Math.Clamp(style.Rung, 1, 10) * 0.5;
@@ -1822,7 +3108,7 @@ public partial class ClockOverlay : OverlayWindowBase
         var kind = style.Kind;
         var rails = kind is ClockGearCarriageKind.Orbit or ClockGearCarriageKind.PinLinks
             or ClockGearCarriageKind.Truss or ClockGearCarriageKind.Helix
-            or ClockGearCarriageKind.Fan;
+            or ClockGearCarriageKind.Fan or ClockGearCarriageKind.Bars;
 
         var geo = new StreamGeometry { FillRule = FillRule.Nonzero };
         using (var ctx = geo.Open())
@@ -1854,6 +3140,9 @@ public partial class ClockOverlay : OverlayWindowBase
                 case ClockGearCarriageKind.Helix:
                     WriteHelixRibbons(ctx, cx, cy, innerR, outerR, style.SweepDeg, style.Reverse, rungHalf);
                     break;
+                case ClockGearCarriageKind.Bars:
+                    WriteBars(ctx, cx, cy, innerR, outerR, stroke, seats, style, rungHalf);
+                    break;
                 default:
                     WriteOrbitBraces(ctx, cx, cy, innerR, outerR, stroke, layout.Module,
                         style.SweepDeg, style.Reverse, rungHalf);
@@ -1868,20 +3157,150 @@ public partial class ClockOverlay : OverlayWindowBase
                     WriteCircle(ctx, px, py, hubHole + pad, clockwise: false);
                     for (var j = 0; j < idlers.Length; j++)
                         WriteCircle(ctx, idlers[j].X, idlers[j].Y, idlerHole + pad, clockwise: false);
+                    // CW circle is a hole in the pad disk. Alone (pad == 0) it fills a
+                    // solid carriage platter the size of the compound, so every cutout
+                    // shows carriage color.
+                    WriteCircle(ctx, px, py, hubHole, clockwise: true);
+                    for (var j = 0; j < idlers.Length; j++)
+                        WriteCircle(ctx, idlers[j].X, idlers[j].Y, idlerHole, clockwise: true);
                 }
-                WriteCircle(ctx, px, py, hubHole, clockwise: true);
-                for (var j = 0; j < idlers.Length; j++)
-                    WriteCircle(ctx, idlers[j].X, idlers[j].Y, idlerHole, clockwise: true);
             }
         }
         geo.Freeze();
+
+        // Idlers live on a later translucent layer, so this frame would show through
+        // the metal. Drop only the tip disk here; the front layer redraws the frame
+        // inside that disk and the gear paints over it, leaving the tooth gaps open.
+        Geometry data = geo;
+        var cover = Math.Max(0.5, layout.IdlerTipR);
+        for (var i = 0; i < seats.Count; i++)
+        {
+            var idlers = seats[i].Idlers;
+            for (var j = 0; j < idlers.Length; j++)
+            {
+                var hole = new EllipseGeometry(new Point(idlers[j].X, idlers[j].Y), cover, cover);
+                hole.Freeze();
+                data = new CombinedGeometry(GeometryCombineMode.Exclude, data, hole);
+            }
+        }
+        data.Freeze();
         host.Children.Add(new Path
         {
-            Data = geo,
+            Data = data,
             Fill = brush,
             IsHitTestVisible = false,
             SnapsToDevicePixels = false
         });
+        return geo;
+    }
+
+    static void AddCarriageUnderIdlers(
+        Canvas host, Geometry carriage,
+        IReadOnlyList<(double Px, double Py, (double X, double Y)[] Idlers)> seats,
+        double tipR, Brush brush)
+    {
+        var clip = new GeometryGroup { FillRule = FillRule.Nonzero };
+        tipR = Math.Max(0.5, tipR);
+        for (var i = 0; i < seats.Count; i++)
+        {
+            var idlers = seats[i].Idlers;
+            for (var j = 0; j < idlers.Length; j++)
+                clip.Children.Add(new EllipseGeometry(new Point(idlers[j].X, idlers[j].Y), tipR, tipR));
+        }
+        if (clip.Children.Count == 0)
+            return;
+        clip.Freeze();
+        host.Children.Add(new Path
+        {
+            Data = carriage,
+            Clip = clip,
+            Fill = brush,
+            IsHitTestVisible = false,
+            SnapsToDevicePixels = false
+        });
+    }
+
+    static void WriteBars(
+        StreamGeometryContext ctx, double cx, double cy,
+        double innerR, double outerR, double rail,
+        IReadOnlyList<(double Px, double Py, (double X, double Y)[] Idlers)> seats,
+        ClockGearCarriageStage style, double half)
+    {
+        if (seats.Count == 0 || outerR - innerR < 1.2)
+            return;
+        var count = Math.Clamp(style.BarCount <= 0 ? 4 : style.BarCount, 1, 12);
+        var between = Math.Clamp(style.BarBetween, 0, 8);
+        var lines = count * (between + 1);
+        var step = Math.PI * 2.0 / lines;
+        var phase = BarPhase(cx, cy, seats, style.BarOrigin);
+        // Flat ends buried in the rails. Rounded caps ended on the rail center
+        // and the shared fill punched a semicircle out of each joint.
+        var innerEdge = Math.Max(0.5, innerR - rail * 0.5);
+        var outerEdge = outerR + rail * 0.5;
+        for (var k = 0; k < lines; k++)
+        {
+            var ang = phase + k * step;
+            WriteFlatBar(ctx, GearPolar(cx, cy, innerEdge, ang), GearPolar(cx, cy, outerEdge, ang), half);
+        }
+    }
+
+    static void WriteFlatBar(StreamGeometryContext ctx, Point a, Point b, double half)
+    {
+        var dx = b.X - a.X;
+        var dy = b.Y - a.Y;
+        var len = Math.Sqrt(dx * dx + dy * dy);
+        if (len < 0.5)
+            return;
+        var nx = -dy / len * half;
+        var ny = dx / len * half;
+        ctx.BeginFigure(new Point(a.X + nx, a.Y + ny), true, true);
+        ctx.LineTo(new Point(b.X + nx, b.Y + ny), true, false);
+        ctx.LineTo(new Point(b.X - nx, b.Y - ny), true, false);
+        ctx.LineTo(new Point(a.X - nx, a.Y - ny), true, false);
+    }
+
+    static double BarPhase(
+        double cx, double cy,
+        IReadOnlyList<(double Px, double Py, (double X, double Y)[] Idlers)> seats,
+        ClockGearCarriageBarOrigin origin)
+    {
+        var here = seats[0];
+        var next = seats[1 % seats.Count];
+        var large = Math.Atan2(here.Py - cy, here.Px - cx);
+        var (sx, sy) = SmallCenter(here);
+        var small = Math.Atan2(sy - cy, sx - cx);
+        var nextLarge = Math.Atan2(next.Py - cy, next.Px - cx);
+        var (nsx, nsy) = SmallCenter(next);
+        var nextSmall = Math.Atan2(nsy - cy, nsx - cx);
+        return origin switch
+        {
+            ClockGearCarriageBarOrigin.SmallCenter => small,
+            ClockGearCarriageBarOrigin.MidLarge => MidAngle(large, nextLarge),
+            ClockGearCarriageBarOrigin.MidSmall => MidAngle(small, nextSmall),
+            _ => large
+        };
+    }
+
+    static double MidAngle(double a0, double a1)
+    {
+        var d = a1 - a0;
+        while (d <= -Math.PI)
+            d += Math.PI * 2;
+        while (d > Math.PI)
+            d -= Math.PI * 2;
+        return a0 + d * 0.5;
+    }
+
+    /// <summary>
+    /// Idler center. The planet pinion is coaxial with the large compound, so the
+    /// small center that can sit apart from it is the idler.
+    /// </summary>
+    static (double X, double Y) SmallCenter(
+        (double Px, double Py, (double X, double Y)[] Idlers) seat)
+    {
+        if (seat.Idlers.Length == 0)
+            return (seat.Px, seat.Py);
+        return (seat.Idlers[0].X, seat.Idlers[0].Y);
     }
 
     static void WriteOrbitBraces(
@@ -2230,7 +3649,12 @@ public partial class ClockOverlay : OverlayWindowBase
         var speed = Math.Clamp(AppHost.Instance.Data.Settings.ClockGearAnimSpeed, 1, 1440);
         var deg = 180.0 / Math.PI;
         for (var i = 0; i < _gearRots.Count; i++)
-            _gearRots[i].Angle = _gearBaseDeg[i] + sec * _gearSecScale[i] * speed * deg;
+        {
+            var angle = _gearBaseDeg[i] + sec * _gearSecScale[i] * speed * deg;
+            if (Math.Abs(_gearRots[i].Angle - angle) < 0.02)
+                continue;
+            _gearRots[i].Angle = angle;
+        }
     }
 
     void DrawClockTicks(DateTime now, double spanHours, double cx, double cy, double rim, AppSettings settings)
@@ -2284,6 +3708,377 @@ public partial class ClockOverlay : OverlayWindowBase
             return (lenFifteen, false);
         return (lenMinute, false);
     }
+
+    void ApplyDiscordCue(AppSettings settings, double cx, double cy, double radius)
+    {
+        _discordCue = null;
+        _discordCuePulses = false;
+        if (!AppHost.DiscordShowsClockCue(settings))
+            return;
+        var discord = AppHost.Instance.Discord;
+        if (discord == null)
+            return;
+
+        if (discord.PluginMissing && settings.DiscordMissingClockCue != DiscordMissingClockCue.Off)
+        {
+            DrawFaceCue(
+                MapMissingCue(settings.DiscordMissingClockCue),
+                ColorText.NormalizeOr(settings.DiscordMissingClockColor, "#FFB74D"),
+                CuePeak(settings.DiscordMissingClockOpacity, 0.7),
+                Math.Clamp(settings.DiscordClockRingInset <= 0 ? 0.08 : settings.DiscordClockRingInset, 0.04, 0.55),
+                cx, cy, radius,
+                ref _discordCue, ref _discordCuePulses, ref _discordCuePeak);
+            return;
+        }
+
+        if (discord.HasUnread)
+        {
+            DrawFaceCue(
+                settings.DiscordClockCue,
+                ColorText.NormalizeOr(
+                    discord.UnreadCueColor ?? settings.DiscordClockColor,
+                    "#5865F2"),
+                CuePeak(settings.DiscordClockOpacity, 0.7),
+                Math.Clamp(settings.DiscordClockRingInset <= 0 ? 0.08 : settings.DiscordClockRingInset, 0.04, 0.55),
+                cx, cy, radius,
+                ref _discordCue, ref _discordCuePulses, ref _discordCuePeak);
+        }
+    }
+
+    void ApplyLastChanceCue(
+        AppSettings settings,
+        List<(string Title, double HoursAhead, double? DueByHoursAhead, string Kind, DateTime At, DateTime? DueBy, double? UsedPercent, double Opacity)> clockEvents,
+        DateTime now,
+        double cx, double cy, double radius)
+    {
+        _lastChanceCue = null;
+        _lastChanceCuePulses = false;
+        if (settings.ClockLastChanceCue == ClockLastChanceCue.Off)
+            return;
+        if (!clockEvents.Any(e => ClockItemInLastChance(e, settings, now)))
+            return;
+
+        DrawFaceCue(
+            MapLastChanceCue(settings.ClockLastChanceCue),
+            ColorText.NormalizeOr(settings.ClockWindowLastColor, "#FF5A5A"),
+            0.7,
+            0.12,
+            cx, cy, radius,
+            ref _lastChanceCue, ref _lastChanceCuePulses, ref _lastChanceCuePeak);
+    }
+
+    static bool ClockItemInLastChance(
+        (string Title, double HoursAhead, double? DueByHoursAhead, string Kind, DateTime At, DateTime? DueBy, double? UsedPercent, double Opacity) item,
+        AppSettings settings,
+        DateTime now)
+    {
+        if (item.Kind is not ("todo" or "event"))
+            return false;
+        if (item.DueBy is not DateTime dueBy || dueBy <= item.At)
+            return false;
+        if (now < item.At)
+            return false;
+        var lastHours = Math.Clamp(
+            settings.ClockWindowLastHours <= 0 ? 1 : settings.ClockWindowLastHours, 0.05, 24 * 14);
+        var lastAt = dueBy.AddHours(-lastHours);
+        if (lastAt < item.At)
+            lastAt = item.At;
+        return now >= lastAt;
+    }
+
+    static DiscordClockCue MapMissingCue(DiscordMissingClockCue cue) =>
+        cue switch
+        {
+            DiscordMissingClockCue.TintFace => DiscordClockCue.TintFace,
+            DiscordMissingClockCue.PulseRing => DiscordClockCue.PulseRing,
+            DiscordMissingClockCue.RimDot => DiscordClockCue.RimDot,
+            _ => DiscordClockCue.PulseFace
+        };
+
+    static DiscordClockCue MapLastChanceCue(ClockLastChanceCue cue) =>
+        cue switch
+        {
+            ClockLastChanceCue.TintFace => DiscordClockCue.TintFace,
+            ClockLastChanceCue.PulseRing => DiscordClockCue.PulseRing,
+            ClockLastChanceCue.RimDot => DiscordClockCue.RimDot,
+            _ => DiscordClockCue.PulseFace
+        };
+
+    void DrawFaceCue(
+        DiscordClockCue cue, string hex, double peak, double ringInset,
+        double cx, double cy, double radius,
+        ref UIElement? target, ref bool pulses, ref double peakStore)
+    {
+        var brush = BrushFromHex(hex, 0xFF);
+        peakStore = peak;
+        pulses = cue != DiscordClockCue.TintFace;
+        switch (cue)
+        {
+            case DiscordClockCue.TintFace:
+            {
+                var disk = new Ellipse
+                {
+                    Width = radius * 2,
+                    Height = radius * 2,
+                    Fill = brush,
+                    Opacity = peak,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(disk, cx - radius);
+                Canvas.SetTop(disk, cy - radius);
+                Cues.Children.Add(disk);
+                break;
+            }
+            case DiscordClockCue.PulseRing:
+            {
+                var thickness = Math.Clamp(ringInset, 0.04, 0.55) * radius;
+                thickness = Math.Max(3, thickness);
+                var mid = Math.Max(4, radius - thickness / 2);
+                var ring = new Ellipse
+                {
+                    Width = mid * 2,
+                    Height = mid * 2,
+                    Stroke = brush,
+                    StrokeThickness = thickness,
+                    Fill = Brushes.Transparent,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(ring, cx - mid);
+                Canvas.SetTop(ring, cy - mid);
+                Cues.Children.Add(ring);
+                target = ring;
+                break;
+            }
+            case DiscordClockCue.RimDot:
+            {
+                var size = Math.Max(9, radius * 0.13);
+                var dot = new Ellipse
+                {
+                    Width = size,
+                    Height = size,
+                    Fill = brush,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(dot, cx - size / 2);
+                Canvas.SetTop(dot, cy - radius - size * 0.15);
+                Cues.Children.Add(dot);
+                target = dot;
+                break;
+            }
+            default:
+            {
+                var disk = new Ellipse
+                {
+                    Width = radius * 2,
+                    Height = radius * 2,
+                    Fill = brush,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(disk, cx - radius);
+                Canvas.SetTop(disk, cy - radius);
+                Cues.Children.Add(disk);
+                target = disk;
+                break;
+            }
+        }
+
+        UpdateFaceCuePulses(DateTime.Now);
+    }
+
+    void ApplyDiscordSender(AppSettings settings, double cx, double cy, double radius)
+    {
+        DiscordSenderHost.Children.Clear();
+        DiscordSenderRow.Height = new GridLength(0);
+
+        var discord = AppHost.Instance.Discord;
+        string text;
+        DiscordClockSender place;
+        string colorHex;
+        string? outlineHex = null;
+        var outlineStrength = 2;
+        double? fontOverride = null;
+        if (AppHost.DiscordShowsClockCue(settings)
+            && discord?.PluginMissing == true
+            && settings.DiscordMissingClockCue != DiscordMissingClockCue.Off
+            && settings.DiscordMissingClockLabel != DiscordClockSender.Off
+            && !string.IsNullOrWhiteSpace(discord.MissingLabel))
+        {
+            text = discord.MissingLabel;
+            place = settings.DiscordMissingClockLabel;
+            colorHex = ColorText.NormalizeOr(settings.DiscordMissingClockColor, "#FFB74D");
+        }
+        else if (AppHost.DiscordShowsClockCue(settings)
+            && discord?.HasUnread == true
+            && settings.DiscordClockSender != DiscordClockSender.Off
+            && !string.IsNullOrWhiteSpace(discord.UnreadLabel))
+        {
+            var names = discord.UnreadNames.Count > 0
+                ? discord.UnreadNames
+                : discord.UnreadLabel.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            text = string.Join("\n", names.Select(name =>
+                settings.DiscordClockNameOnly ? name : "New message from " + name));
+            place = settings.DiscordClockSender;
+            var style = discord.UnreadNameStyle;
+            colorHex = ColorText.NormalizeOr(
+                (style != null && ColorText.TryNormalize(style.TextColor, out var textColor)
+                    ? textColor
+                    : null)
+                ?? settings.DiscordClockTextColor,
+                "#E8EAED");
+            if (style != null && ColorText.TryNormalize(style.OutlineColor, out var outline))
+            {
+                outlineHex = outline;
+                outlineStrength = Math.Clamp(style.OutlineStrength <= 0 ? 2 : style.OutlineStrength, 1, 6);
+            }
+            if (style != null && style.TextSize > 0)
+                fontOverride = Math.Clamp(style.TextSize, 8, 48);
+        }
+        else
+            return;
+
+        var brush = BrushFromHex(colorHex, 0xFF);
+        var font = fontOverride ?? Math.Max(11, settings.FontSize - 1);
+        Brush? outlineBrush = outlineHex == null ? null : BrushFromHex(outlineHex, 0xFF);
+
+        if (place == DiscordClockSender.OnFace)
+        {
+            var maxWidth = Math.Max(80, radius * 1.55);
+            PlaceSenderText(
+                text, brush, outlineBrush, outlineStrength, font, maxWidth,
+                Marks, cx, hostTop: null, faceCy: cy, faceRadius: radius);
+            return;
+        }
+
+        DiscordSenderRow.Height = GridLength.Auto;
+        var belowWidth = Math.Max(80, FaceHost.ActualWidth - 16);
+        DiscordSenderHost.Width = belowWidth;
+        DiscordSenderHost.HorizontalAlignment = HorizontalAlignment.Center;
+        PlaceSenderText(
+            text, brush, outlineBrush, outlineStrength, font, belowWidth,
+            DiscordSenderHost, cx: belowWidth / 2, hostTop: 0, faceCy: null, faceRadius: null);
+    }
+
+    /// <summary>
+    /// Sender name(s). Outline matches <see cref="PlaceCurrentTime"/>: widen glyph
+    /// edges with a round pen, fill that ribbon, then paint the fill glyph on top.
+    /// Each line is centered on <paramref name="cx"/> by ink bounds (not advance width).
+    /// </summary>
+    void PlaceSenderText(
+        string text, Brush fill, Brush? outline, int strength, double fontSize, double maxWidth,
+        Canvas host, double cx, double? hostTop, double? faceCy, double? faceRadius)
+    {
+        var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        var typeface = new Typeface(
+            SystemFonts.MessageFontFamily,
+            FontStyles.Normal,
+            FontWeights.SemiBold,
+            FontStretches.Normal);
+        Pen? pen = null;
+        if (outline != null)
+        {
+            pen = new Pen(outline, Math.Clamp(strength, 1, 6))
+            {
+                LineJoin = PenLineJoin.Round,
+                StartLineCap = PenLineCap.Round,
+                EndLineCap = PenLineCap.Round
+            };
+            pen.Freeze();
+        }
+
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        var geos = new List<(Geometry Geo, Geometry? Outline, double Height)>();
+        double totalHeight = 0;
+        var lineGap = Math.Max(4, fontSize * 0.28);
+        foreach (var line in lines)
+        {
+            // Left-align at (0,0); horizontal centering uses geometry bounds below.
+            var ft = new FormattedText(
+                line.Length == 0 ? " " : line,
+                CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                typeface,
+                fontSize,
+                Brushes.White,
+                dpi)
+            {
+                MaxTextWidth = maxWidth,
+                Trimming = TextTrimming.None
+            };
+            var geo = ft.BuildGeometry(new Point(0, 0));
+            geo.Freeze();
+            Geometry? outlineGeo = null;
+            if (pen != null)
+            {
+                outlineGeo = geo.GetWidenedPathGeometry(pen);
+                outlineGeo.Freeze();
+            }
+            geos.Add((geo, outlineGeo, ft.Height));
+            totalHeight += ft.Height + lineGap;
+        }
+
+        if (geos.Count > 0)
+            totalHeight -= lineGap;
+
+        double top;
+        if (hostTop is double fixedTop)
+            top = fixedTop;
+        else
+        {
+            var cy = faceCy ?? 0;
+            var radius = faceRadius ?? 0;
+            top = cy + radius * 0.22;
+            if (top + totalHeight > cy + radius - 4)
+                top = Math.Max(cy - radius * 0.1, cy + radius - totalHeight - 4);
+        }
+
+        var pad = pen == null ? 0 : Math.Clamp(strength, 1, 6);
+        if (ReferenceEquals(host, DiscordSenderHost))
+            DiscordSenderHost.Height = Math.Max(0, totalHeight + pad);
+
+        var y = top;
+        foreach (var (geo, outlineGeo, height) in geos)
+        {
+            var lineLeft = CanvasLeftCentered(cx, geo, outlineGeo);
+            if (outlineGeo != null && outline != null)
+            {
+                var outlinePath = new System.Windows.Shapes.Path
+                {
+                    Data = outlineGeo,
+                    Fill = outline,
+                    Stroke = null,
+                    IsHitTestVisible = false
+                };
+                Canvas.SetLeft(outlinePath, lineLeft);
+                Canvas.SetTop(outlinePath, y);
+                host.Children.Add(outlinePath);
+            }
+
+            var fillPath = new System.Windows.Shapes.Path
+            {
+                Data = geo,
+                Fill = fill,
+                Stroke = null,
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(fillPath, lineLeft);
+            Canvas.SetTop(fillPath, y);
+            host.Children.Add(fillPath);
+            y += height + lineGap;
+        }
+    }
+
+    void UpdateFaceCuePulses(DateTime now)
+    {
+        var wave = 0.5 + 0.5 * Math.Sin(now.TimeOfDay.TotalSeconds * (Math.PI * 2 / 1.4));
+        var opacityFactor = 0.38 + 0.62 * wave;
+        if (_discordCue != null && _discordCuePulses)
+            _discordCue.Opacity = _discordCuePeak * opacityFactor;
+        if (_lastChanceCue != null && _lastChanceCuePulses)
+            _lastChanceCue.Opacity = _lastChanceCuePeak * opacityFactor;
+    }
+
+    static double CuePeak(double opacity, double fallback) =>
+        Math.Clamp(opacity <= 0 ? fallback : opacity, 0.05, 1);
 
     SolidColorBrush BrushFromHex(string hex, byte alpha)
     {

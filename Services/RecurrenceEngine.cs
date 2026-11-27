@@ -25,6 +25,89 @@ public static class RecurrenceEngine
         return TimeSpan.Zero;
     }
 
+    /// <summary>End of the work window for a period that starts at <paramref name="start"/>. Null if no due-by.</summary>
+    public static DateTime? ResolveDueBy(DateTime start, string? dueByTime)
+    {
+        if (string.IsNullOrWhiteSpace(dueByTime))
+            return null;
+        if (!TimeSpan.TryParse(dueByTime.Trim(), out var t) || t < TimeSpan.Zero || t >= TimeSpan.FromDays(1))
+            return null;
+        var due = start.Date + t;
+        if (due <= start)
+            due = due.AddDays(1);
+        return due;
+    }
+
+    public static DateTime? ResolveDueBy(Recurrence r, DateTime start) =>
+        ResolveDueBy(start, r.DueByTime);
+
+    /// <summary>Scheduled start and optional due-by for the clock face (true times, not “active now”).</summary>
+    public static bool TryClockWindow(TodoItem todo, DateTime now, out DateTime start, out DateTime? dueBy)
+    {
+        start = default;
+        dueBy = null;
+        if (!todo.Enabled || todo.UnknownDate)
+            return false;
+
+        var state = EvaluateTodo(todo, now);
+        if (todo.Recurrence.Kind is RecurrenceKind.AfterCompletion or RecurrenceKind.AfterCompletionHours)
+        {
+            if (!state.Visible)
+                return false;
+            if (state.IsComplete)
+            {
+                if (state.NextChange is not DateTime next)
+                    return false;
+                start = next;
+                dueBy = ResolveDueBy(todo.Recurrence, start);
+                return true;
+            }
+
+            // Already due. The clock marks it at now, same as the list.
+            start = now;
+            return true;
+        }
+
+        if (!state.Visible)
+            return false;
+
+        if (state.IsComplete)
+        {
+            if (state.NextChange is not DateTime next)
+                return false;
+            start = next;
+            dueBy = ResolveDueBy(todo.Recurrence, start);
+            return true;
+        }
+
+        var first = FirstDue(todo);
+        if (now < first)
+        {
+            start = first;
+            dueBy = ResolveDueBy(todo.Recurrence, start);
+            return true;
+        }
+
+        var periodStart = OnOrBefore(todo, now) ?? first;
+        if (periodStart < FirstPeriodStart(todo))
+            periodStart = FirstPeriodStart(todo);
+        start = periodStart;
+        dueBy = ResolveDueBy(todo.Recurrence, start);
+        return true;
+    }
+
+    public static bool TryClockWindow(EventItem ev, out DateTime start, out DateTime? dueBy)
+    {
+        start = default;
+        dueBy = null;
+        if (ev.CompletedAt != null || ev.At is not DateTime when)
+            return false;
+        start = when;
+        if (ev.DueBy is DateTime end && end > when)
+            dueBy = end;
+        return true;
+    }
+
     public static DateTime Combine(DateTime date, TimeSpan time) => date.Date + time;
 
     public static TodoEvaluation EvaluateTodo(TodoItem todo, DateTime now)
@@ -151,10 +234,32 @@ public static class RecurrenceEngine
         if (t.TotalHours >= 48)
             return $"{(int)t.TotalDays}d";
         if (t.TotalHours >= 1)
-            return $"{(int)t.TotalHours}h";
+            return FormatQuarterHours(t.TotalHours);
         if (t.TotalMinutes >= 10)
             return $"{(int)t.TotalMinutes}m";
         return $"{(int)t.TotalMinutes}:{t.Seconds:D2}";
+    }
+
+    /// <summary>Nearest quarter hour, using ¼ ½ ¾ with no space: 1¾h.</summary>
+    static string FormatQuarterHours(double hours)
+    {
+        var quarters = (int)Math.Round(hours * 4, MidpointRounding.AwayFromZero);
+        if (quarters < 1)
+            quarters = 1;
+        var whole = quarters / 4;
+        var frac = quarters % 4;
+        var fracText = frac switch
+        {
+            1 => "¼",
+            2 => "½",
+            3 => "¾",
+            _ => ""
+        };
+        if (whole == 0)
+            return fracText + "h";
+        if (frac == 0)
+            return $"{whole}h";
+        return $"{whole}{fracText}h";
     }
 
     public static string FormatRemainingLong(DateTime at, DateTime now)
@@ -299,7 +404,7 @@ public static class RecurrenceEngine
         var time = FormatTime(GetTime(r));
         var n = IntervalUnits(r);
         var hours = IntervalHoursValue(r);
-        return r.Kind switch
+        var core = r.Kind switch
         {
             RecurrenceKind.Daily => $"Daily at {time}",
             RecurrenceKind.EveryNDays => n == 1 ? $"Daily at {time}" : $"Every {n} days at {time}",
@@ -314,6 +419,11 @@ public static class RecurrenceEngine
             RecurrenceKind.AfterCompletionHours => FormatHoursAfter(hours),
             _ => "Recurring"
         };
+        if (r.Kind is RecurrenceKind.AfterCompletion or RecurrenceKind.AfterCompletionHours)
+            return core;
+        if (ResolveDueBy(DateTime.Today + GetTime(r), r.DueByTime) is DateTime due)
+            return $"{core}, due by {FormatTime(due.TimeOfDay)}";
+        return core;
     }
 
     // auto model

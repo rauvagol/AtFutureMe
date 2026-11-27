@@ -36,7 +36,13 @@ public sealed class OverlayItemVm : INotifyPropertyChanged
     public string Title
     {
         get => _title;
-        set { _title = value; OnPropertyChanged(); }
+        set
+        {
+            if (_title == value)
+                return;
+            _title = value;
+            OnPropertyChanged();
+        }
     }
 
     string? _url;
@@ -57,6 +63,8 @@ public sealed class OverlayItemVm : INotifyPropertyChanged
 
     public bool HasLink => !string.IsNullOrWhiteSpace(_url);
     public string? HitTag => HasLink ? "hit" : null;
+    public string? FocusExePath { get; set; }
+    public string? FocusWindowTitle { get; set; }
 
     string _meta = "";
     public string Meta
@@ -82,49 +90,104 @@ public sealed class OverlayItemVm : INotifyPropertyChanged
     public bool IsChecked
     {
         get => _isChecked;
-        set { _isChecked = value; OnPropertyChanged(); }
+        set
+        {
+            if (_isChecked == value)
+                return;
+            _isChecked = value;
+            OnPropertyChanged();
+        }
     }
 
     bool _showCheck = true;
     public bool ShowCheck
     {
         get => _showCheck;
-        set { _showCheck = value; OnPropertyChanged(); }
+        set
+        {
+            if (_showCheck == value)
+                return;
+            _showCheck = value;
+            OnPropertyChanged();
+        }
     }
 
     bool _checkEnabled = true;
     public bool CheckEnabled
     {
         get => _checkEnabled;
-        set { _checkEnabled = value; OnPropertyChanged(); }
+        set
+        {
+            if (_checkEnabled == value)
+                return;
+            _checkEnabled = value;
+            OnPropertyChanged();
+        }
     }
 
     bool _showCheckIn;
     public bool ShowCheckIn
     {
         get => _showCheckIn;
-        set { _showCheckIn = value; OnPropertyChanged(); }
+        set
+        {
+            if (_showCheckIn == value)
+                return;
+            _showCheckIn = value;
+            OnPropertyChanged();
+        }
+    }
+
+    bool _showDelay12;
+    public bool ShowDelay12
+    {
+        get => _showDelay12;
+        set
+        {
+            if (_showDelay12 == value)
+                return;
+            _showDelay12 = value;
+            OnPropertyChanged();
+        }
     }
 
     bool _showSetWhen;
     public bool ShowSetWhen
     {
         get => _showSetWhen;
-        set { _showSetWhen = value; OnPropertyChanged(); }
+        set
+        {
+            if (_showSetWhen == value)
+                return;
+            _showSetWhen = value;
+            OnPropertyChanged();
+        }
     }
 
     bool _showTrash;
     public bool ShowTrash
     {
         get => _showTrash;
-        set { _showTrash = value; OnPropertyChanged(); }
+        set
+        {
+            if (_showTrash == value)
+                return;
+            _showTrash = value;
+            OnPropertyChanged();
+        }
     }
 
     bool _showDelete;
     public bool ShowDelete
     {
         get => _showDelete;
-        set { _showDelete = value; OnPropertyChanged(); }
+        set
+        {
+            if (_showDelete == value)
+                return;
+            _showDelete = value;
+            OnPropertyChanged();
+        }
     }
 
     public bool IsNote => ItemKind == "note";
@@ -133,7 +196,13 @@ public sealed class OverlayItemVm : INotifyPropertyChanged
     public FontWeight TitleWeight
     {
         get => _titleWeight;
-        set { _titleWeight = value; OnPropertyChanged(); }
+        set
+        {
+            if (_titleWeight == value)
+                return;
+            _titleWeight = value;
+            OnPropertyChanged();
+        }
     }
 
     bool _showBackdrop;
@@ -142,6 +211,8 @@ public sealed class OverlayItemVm : INotifyPropertyChanged
         get => _showBackdrop;
         set
         {
+            if (_showBackdrop == value)
+                return;
             _showBackdrop = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(BackdropVisibility));
@@ -155,21 +226,40 @@ public sealed class OverlayItemVm : INotifyPropertyChanged
     public Brush BackdropBrush
     {
         get => _backdropBrush;
-        set { _backdropBrush = value; OnPropertyChanged(); }
+        set
+        {
+            if (ReferenceEquals(_backdropBrush, value))
+                return;
+            _backdropBrush = value;
+            OnPropertyChanged();
+        }
     }
 
     Brush _foreground = Brushes.White;
     public Brush Foreground
     {
         get => _foreground;
-        set { _foreground = value; OnPropertyChanged(); }
+        set
+        {
+            if (ReferenceEquals(_foreground, value))
+                return;
+            _foreground = value;
+            OnPropertyChanged();
+        }
     }
 
     bool _strikethrough;
     public bool Strikethrough
     {
         get => _strikethrough;
-        set { _strikethrough = value; OnPropertyChanged(); OnPropertyChanged(nameof(Decorations)); }
+        set
+        {
+            if (_strikethrough == value)
+                return;
+            _strikethrough = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(Decorations));
+        }
     }
 
     public TextDecorationCollection? Decorations
@@ -237,7 +327,13 @@ public sealed class CategorySectionVm : INotifyPropertyChanged
     public bool ShowButtons
     {
         get => _showButtons;
-        set { _showButtons = value; OnPropertyChanged(); }
+        set
+        {
+            if (_showButtons == value)
+                return;
+            _showButtons = value;
+            OnPropertyChanged();
+        }
     }
 
     public System.Collections.ObjectModel.ObservableCollection<OverlayItemVm> Items { get; } = [];
@@ -251,6 +347,8 @@ public sealed class CategorySectionVm : INotifyPropertyChanged
         get => _depth;
         set
         {
+            if (_depth == value)
+                return;
             _depth = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(BlockMargin));

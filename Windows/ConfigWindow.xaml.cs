@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Globalization;
 using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -152,6 +153,8 @@ public partial class ConfigWindow : Window
         WireClockColor(ClockColorRecurringRow, (s, hex) => s.ClockColorRecurring = hex);
         WireClockColor(ClockColorScheduledRow, (s, hex) => s.ClockColorScheduled = hex);
         WireClockColor(ClockColorDueRow, (s, hex) => s.ClockColorDue = hex);
+        WireClockColor(ClockWindowOpenColorRow, (s, hex) => s.ClockWindowOpenColor = hex);
+        WireClockColor(ClockWindowLastColorRow, (s, hex) => s.ClockWindowLastColor = hex);
         WireClockColor(ClockColorCaretRow, (s, hex) => s.ClockColorCaret = hex);
         WireClockColor(ClockColorRingRow, (s, hex) => s.ClockColorRing = hex);
         WireClockColor(ClockColorMajorTickRow, (s, hex) => s.ClockColorMajorTick = hex);
@@ -163,6 +166,27 @@ public partial class ConfigWindow : Window
         WireClockColor(ClockColorTimeOutlineRow, (s, hex) => s.ClockColorTimeOutline = hex);
         WireClockColorOptional(ClockColorFaceRow, (s, hex) => s.ClockColorFace = hex ?? "");
         WireClockColor(ClockColorAttentionRow, (s, hex) => s.ClockColorAttention = hex);
+        WireClockColor(DiscordClockColorRow, (s, hex) => s.DiscordClockColor = hex);
+        WireClockColor(DiscordClockTextColorRow, (s, hex) => s.DiscordClockTextColor = hex);
+        WireClockColor(DiscordMissingClockColorRow, (s, hex) => s.DiscordMissingClockColor = hex);
+        if (DiscordNameColorRow != null)
+            DiscordNameColorRow.Bind("Cue color", "#5865F2", "#5865F2", false);
+        if (DiscordNameColorTextRow != null)
+        {
+            DiscordNameColorTextRow.Bind("Text color (optional)", "#E8EAED", null, true);
+            DiscordNameColorTextRow.ColorCommitted += (_, _) => UpdateDiscordNameColorOutlineChrome();
+        }
+        if (DiscordNameColorOutlineRow != null)
+        {
+            DiscordNameColorOutlineRow.Bind("Outline (optional)", "#000000", null, true);
+            DiscordNameColorOutlineRow.ColorCommitted += (_, _) => UpdateDiscordNameColorOutlineChrome();
+        }
+        if (DiscordNameColorOutlineStrengthSlider != null)
+            DiscordNameColorOutlineStrengthSlider.Value = 2;
+        if (DiscordNameColorTextSizeSlider != null)
+            DiscordNameColorTextSizeSlider.Value = 14;
+        UpdateDiscordNameColorOutlineChrome();
+        UpdateDiscordNameColorTextSizeChrome();
         WireClockColor(ClockGearColorRow, (s, hex) => s.ClockGearColor = hex);
         WireClockColorOptional(ClockGearCompoundColorRow, (s, hex) => s.ClockGearCompoundColor = hex ?? "");
         WireClockColorOptional(ClockGearPlanetColorRow, (s, hex) => s.ClockGearPlanetColor = hex ?? "");
@@ -183,6 +207,27 @@ public partial class ConfigWindow : Window
         AppLayoutHideBox.Items.Add("Leave hide as-is");
         AppLayoutHideBox.Items.Add("Hide main overlay");
         AppLayoutHideBox.Items.Add("Hide all overlays");
+        AppLayoutClockBox.Items.Add("Show main clock");
+        AppLayoutClockBox.Items.Add("Show lightweight clock");
+        AppLayoutClockBox.Items.Add("Show no clock");
+        MiniClockHoursBox.Items.Add("5 minutes");
+        MiniClockHoursBox.Items.Add("10 minutes");
+        MiniClockHoursBox.Items.Add("15 minutes");
+        MiniClockHoursBox.Items.Add("30 minutes");
+        MiniClockHoursBox.Items.Add("1 hour");
+        MiniClockHoursBox.Items.Add("2 hours");
+        MiniClockHoursBox.Items.Add("4 hours");
+        MiniClockHoursBox.Items.Add("6 hours");
+        MiniClockHoursBox.Items.Add("8 hours");
+        MiniClockHoursBox.Items.Add("12 hours");
+        MiniClockHoursBox.Items.Add("24 hours");
+        MiniClockHideBox.Items.Add("Never — stay visible");
+        MiniClockHideBox.Items.Add("5 seconds");
+        MiniClockHideBox.Items.Add("10 seconds");
+        MiniClockHideBox.Items.Add("15 seconds");
+        MiniClockHideBox.Items.Add("30 seconds");
+        MiniClockHideBox.Items.Add("60 seconds");
+        MiniClockHideBox.Items.Add("2 minutes");
         BindAppLayouts();
         AppHost.Instance.UiChanged += RefreshUpcomingScheduled;
         Closed += (_, _) =>
@@ -191,13 +236,17 @@ public partial class ConfigWindow : Window
             AppHost.Instance.RequestSave();
         };
         _loading = false;
+        BuildSettingsNav();
     }
 
     public void FocusItem(string itemKind, string id)
     {
         _layoutKind = itemKind;
         _layoutId = id;
-        MainTabs.SelectedIndex = 0;
+        if (SettingsSearch != null && SettingsSearch.Text.Length > 0)
+            SettingsSearch.Text = "";
+        if (!SelectSettingsPage(p => ReferenceEquals(p.Tab, MainTabs.Items[0])))
+            MainTabs.SelectedIndex = 0;
         _layoutSelection = [(itemKind, id)];
         _layoutAnchorKind = itemKind;
         _layoutAnchorId = id;
@@ -844,6 +893,43 @@ public partial class ConfigWindow : Window
         return null;
     }
 
+    /// <summary>
+    /// Nested ListBoxes swallow the wheel; scroll the list only when it can move,
+    /// otherwise forward to the enclosing page ScrollViewer.
+    /// </summary>
+    void NestedListPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (e.Handled || sender is not DependencyObject source)
+            return;
+        var inner = FindVisualChild<ScrollViewer>(source);
+        if (inner != null)
+        {
+            var canUp = e.Delta > 0 && inner.VerticalOffset > 0.5;
+            var canDown = e.Delta < 0 && inner.VerticalOffset < inner.ScrollableHeight - 0.5;
+            if (canUp || canDown)
+                return;
+        }
+
+        var outer = FindVisualParent<ScrollViewer>(source);
+        if (outer == null || ReferenceEquals(outer, inner))
+            return;
+        e.Handled = true;
+        outer.ScrollToVerticalOffset(
+            Math.Clamp(outer.VerticalOffset - e.Delta, 0, outer.ScrollableHeight));
+    }
+
+    static T? FindVisualParent<T>(DependencyObject? current) where T : DependencyObject
+    {
+        while (current != null)
+        {
+            if (current is T hit)
+                return hit;
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
+    }
+
     void SyncLayoutNode(string kind, string id, string title, string meta)
     {
         if (FindLayout(kind, id) is not LayoutNode node)
@@ -956,6 +1042,149 @@ public partial class ConfigWindow : Window
         return string.IsNullOrEmpty(text) ? null : text;
     }
 
+    static bool IsBareSteamAppId(string? text)
+    {
+        text = text?.Trim() ?? "";
+        return text.Length > 0 && text.All(char.IsDigit);
+    }
+
+    static void SyncSteamUrlButtons(TextBox? box, FrameworkElement? panel)
+    {
+        if (panel == null || box == null)
+            return;
+        panel.Visibility = IsBareSteamAppId(box.Text) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    void PickFocusWindow(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string kind })
+            return;
+        var choice = FocusWindowPicker.Prompt(this);
+        if (choice == null)
+            return;
+        SetFocusWindow(kind, choice.Value.ExePath, choice.Value.Title);
+    }
+
+    void ClearFocusWindow(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string kind })
+            return;
+        SetFocusWindow(kind, null, null);
+    }
+
+    void SetFocusWindow(string kind, string? exePath, string? title)
+    {
+        switch (kind)
+        {
+            case "once" when SelectedOnce() is { } once:
+                once.FocusExePath = exePath;
+                once.FocusWindowTitle = title;
+                ShowFocusLabel(OnceFocusLabel, title);
+                break;
+            case "todo" when SelectedTodo() is { } todo:
+                todo.FocusExePath = exePath;
+                todo.FocusWindowTitle = title;
+                ShowFocusLabel(TodoFocusLabel, title);
+                break;
+            case "event" when SelectedEvent() is { } ev:
+                ev.FocusExePath = exePath;
+                ev.FocusWindowTitle = title;
+                ShowFocusLabel(EventFocusLabel, title);
+                break;
+            case "note" when SelectedNote() is { } note:
+                note.FocusExePath = exePath;
+                note.FocusWindowTitle = title;
+                ShowFocusLabel(NoteFocusLabel, title);
+                break;
+            default:
+                return;
+        }
+
+        FlushOverlay();
+    }
+
+    static void ShowFocusLabel(TextBlock? label, string? title)
+    {
+        if (label == null)
+            return;
+        label.Text = string.IsNullOrWhiteSpace(title) ? "Automatic" : title;
+    }
+
+    async void ConvertUrlToSteam(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement el || el.Tag is not string format)
+            return;
+        var box = SteamUrlBoxFor(el);
+        if (box == null)
+            return;
+        var id = box.Text.Trim();
+        if (!IsBareSteamAppId(id))
+            return;
+        var prefix = format switch
+        {
+            "rungameid" => "steam://rungameid/",
+            "store" => "steam://store/",
+            "appnews" => "steam://appnews/",
+            "library" => "steam://nav/games/details/",
+            _ => null
+        };
+        if (prefix == null)
+            return;
+
+        var panel = FindSteamUrlPanel(el);
+        if (panel != null)
+            panel.IsEnabled = false;
+        try
+        {
+            var targetId = await SteamAppInfo.ResolveForFormatAsync(id, format);
+            if (box.Text.Trim() != id)
+                return;
+            box.Text = prefix + targetId;
+        }
+        finally
+        {
+            if (panel != null)
+                panel.IsEnabled = true;
+        }
+    }
+
+    static FrameworkElement? FindSteamUrlPanel(DependencyObject from)
+    {
+        var current = from;
+        while (current != null)
+        {
+            if (current is FrameworkElement { Name: "OnceUrlSteam" or "TodoUrlSteam" or "EventUrlSteam" or "NoteUrlSteam" } panel)
+                return panel;
+            current = System.Windows.Media.VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
+    }
+
+    TextBox? SteamUrlBoxFor(DependencyObject from)
+    {
+        var current = from;
+        while (current != null)
+        {
+            if (current is FrameworkElement { Name: string name } && name.Length > 0)
+            {
+                var box = name switch
+                {
+                    "OnceUrlSteam" => OnceUrl,
+                    "TodoUrlSteam" => TodoUrl,
+                    "EventUrlSteam" => EventUrl,
+                    "NoteUrlSteam" => NoteUrl,
+                    _ => null
+                };
+                if (box != null)
+                    return box;
+            }
+            current = System.Windows.Media.VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
+    }
+
     void SelectTask(string kind, string id)
     {
         if (TaskList.ItemsSource is not IEnumerable<ConfigTask> rows)
@@ -1008,6 +1237,93 @@ public partial class ConfigWindow : Window
             DeleteLayout(sender, e);
             e.Handled = true;
         }
+        else if (e.Key == Key.D && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            DuplicateLayout(sender, e);
+            e.Handled = true;
+        }
+    }
+
+    void DuplicateLayout(object sender, RoutedEventArgs e)
+    {
+        var selected = SelectedLayoutItems()
+            .Where(n => n.Kind is "once" or "todo" or "event" or "note")
+            .ToList();
+        if (selected.Count == 0)
+        {
+            if (_layoutKind is "once" or "todo" or "event" or "note" && _layoutId != null)
+                selected = [new LayoutNode { Kind = _layoutKind, Id = _layoutId }];
+            else
+            {
+                ShowLayoutHint("Select a task to duplicate.");
+                return;
+            }
+        }
+
+        var data = AppHost.Instance.Data;
+        var created = new List<(string Kind, string Id)>();
+        foreach (var node in selected)
+        {
+            switch (node.Kind)
+            {
+                case "once":
+                {
+                    var source = data.Once.FirstOrDefault(t => t.Id == node.Id);
+                    if (source == null)
+                        continue;
+                    var copy = source.Duplicate();
+                    data.Once.Add(copy);
+                    AppHost.Instance.TrackTaskAfter("once", copy.Id, "once", source.Id);
+                    created.Add(("once", copy.Id));
+                    break;
+                }
+                case "todo":
+                {
+                    var source = data.Todos.FirstOrDefault(t => t.Id == node.Id);
+                    if (source == null)
+                        continue;
+                    var copy = source.Duplicate();
+                    data.Todos.Add(copy);
+                    AppHost.Instance.TrackTaskAfter("todo", copy.Id, "todo", source.Id);
+                    created.Add(("todo", copy.Id));
+                    break;
+                }
+                case "event":
+                {
+                    var source = data.Events.FirstOrDefault(t => t.Id == node.Id);
+                    if (source == null)
+                        continue;
+                    var copy = source.Duplicate();
+                    data.Events.Add(copy);
+                    AppHost.Instance.TrackTaskAfter("event", copy.Id, "event", source.Id);
+                    created.Add(("event", copy.Id));
+                    break;
+                }
+                case "note":
+                {
+                    var source = data.Notes.FirstOrDefault(t => t.Id == node.Id);
+                    if (source == null)
+                        continue;
+                    var copy = source.Duplicate();
+                    data.Notes.Add(copy);
+                    AppHost.Instance.TrackTaskAfter("note", copy.Id, "note", source.Id);
+                    created.Add(("note", copy.Id));
+                    break;
+                }
+            }
+        }
+
+        if (created.Count == 0)
+            return;
+
+        _layoutSelection = created;
+        _layoutKind = created[0].Kind;
+        _layoutId = created[0].Id;
+        _layoutAnchorKind = _layoutKind;
+        _layoutAnchorId = _layoutId;
+        BindLists();
+        ApplySelectionUi();
+        FlushOverlay();
     }
 
     void DeleteLayout(object sender, RoutedEventArgs e)
@@ -1016,11 +1332,22 @@ public partial class ConfigWindow : Window
         if (selected.Count == 0)
         {
             if (_layoutKind is "once" or "todo" or "event" or "note")
+            {
+                if (!ConfirmDeleteSelection(DeletePromptForCurrent()))
+                    return;
                 DeleteTask(sender, e);
+            }
             else if (_layoutKind == "category")
+            {
+                if (!ConfirmDeleteSelection(DeletePromptForCurrent()))
+                    return;
                 DeleteCategory(sender, e);
+            }
             return;
         }
+
+        if (!ConfirmDeleteSelection(DeletePromptFor(selected)))
+            return;
 
         var data = AppHost.Instance.Data;
         foreach (var node in selected.Where(n => n.Kind is "once" or "todo" or "event" or "note"))
@@ -1076,6 +1403,38 @@ public partial class ConfigWindow : Window
         ShowTaskEditor(null);
         ShowLayoutHint("Select a task or folder to edit it.");
         FlushOverlay();
+    }
+
+    bool ConfirmDeleteSelection(string message) =>
+        MessageBox.Show(this, message, "AtFutureMe", MessageBoxButton.YesNo, MessageBoxImage.Warning)
+        == MessageBoxResult.Yes;
+
+    string DeletePromptForCurrent()
+    {
+        var title = FindLayout(_layoutKind, _layoutId)?.Title?.Trim();
+        if (string.IsNullOrEmpty(title))
+            title = _layoutKind == "category" ? "this folder" : "this task";
+        var kind = _layoutKind == "category" ? "folder" : "task";
+        return $"Delete {kind} \"{title}\"?";
+    }
+
+    static string DeletePromptFor(List<LayoutNode> selected)
+    {
+        if (selected.Count == 1)
+        {
+            var node = selected[0];
+            var title = string.IsNullOrWhiteSpace(node.Title) ? "this item" : node.Title.Trim();
+            var kind = node.Kind == "category" ? "folder" : "task";
+            return $"Delete {kind} \"{title}\"?";
+        }
+
+        var tasks = selected.Count(n => n.Kind is "once" or "todo" or "event" or "note");
+        var folders = selected.Count(n => n.Kind == "category");
+        if (folders == 0)
+            return $"Delete {tasks} selected tasks?";
+        if (tasks == 0)
+            return $"Delete {folders} selected folders?";
+        return $"Delete {selected.Count} selected items?";
     }
 
     void MoveLayoutUp(object sender, RoutedEventArgs e) => MoveLayout(-1);
@@ -1278,6 +1637,7 @@ public partial class ConfigWindow : Window
         // auto model
         LoadClockSettings(s);
         LoadUsageSettings(s);
+        LoadIntegrationPopouts(s);
     }
 
     // auto model
@@ -1291,9 +1651,15 @@ public partial class ConfigWindow : Window
     // auto model
     void LoadClockSettings(AppSettings s)
     {
-        if (ClockModuleBox == null || ClockHorizonBox == null || ClockHorizonUnitBox == null)
+        if (ClockModuleBox == null || ClockHorizonBox == null)
             return;
         ClockModuleBox.IsChecked = s.ShowClockModule;
+        if (ClockStyleBox != null)
+            ClockStyleBox.SelectedIndex = s.LightweightClock ? 1 : 0;
+        if (MiniClockHoursBox != null)
+            MiniClockHoursBox.SelectedIndex = MiniClockHoursIndex(s.MiniClockHours);
+        if (MiniClockHideBox != null)
+            MiniClockHideBox.SelectedIndex = MiniClockHideIndex(s.MiniClockHideSeconds);
         if (ClockLockModeBox != null)
             ClockLockModeBox.SelectedIndex = (int)s.ClockLockMode;
         if (ClockKeepFaceBox != null)
@@ -1311,6 +1677,8 @@ public partial class ConfigWindow : Window
             ClockGearHideCarouselBox.IsChecked = s.ClockGearHideCarousel;
         LoadClockGearAnimSpeed(s.ClockGearAnimSpeed);
         LoadClockGearOpacity(s.ClockGearOpacity);
+        LoadClockGearRingOpacity(s.ClockGearRingOpacity);
+        LoadClockGearCompoundStyles(s);
         LoadClockGearCarriageStyle(s);
         if (ClockSecondHandBox != null)
             ClockSecondHandBox.IsChecked = s.ClockShowSecondHand;
@@ -1338,10 +1706,8 @@ public partial class ConfigWindow : Window
             if (ClockTimeFontSizeLabel != null)
                 ClockTimeFontSizeLabel.Text = $"{fs:0}";
         }
-        ClockHorizonUnitBox.SelectedIndex = s.ClockHorizonInHours ? 0 : 1;
-        var hours = s.ClockHorizonHours <= 0 ? 24 : s.ClockHorizonHours;
-        var amount = s.ClockHorizonInHours ? hours : hours / 24.0;
-        ClockHorizonBox.Text = amount.ToString("0.###", CultureInfo.CurrentCulture);
+        FillClockHorizonBox();
+        SelectClockHorizon(s.ClockHorizonHours <= 0 ? 24 : s.ClockHorizonHours);
         if (ClockHourFormatBox != null)
             ClockHourFormatBox.SelectedIndex = s.ClockUse12Hour ? 1 : 0;
         if (ClockTickStepBox != null)
@@ -1353,6 +1719,38 @@ public partial class ConfigWindow : Window
         LoadClockTickLength(ClockSecondHandLenSlider, ClockSecondHandLenLabel, s.ClockSecondHandLength);
         LoadClockTickLength(ClockHourHandLenSlider, ClockHourHandLenLabel, s.ClockHourHandLength);
         LoadClockTickLength(ClockWedgeWidthSlider, ClockWedgeWidthLabel, s.ClockWedgeWidth);
+        if (ClockWedgeInnerModeBox != null)
+            ClockWedgeInnerModeBox.SelectedIndex = (int)s.ClockWedgeInnerMode;
+        if (ClockWedgeBlendBox != null)
+            ClockWedgeBlendBox.SelectedIndex = (int)s.ClockWedgeBlend;
+        LoadClockTickLength(ClockWedgeInnerSlider, ClockWedgeInnerLabel, s.ClockWedgeInner);
+        LoadClockTickLength(ClockWedgeFadeSlider, ClockWedgeFadeLabel, s.ClockWedgeFade);
+        LoadClockTickLength(ClockWedgeFadeReachSlider, ClockWedgeFadeReachLabel, s.ClockWedgeFadeReach);
+        if (ClockWedgeInnerModeEndBox != null)
+            ClockWedgeInnerModeEndBox.SelectedIndex = (int)s.ClockWedgeInnerModeEnd;
+        LoadClockTickLength(ClockWedgeInnerEndSlider, ClockWedgeInnerEndLabel, s.ClockWedgeInnerEnd);
+        LoadClockTickLength(ClockWedgeFadeEndSlider, ClockWedgeFadeEndLabel, s.ClockWedgeFadeEnd);
+        LoadClockTickLength(ClockWedgeFadeReachEndSlider, ClockWedgeFadeReachEndLabel, s.ClockWedgeFadeReachEnd);
+        if (ClockWedgeEndWarnPercentSlider != null)
+        {
+            var pct = Math.Clamp(Math.Round(s.ClockWedgeEndWarnPercent * 100), 5, 95);
+            ClockWedgeEndWarnPercentSlider.Value = pct;
+            if (ClockWedgeEndWarnPercentLabel != null)
+                ClockWedgeEndWarnPercentLabel.Text = $"{pct:0}%";
+        }
+        if (ClockWedgeEndLastHoursSlider != null)
+        {
+            var hours = Math.Clamp(s.ClockWedgeEndLastHours <= 0 ? 1 : s.ClockWedgeEndLastHours, 0.25, 12);
+            hours = Math.Round(hours * 4) / 4.0;
+            ClockWedgeEndLastHoursSlider.Value = hours;
+            if (ClockWedgeEndLastHoursLabel != null)
+                ClockWedgeEndLastHoursLabel.Text = hours == 1 ? "1 h" : $"{hours:0.##} h";
+        }
+        LoadClockTickLength(ClockWedgeOpacityRecurringSlider, ClockWedgeOpacityRecurringLabel, s.ClockWedgeOpacityRecurring);
+        LoadClockTickLength(ClockWedgeOpacityScheduledSlider, ClockWedgeOpacityScheduledLabel, s.ClockWedgeOpacityScheduled);
+        LoadClockTickLength(ClockWedgeOpacityDueSlider, ClockWedgeOpacityDueLabel, s.ClockWedgeOpacityDue);
+        LoadClockTickLength(ClockWindowOpenOpacitySlider, ClockWindowOpenOpacityLabel, s.ClockWindowOpenOpacity);
+        LoadClockTickLength(ClockWindowLastOpacitySlider, ClockWindowLastOpacityLabel, s.ClockWindowLastOpacity);
         if (ClockShowRecurringBox != null)
             ClockShowRecurringBox.IsChecked = s.ClockShowRecurring;
         if (ClockShowScheduledBox != null)
@@ -1381,11 +1779,14 @@ public partial class ConfigWindow : Window
         ClockColorCaretRow?.Bind("Now caret", s.ClockColorCaret, s.ClockColorCaret, false);
         ClockColorFaceRow?.Bind("Face fill (blank = match overlay panel)", "#202228", s.ClockColorFace, true);
         ClockColorAttentionRow?.Bind("Attention face tint", s.ClockColorAttention, s.ClockColorAttention, false);
+        DiscordClockColorRow?.Bind("Discord clock color", s.DiscordClockColor, s.DiscordClockColor, false);
+        DiscordClockTextColorRow?.Bind("Sender text color", s.DiscordClockTextColor, s.DiscordClockTextColor, false);
+        DiscordMissingClockColorRow?.Bind("Missing cue color", s.DiscordMissingClockColor, s.DiscordMissingClockColor, false);
         ClockGearColorRow?.Bind("Annulus / ring", s.ClockGearColor, s.ClockGearColor, false);
         ClockGearCompoundColorRow?.Bind(
-            "Compound (blank = darkened ring)", s.ClockGearColor, s.ClockGearCompoundColor, true);
+            "Compound large (blank = darkened ring)", s.ClockGearColor, s.ClockGearCompoundColor, true);
         ClockGearPlanetColorRow?.Bind(
-            "Planet (blank = ring)", s.ClockGearColor, s.ClockGearPlanetColor, true);
+            "Compound small / planet (blank = ring)", s.ClockGearColor, s.ClockGearPlanetColor, true);
         ClockGearIdlerColorRow?.Bind(
             "Idler (blank = ring)", s.ClockGearColor, s.ClockGearIdlerColor, true);
         ClockGearSunColorRow?.Bind(
@@ -1397,6 +1798,146 @@ public partial class ConfigWindow : Window
         ClockColorRecurringRow?.Bind("Recurring wedge", s.ClockColorRecurring, s.ClockColorRecurring, false);
         ClockColorScheduledRow?.Bind("Scheduled wedge", s.ClockColorScheduled, s.ClockColorScheduled, false);
         ClockColorDueRow?.Bind("Due wedge", s.ClockColorDue, s.ClockColorDue, false);
+        ClockWindowOpenColorRow?.Bind("Window just opened", s.ClockWindowOpenColor, s.ClockWindowOpenColor, false);
+        ClockWindowLastColorRow?.Bind("Last chance / overdue", s.ClockWindowLastColor, s.ClockWindowLastColor, false);
+        if (ClockWindowWarnPercentSlider != null)
+        {
+            var pct = Math.Clamp(Math.Round(s.ClockWindowWarnPercent * 100), 5, 95);
+            ClockWindowWarnPercentSlider.Value = pct;
+            if (ClockWindowWarnPercentLabel != null)
+                ClockWindowWarnPercentLabel.Text = $"{pct:0}%";
+        }
+        if (ClockWindowLastHoursSlider != null)
+        {
+            var hours = Math.Clamp(s.ClockWindowLastHours <= 0 ? 1 : s.ClockWindowLastHours, 0.25, 12);
+            hours = Math.Round(hours * 4) / 4.0;
+            ClockWindowLastHoursSlider.Value = hours;
+            if (ClockWindowLastHoursLabel != null)
+                ClockWindowLastHoursLabel.Text = hours == 1 ? "1 h" : $"{hours:0.##} h";
+        }
+        if (ClockWindowShowGradientBox != null)
+            ClockWindowShowGradientBox.IsChecked = s.ClockWindowShowGradient;
+        if (ClockWindowStartOnlyBox != null)
+            ClockWindowStartOnlyBox.IsChecked = s.ClockWindowStartOnly;
+        if (ClockLastChanceCueBox != null)
+            ClockLastChanceCueBox.SelectedIndex = (int)s.ClockLastChanceCue;
+        UpdateClockWindowBandChrome();
+    }
+
+    void ClockLastChanceCueChanged(object sender, EventArgs e)
+    {
+        if (_loading || ClockLastChanceCueBox == null || ClockLastChanceCueBox.SelectedIndex < 0)
+            return;
+        AppHost.Instance.Data.Settings.ClockLastChanceCue = (ClockLastChanceCue)ClockLastChanceCueBox.SelectedIndex;
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void ClockWindowWarnPercentChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || ClockWindowWarnPercentSlider == null)
+            return;
+        var pct = Math.Clamp(Math.Round(ClockWindowWarnPercentSlider.Value), 5, 95);
+        if (Math.Abs(ClockWindowWarnPercentSlider.Value - pct) > 0.01)
+            ClockWindowWarnPercentSlider.Value = pct;
+        AppHost.Instance.Data.Settings.ClockWindowWarnPercent = pct / 100.0;
+        if (ClockWindowWarnPercentLabel != null)
+            ClockWindowWarnPercentLabel.Text = $"{pct:0}%";
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void ClockWindowLastHoursChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || ClockWindowLastHoursSlider == null)
+            return;
+        var hours = Math.Clamp(Math.Round(ClockWindowLastHoursSlider.Value * 4) / 4.0, 0.25, 12);
+        if (Math.Abs(ClockWindowLastHoursSlider.Value - hours) > 0.001)
+            ClockWindowLastHoursSlider.Value = hours;
+        AppHost.Instance.Data.Settings.ClockWindowLastHours = hours;
+        if (ClockWindowLastHoursLabel != null)
+            ClockWindowLastHoursLabel.Text = hours == 1 ? "1 h" : $"{hours:0.##} h";
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void ClockWedgeEndWarnPercentChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || ClockWedgeEndWarnPercentSlider == null)
+            return;
+        var pct = Math.Clamp(Math.Round(ClockWedgeEndWarnPercentSlider.Value), 5, 95);
+        if (Math.Abs(ClockWedgeEndWarnPercentSlider.Value - pct) > 0.01)
+            ClockWedgeEndWarnPercentSlider.Value = pct;
+        var s = AppHost.Instance.Data.Settings;
+        s.ClockWedgeEndWarnPercent = pct / 100.0;
+        s.ClockWedgeEndInitialized = true;
+        if (ClockWedgeEndWarnPercentLabel != null)
+            ClockWedgeEndWarnPercentLabel.Text = $"{pct:0}%";
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void ClockWedgeEndLastHoursChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || ClockWedgeEndLastHoursSlider == null)
+            return;
+        var hours = Math.Clamp(Math.Round(ClockWedgeEndLastHoursSlider.Value * 4) / 4.0, 0.25, 12);
+        if (Math.Abs(ClockWedgeEndLastHoursSlider.Value - hours) > 0.001)
+            ClockWedgeEndLastHoursSlider.Value = hours;
+        var s = AppHost.Instance.Data.Settings;
+        s.ClockWedgeEndLastHours = hours;
+        s.ClockWedgeEndInitialized = true;
+        if (ClockWedgeEndLastHoursLabel != null)
+            ClockWedgeEndLastHoursLabel.Text = hours == 1 ? "1 h" : $"{hours:0.##} h";
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void UpdateClockWindowBandChrome()
+    {
+        // Gradient only matters when a band can appear (toggle off, or any open window).
+        if (ClockWindowShowGradientBox != null)
+            ClockWindowShowGradientBox.IsEnabled = true;
+    }
+
+    static void LoadItemClockOpacity(Slider? slider, TextBlock? label, double opacity)
+    {
+        if (slider == null)
+            return;
+        var pct = opacity <= 0
+            ? 100
+            : Math.Clamp(Math.Round(opacity * 100), 5, 100);
+        slider.Value = pct;
+        if (label != null)
+            label.Text = $"{pct:0}%";
+    }
+
+    void TodoClockOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || TodoClockOpacitySlider == null || SelectedTodo() is not TodoItem item)
+            return;
+        var pct = Math.Clamp(Math.Round(TodoClockOpacitySlider.Value), 5, 100);
+        if (Math.Abs(TodoClockOpacitySlider.Value - pct) > 0.01)
+            TodoClockOpacitySlider.Value = pct;
+        item.ClockOpacity = pct / 100.0;
+        if (TodoClockOpacityLabel != null)
+            TodoClockOpacityLabel.Text = $"{pct:0}%";
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void EventClockOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || EventClockOpacitySlider == null || SelectedEvent() is not EventItem item)
+            return;
+        var pct = Math.Clamp(Math.Round(EventClockOpacitySlider.Value), 5, 100);
+        if (Math.Abs(EventClockOpacitySlider.Value - pct) > 0.01)
+            EventClockOpacitySlider.Value = pct;
+        item.ClockOpacity = pct / 100.0;
+        if (EventClockOpacityLabel != null)
+            EventClockOpacityLabel.Text = $"{pct:0}%";
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
     }
 
     // auto model
@@ -1781,6 +2322,776 @@ public partial class ConfigWindow : Window
         AppHost.Instance.RequestSave();
     }
 
+    void ClockStyleChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || ClockStyleBox == null || ClockStyleBox.SelectedIndex < 0)
+            return;
+        AppHost.Instance.Data.Settings.LightweightClock = ClockStyleBox.SelectedIndex == 1;
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    static readonly double[] MiniClockHourChoices = [5.0 / 60, 10.0 / 60, 15.0 / 60, 30.0 / 60, 1, 2, 4, 6, 8, 12, 24];
+
+    static int MiniClockHoursIndex(double hours)
+    {
+        var best = 0;
+        var bestGap = double.MaxValue;
+        for (var i = 0; i < MiniClockHourChoices.Length; i++)
+        {
+            var gap = Math.Abs(MiniClockHourChoices[i] - hours);
+            if (gap < bestGap)
+            {
+                bestGap = gap;
+                best = i;
+            }
+        }
+
+        return best;
+    }
+
+    void MiniClockHoursChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || MiniClockHoursBox == null || MiniClockHoursBox.SelectedIndex < 0)
+            return;
+        var index = Math.Clamp(MiniClockHoursBox.SelectedIndex, 0, MiniClockHourChoices.Length - 1);
+        AppHost.Instance.Data.Settings.MiniClockHours = MiniClockHourChoices[index];
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    static readonly double[] MiniClockHideChoices = [0, 5, 10, 15, 30, 60, 120];
+
+    static int MiniClockHideIndex(double seconds)
+    {
+        var best = 0;
+        var bestGap = double.MaxValue;
+        for (var i = 0; i < MiniClockHideChoices.Length; i++)
+        {
+            var gap = Math.Abs(MiniClockHideChoices[i] - seconds);
+            if (gap < bestGap)
+            {
+                bestGap = gap;
+                best = i;
+            }
+        }
+
+        return best;
+    }
+
+    void MiniClockHideChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || MiniClockHideBox == null || MiniClockHideBox.SelectedIndex < 0)
+            return;
+        var index = Math.Clamp(MiniClockHideBox.SelectedIndex, 0, MiniClockHideChoices.Length - 1);
+        AppHost.Instance.Data.Settings.MiniClockHideSeconds = MiniClockHideChoices[index];
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void LoadIntegrationPopouts(AppSettings s)
+    {
+        if (ClockStayWhenMainHiddenBox != null)
+            ClockStayWhenMainHiddenBox.IsChecked = s.ClockStayWhenMainHidden != false;
+        if (ClockKeepOnTopBox != null)
+            ClockKeepOnTopBox.IsChecked = s.ClockKeepOnTop != false;
+        if (DiscordModuleBox != null)
+            DiscordModuleBox.IsChecked = s.ShowDiscordModule;
+        if (DiscordStayWhenMainHiddenBox != null)
+            DiscordStayWhenMainHiddenBox.IsChecked = s.DiscordStayWhenMainHidden != false;
+        if (DiscordKeepOnTopBox != null)
+            DiscordKeepOnTopBox.IsChecked = s.DiscordKeepOnTop != false;
+        if (DiscordLockModeBox != null)
+            DiscordLockModeBox.SelectedIndex = (int)s.DiscordLockMode;
+        if (DiscordDisplayBox != null)
+            DiscordDisplayBox.SelectedIndex = (int)s.DiscordAlertDisplay;
+        if (DiscordClockCueBox != null)
+            DiscordClockCueBox.SelectedIndex = (int)s.DiscordClockCue;
+        if (DiscordClockSenderBox != null)
+            DiscordClockSenderBox.SelectedIndex = (int)s.DiscordClockSender;
+        if (DiscordClockNameOnlyBox != null)
+            DiscordClockNameOnlyBox.IsChecked = s.DiscordClockNameOnly;
+        if (DiscordInboxDebugBox != null)
+            DiscordInboxDebugBox.IsChecked = s.DiscordInboxDebug;
+        if (DiscordMissingClockCueBox != null)
+            DiscordMissingClockCueBox.SelectedIndex = (int)s.DiscordMissingClockCue;
+        if (DiscordMissingClockLabelBox != null)
+            DiscordMissingClockLabelBox.SelectedIndex = (int)s.DiscordMissingClockLabel;
+        LoadDiscordClockOpacity(s.DiscordClockOpacity);
+        LoadDiscordMissingClockOpacity(s.DiscordMissingClockOpacity);
+        LoadClockTickLength(DiscordClockRingInsetSlider, DiscordClockRingInsetLabel, s.DiscordClockRingInset);
+        RefreshDiscordAliasList();
+        RefreshDiscordNameColorList();
+        RefreshDiscordPriorityList();
+        LoadDiscordPrioritySoundUi(s);
+        UpdateDiscordDisplayChrome();
+    }
+
+    public void SyncDiscordInboxDebugBox()
+    {
+        if (DiscordInboxDebugBox == null)
+            return;
+        var on = AppHost.Instance.Data.Settings.DiscordInboxDebug;
+        if (DiscordInboxDebugBox.IsChecked == on)
+            return;
+        var was = _loading;
+        _loading = true;
+        DiscordInboxDebugBox.IsChecked = on;
+        _loading = was;
+    }
+
+    void DiscordInboxDebugChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        AppHost.Instance.Data.Settings.DiscordInboxDebug = DiscordInboxDebugBox?.IsChecked == true;
+        AppHost.Instance.RequestSave();
+        AppHost.Instance.SyncDiscordDebugWindow();
+    }
+
+    void IntegrationPopoutChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        if (ClockStayWhenMainHiddenBox != null)
+            s.ClockStayWhenMainHidden = ClockStayWhenMainHiddenBox.IsChecked == true;
+        if (ClockKeepOnTopBox != null)
+            s.ClockKeepOnTop = ClockKeepOnTopBox.IsChecked == true;
+        if (DiscordModuleBox != null)
+            s.ShowDiscordModule = DiscordModuleBox.IsChecked == true;
+        if (DiscordStayWhenMainHiddenBox != null)
+            s.DiscordStayWhenMainHidden = DiscordStayWhenMainHiddenBox.IsChecked == true;
+        if (DiscordKeepOnTopBox != null)
+            s.DiscordKeepOnTop = DiscordKeepOnTopBox.IsChecked == true;
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.SyncDiscordOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void DiscordLockChanged(object sender, EventArgs e)
+    {
+        if (_loading || DiscordLockModeBox == null || DiscordLockModeBox.SelectedIndex < 0)
+            return;
+        AppHost.Instance.Data.Settings.DiscordLockMode = (ClockLockMode)DiscordLockModeBox.SelectedIndex;
+        AppHost.Instance.SyncDiscordOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void DiscordDisplayChanged(object sender, EventArgs e)
+    {
+        if (_loading || DiscordDisplayBox == null || DiscordDisplayBox.SelectedIndex < 0)
+            return;
+        AppHost.Instance.Data.Settings.DiscordAlertDisplay = (DiscordAlertDisplay)DiscordDisplayBox.SelectedIndex;
+        UpdateDiscordDisplayChrome();
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.SyncDiscordOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void DiscordClockCueChanged(object sender, EventArgs e)
+    {
+        if (_loading || DiscordClockCueBox == null || DiscordClockCueBox.SelectedIndex < 0)
+            return;
+        AppHost.Instance.Data.Settings.DiscordClockCue = (DiscordClockCue)DiscordClockCueBox.SelectedIndex;
+        UpdateDiscordDisplayChrome();
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void DiscordClockSenderChanged(object sender, EventArgs e)
+    {
+        if (_loading || DiscordClockSenderBox == null || DiscordClockSenderBox.SelectedIndex < 0)
+            return;
+        AppHost.Instance.Data.Settings.DiscordClockSender = (DiscordClockSender)DiscordClockSenderBox.SelectedIndex;
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void DiscordClockNameOnlyChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        AppHost.Instance.Data.Settings.DiscordClockNameOnly = DiscordClockNameOnlyBox?.IsChecked == true;
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void DiscordMissingClockCueChanged(object sender, EventArgs e)
+    {
+        if (_loading || DiscordMissingClockCueBox == null || DiscordMissingClockCueBox.SelectedIndex < 0)
+            return;
+        AppHost.Instance.Data.Settings.DiscordMissingClockCue = (DiscordMissingClockCue)DiscordMissingClockCueBox.SelectedIndex;
+        UpdateDiscordDisplayChrome();
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void DiscordMissingClockLabelChanged(object sender, EventArgs e)
+    {
+        if (_loading || DiscordMissingClockLabelBox == null || DiscordMissingClockLabelBox.SelectedIndex < 0)
+            return;
+        AppHost.Instance.Data.Settings.DiscordMissingClockLabel = (DiscordClockSender)DiscordMissingClockLabelBox.SelectedIndex;
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void LoadDiscordMissingClockOpacity(double opacity)
+    {
+        if (DiscordMissingClockOpacitySlider == null)
+            return;
+        var pct = Math.Clamp(Math.Round(Math.Clamp(opacity <= 0 ? 0.7 : opacity, 0.1, 1) * 100), 10, 100);
+        DiscordMissingClockOpacitySlider.Value = pct;
+        if (DiscordMissingClockOpacityLabel != null)
+            DiscordMissingClockOpacityLabel.Text = $"{pct:0}%";
+    }
+
+    void DiscordMissingClockOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || DiscordMissingClockOpacitySlider == null)
+            return;
+        var pct = Math.Clamp(Math.Round(DiscordMissingClockOpacitySlider.Value), 10, 100);
+        if (Math.Abs(DiscordMissingClockOpacitySlider.Value - pct) > 0.01)
+            DiscordMissingClockOpacitySlider.Value = pct;
+        AppHost.Instance.Data.Settings.DiscordMissingClockOpacity = pct / 100.0;
+        if (DiscordMissingClockOpacityLabel != null)
+            DiscordMissingClockOpacityLabel.Text = $"{pct:0}%";
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    sealed class DiscordAliasRow
+    {
+        public required DiscordNameAlias Alias { get; init; }
+        public string Label => $"{Alias.From}  →  {Alias.To}";
+        public override string ToString() => Label;
+    }
+
+    void RefreshDiscordAliasList(DiscordNameAlias? select = null)
+    {
+        if (DiscordAliasList == null)
+            return;
+        var aliases = AppHost.Instance.Data.Settings.DiscordNameAliases ??= [];
+        DiscordAliasList.Items.Clear();
+        DiscordNameAlias? pick = select;
+        foreach (var alias in aliases)
+        {
+            if (string.IsNullOrWhiteSpace(alias.From) || string.IsNullOrWhiteSpace(alias.To))
+                continue;
+            var row = new DiscordAliasRow { Alias = alias };
+            DiscordAliasList.Items.Add(row);
+            if (pick != null && ReferenceEquals(pick, alias))
+                DiscordAliasList.SelectedItem = row;
+        }
+    }
+
+    void DiscordAliasSelected(object sender, EventArgs e)
+    {
+        if (_loading || DiscordAliasList?.SelectedItem is not DiscordAliasRow row)
+            return;
+        if (DiscordAliasFromBox != null)
+            DiscordAliasFromBox.Text = row.Alias.From;
+        if (DiscordAliasToBox != null)
+            DiscordAliasToBox.Text = row.Alias.To;
+    }
+
+    void DiscordAliasAdd(object sender, RoutedEventArgs e)
+    {
+        var from = DiscordAliasFromBox?.Text.Trim().TrimStart('@') ?? "";
+        var to = DiscordAliasToBox?.Text.Trim() ?? "";
+        if (from.Length == 0 || to.Length == 0)
+            return;
+        var aliases = AppHost.Instance.Data.Settings.DiscordNameAliases ??= [];
+        var existing = aliases.FirstOrDefault(a =>
+            string.Equals(a.From.Trim().TrimStart('@'), from, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+            existing.To = to;
+        else
+        {
+            existing = new DiscordNameAlias { From = from, To = to };
+            aliases.Add(existing);
+        }
+        RefreshDiscordAliasList(existing);
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.SyncDiscordOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void DiscordAliasRemove(object sender, RoutedEventArgs e)
+    {
+        var aliases = AppHost.Instance.Data.Settings.DiscordNameAliases;
+        if (aliases == null)
+            return;
+        DiscordNameAlias? target = DiscordAliasList?.SelectedItem is DiscordAliasRow row
+            ? row.Alias
+            : aliases.FirstOrDefault(a =>
+                string.Equals(a.From.Trim().TrimStart('@'), DiscordAliasFromBox?.Text.Trim().TrimStart('@'), StringComparison.OrdinalIgnoreCase));
+        if (target == null)
+            return;
+        aliases.Remove(target);
+        if (DiscordAliasFromBox != null)
+            DiscordAliasFromBox.Text = "";
+        if (DiscordAliasToBox != null)
+            DiscordAliasToBox.Text = "";
+        RefreshDiscordAliasList();
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.SyncDiscordOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    sealed class DiscordNameColorItem
+    {
+        public required DiscordNameColor Entry { get; init; }
+        public string Label
+        {
+            get
+            {
+                var parts = new List<string> { Entry.Name, Entry.Color };
+                if (ColorText.TryNormalize(Entry.TextColor, out var text))
+                    parts.Add("text " + text);
+                if (Entry.TextSize > 0)
+                    parts.Add($"{Entry.TextSize:0}pt");
+                if (ColorText.TryNormalize(Entry.OutlineColor, out var outline))
+                    parts.Add("outline " + outline);
+                return string.Join("  ·  ", parts);
+            }
+        }
+        public override string ToString() => Label;
+    }
+
+    void RefreshDiscordNameColorList(DiscordNameColor? select = null)
+    {
+        if (DiscordNameColorList == null)
+            return;
+        var colors = AppHost.Instance.Data.Settings.DiscordNameColors ??= [];
+        DiscordNameColorList.Items.Clear();
+        DiscordNameColor? pick = select;
+        foreach (var entry in colors.OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(entry.Name))
+                continue;
+            var row = new DiscordNameColorItem { Entry = entry };
+            DiscordNameColorList.Items.Add(row);
+            if (pick != null && ReferenceEquals(pick, entry))
+                DiscordNameColorList.SelectedItem = row;
+        }
+    }
+
+    void BindDiscordNameColorEditor(DiscordNameColor? entry)
+    {
+        var s = AppHost.Instance.Data.Settings;
+        var cue = entry?.Color ?? s.DiscordClockColor;
+        DiscordNameColorRow?.Bind("Cue color", "#5865F2", ColorText.NormalizeOr(cue, "#5865F2"), false);
+        DiscordNameColorTextRow?.Bind(
+            "Text color (optional)",
+            ColorText.NormalizeOr(s.DiscordClockTextColor, "#E8EAED"),
+            ColorText.TryNormalize(entry?.TextColor, out var text) ? text : null,
+            true);
+        DiscordNameColorOutlineRow?.Bind(
+            "Outline (optional)",
+            "#000000",
+            ColorText.TryNormalize(entry?.OutlineColor, out var outline) ? outline : null,
+            true);
+        if (DiscordNameColorOutlineStrengthSlider != null)
+        {
+            var strength = Math.Clamp(entry?.OutlineStrength is > 0 and var n ? n : 2, 1, 6);
+            DiscordNameColorOutlineStrengthSlider.Value = strength;
+            if (DiscordNameColorOutlineStrengthLabel != null)
+                DiscordNameColorOutlineStrengthLabel.Text = $"{strength}";
+        }
+        var customSize = entry?.TextSize > 0;
+        var size = customSize
+            ? Math.Clamp(entry!.TextSize, 8, 48)
+            : Math.Clamp(Math.Max(11, s.FontSize - 1), 8, 48);
+        if (DiscordNameColorTextSizeBox != null)
+            DiscordNameColorTextSizeBox.IsChecked = customSize;
+        if (DiscordNameColorTextSizeSlider != null)
+        {
+            DiscordNameColorTextSizeSlider.Value = size;
+            if (DiscordNameColorTextSizeLabel != null)
+                DiscordNameColorTextSizeLabel.Text = $"{size:0}";
+        }
+        UpdateDiscordNameColorOutlineChrome();
+        UpdateDiscordNameColorTextSizeChrome();
+    }
+
+    void UpdateDiscordNameColorOutlineChrome()
+    {
+        if (DiscordNameColorOutlineStrengthRow == null)
+            return;
+        var hasOutline = DiscordNameColorOutlineRow?.OverrideHex != null;
+        DiscordNameColorOutlineStrengthRow.Visibility =
+            hasOutline ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    void UpdateDiscordNameColorTextSizeChrome()
+    {
+        if (DiscordNameColorTextSizeRow == null)
+            return;
+        DiscordNameColorTextSizeRow.Visibility =
+            DiscordNameColorTextSizeBox?.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    void DiscordNameColorTextSizeToggle(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        UpdateDiscordNameColorTextSizeChrome();
+    }
+
+    void DiscordNameColorTextSizeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || DiscordNameColorTextSizeSlider == null)
+            return;
+        var size = Math.Clamp(Math.Round(DiscordNameColorTextSizeSlider.Value), 8, 48);
+        if (Math.Abs(DiscordNameColorTextSizeSlider.Value - size) > 0.01)
+            DiscordNameColorTextSizeSlider.Value = size;
+        if (DiscordNameColorTextSizeLabel != null)
+            DiscordNameColorTextSizeLabel.Text = $"{size:0}";
+    }
+
+    void DiscordNameColorOutlineStrengthChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || DiscordNameColorOutlineStrengthSlider == null)
+            return;
+        var strength = (int)Math.Clamp(Math.Round(DiscordNameColorOutlineStrengthSlider.Value), 1, 6);
+        if (Math.Abs(DiscordNameColorOutlineStrengthSlider.Value - strength) > 0.01)
+            DiscordNameColorOutlineStrengthSlider.Value = strength;
+        if (DiscordNameColorOutlineStrengthLabel != null)
+            DiscordNameColorOutlineStrengthLabel.Text = $"{strength}";
+    }
+
+    void DiscordNameColorSelected(object sender, EventArgs e)
+    {
+        if (_loading || DiscordNameColorList?.SelectedItem is not DiscordNameColorItem row)
+            return;
+        if (DiscordNameColorNameBox != null)
+            DiscordNameColorNameBox.Text = row.Entry.Name;
+        BindDiscordNameColorEditor(row.Entry);
+    }
+
+    void DiscordNameColorAdd(object sender, RoutedEventArgs e)
+    {
+        var name = DiscordNameColorNameBox?.Text.Trim().TrimStart('@') ?? "";
+        if (name.Length == 0)
+            return;
+        var hex = ColorText.NormalizeOr(
+            DiscordNameColorRow?.OverrideHex
+            ?? AppHost.Instance.Data.Settings.DiscordClockColor,
+            "#5865F2");
+        var textHex = DiscordNameColorTextRow?.OverrideHex;
+        var outlineHex = DiscordNameColorOutlineRow?.OverrideHex;
+        var strength = DiscordNameColorOutlineStrengthSlider == null
+            ? 2
+            : (int)Math.Clamp(Math.Round(DiscordNameColorOutlineStrengthSlider.Value), 1, 6);
+        var textSize = DiscordNameColorTextSizeBox?.IsChecked == true && DiscordNameColorTextSizeSlider != null
+            ? Math.Clamp(Math.Round(DiscordNameColorTextSizeSlider.Value), 8, 48)
+            : 0;
+        var colors = AppHost.Instance.Data.Settings.DiscordNameColors ??= [];
+        var existing = colors.FirstOrDefault(c =>
+            string.Equals(c.Name.Trim().TrimStart('@'), name, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+        {
+            existing.Name = name;
+            existing.Color = hex;
+            existing.TextColor = textHex;
+            existing.OutlineColor = outlineHex;
+            existing.OutlineStrength = strength;
+            existing.TextSize = textSize;
+        }
+        else
+        {
+            existing = new DiscordNameColor
+            {
+                Name = name,
+                Color = hex,
+                TextColor = textHex,
+                OutlineColor = outlineHex,
+                OutlineStrength = strength,
+                TextSize = textSize
+            };
+            colors.Add(existing);
+        }
+
+        BindDiscordNameColorEditor(existing);
+        RefreshDiscordNameColorList(existing);
+        AppHost.Instance.Discord?.RefreshNow();
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.SyncDiscordOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void DiscordNameColorRemove(object sender, RoutedEventArgs e)
+    {
+        var colors = AppHost.Instance.Data.Settings.DiscordNameColors;
+        if (colors == null)
+            return;
+        DiscordNameColor? target = DiscordNameColorList?.SelectedItem is DiscordNameColorItem row
+            ? row.Entry
+            : colors.FirstOrDefault(c =>
+                string.Equals(c.Name.Trim().TrimStart('@'), DiscordNameColorNameBox?.Text.Trim().TrimStart('@'), StringComparison.OrdinalIgnoreCase));
+        if (target == null)
+            return;
+        colors.Remove(target);
+        if (DiscordNameColorNameBox != null)
+            DiscordNameColorNameBox.Text = "";
+        BindDiscordNameColorEditor(null);
+        RefreshDiscordNameColorList();
+        AppHost.Instance.Discord?.RefreshNow();
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.SyncDiscordOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void RefreshDiscordPriorityList(string? select = null)
+    {
+        if (DiscordPriorityList == null)
+            return;
+        var names = AppHost.Instance.Data.Settings.DiscordPriorityNames ??= [];
+        DiscordPriorityList.Items.Clear();
+        string? pick = select;
+        foreach (var name in names.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+        {
+            DiscordPriorityList.Items.Add(name);
+            if (pick != null && name.Equals(pick, StringComparison.OrdinalIgnoreCase))
+                DiscordPriorityList.SelectedItem = name;
+        }
+    }
+
+    void DiscordPrioritySelected(object sender, EventArgs e)
+    {
+        if (_loading || DiscordPriorityList?.SelectedItem is not string name)
+            return;
+        if (DiscordPriorityNameBox != null)
+            DiscordPriorityNameBox.Text = name;
+    }
+
+    void DiscordPriorityAdd(object sender, RoutedEventArgs e)
+    {
+        var name = DiscordPriorityNameBox?.Text.Trim().TrimStart('@') ?? "";
+        if (name.Length == 0)
+            return;
+        var names = AppHost.Instance.Data.Settings.DiscordPriorityNames ??= [];
+        var existing = names.FirstOrDefault(n => n.Equals(name, StringComparison.OrdinalIgnoreCase));
+        if (existing == null)
+            names.Add(name);
+        else
+            name = existing;
+        RefreshDiscordPriorityList(name);
+        AppHost.Instance.RequestSave();
+    }
+
+    void DiscordPriorityRemove(object sender, RoutedEventArgs e)
+    {
+        var names = AppHost.Instance.Data.Settings.DiscordPriorityNames;
+        if (names == null)
+            return;
+        var target = DiscordPriorityList?.SelectedItem as string
+            ?? names.FirstOrDefault(n =>
+                n.Equals(DiscordPriorityNameBox?.Text.Trim().TrimStart('@'), StringComparison.OrdinalIgnoreCase));
+        if (target == null)
+            return;
+        names.RemoveAll(n => n.Equals(target, StringComparison.OrdinalIgnoreCase));
+        if (DiscordPriorityNameBox != null)
+            DiscordPriorityNameBox.Text = "";
+        RefreshDiscordPriorityList();
+        AppHost.Instance.RequestSave();
+    }
+
+    void LoadDiscordPrioritySoundUi(AppSettings s)
+    {
+        if (DiscordPrioritySoundBox != null)
+        {
+            DiscordPrioritySoundBox.Items.Clear();
+            var pick = AlertSound.NormalizeId(s.DiscordPrioritySound);
+            foreach (var option in AlertSound.Options())
+            {
+                var item = new ComboBoxItem { Content = option.Label, Tag = option.Id };
+                DiscordPrioritySoundBox.Items.Add(item);
+                if (option.Id.Equals(pick, StringComparison.OrdinalIgnoreCase))
+                    DiscordPrioritySoundBox.SelectedItem = item;
+            }
+            if (DiscordPrioritySoundBox.SelectedItem == null && DiscordPrioritySoundBox.Items.Count > 0)
+                DiscordPrioritySoundBox.SelectedIndex = 0;
+        }
+
+        if (DiscordPriorityVolumeSlider != null)
+        {
+            var pct = Math.Clamp(Math.Round(s.DiscordPriorityVolume * 100), 0, 100);
+            DiscordPriorityVolumeSlider.Value = pct;
+            if (DiscordPriorityVolumeLabel != null)
+                DiscordPriorityVolumeLabel.Text = $"{pct:0}%";
+        }
+
+        if (DiscordPriorityRepeatBox != null)
+            DiscordPriorityRepeatBox.SelectedIndex = s.EffectiveDiscordPriorityRepeatMode();
+        if (DiscordPriorityIntervalSlider != null)
+        {
+            var minutes = Math.Clamp(Math.Round(s.DiscordPriorityIntervalMinutes <= 0 ? 5 : s.DiscordPriorityIntervalMinutes), 1, 60);
+            DiscordPriorityIntervalSlider.Value = minutes;
+            if (DiscordPriorityIntervalLabel != null)
+                DiscordPriorityIntervalLabel.Text = $"{minutes:0} min";
+        }
+        if (DiscordPriorityGraceSlider != null)
+        {
+            var grace = Math.Clamp(Math.Round(s.DiscordPriorityGraceMinutes <= 0 ? 10 : s.DiscordPriorityGraceMinutes), 1, 120);
+            DiscordPriorityGraceSlider.Value = grace;
+            if (DiscordPriorityGraceLabel != null)
+                DiscordPriorityGraceLabel.Text = $"{grace:0} min";
+        }
+
+        UpdateDiscordPriorityIntervalChrome();
+    }
+
+    void DiscordPrioritySoundChanged(object sender, EventArgs e)
+    {
+        if (_loading || DiscordPrioritySoundBox?.SelectedItem is not ComboBoxItem { Tag: string id })
+            return;
+        AppHost.Instance.Data.Settings.DiscordPrioritySound = id;
+        AppHost.Instance.RequestSave();
+    }
+
+    void DiscordPriorityVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || DiscordPriorityVolumeSlider == null)
+            return;
+        var pct = Math.Clamp(Math.Round(DiscordPriorityVolumeSlider.Value), 0, 100);
+        if (Math.Abs(DiscordPriorityVolumeSlider.Value - pct) > 0.01)
+            DiscordPriorityVolumeSlider.Value = pct;
+        AppHost.Instance.Data.Settings.DiscordPriorityVolume = pct / 100.0;
+        if (DiscordPriorityVolumeLabel != null)
+            DiscordPriorityVolumeLabel.Text = $"{pct:0}%";
+        AppHost.Instance.RequestSave();
+    }
+
+    void DiscordPriorityRepeatChanged(object sender, EventArgs e)
+    {
+        if (_loading || DiscordPriorityRepeatBox == null || DiscordPriorityRepeatBox.SelectedIndex < 0)
+            return;
+        var mode = DiscordPriorityRepeatBox.SelectedIndex;
+        var s = AppHost.Instance.Data.Settings;
+        s.DiscordPriorityRepeatMode = mode;
+        s.DiscordPrioritySoundOnce = mode == 0;
+        UpdateDiscordPriorityIntervalChrome();
+        AppHost.Instance.RequestSave();
+    }
+
+    void DiscordPriorityIntervalChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || DiscordPriorityIntervalSlider == null)
+            return;
+        var minutes = Math.Clamp(Math.Round(DiscordPriorityIntervalSlider.Value), 1, 60);
+        if (Math.Abs(DiscordPriorityIntervalSlider.Value - minutes) > 0.01)
+            DiscordPriorityIntervalSlider.Value = minutes;
+        AppHost.Instance.Data.Settings.DiscordPriorityIntervalMinutes = minutes;
+        if (DiscordPriorityIntervalLabel != null)
+            DiscordPriorityIntervalLabel.Text = $"{minutes:0} min";
+        AppHost.Instance.RequestSave();
+    }
+
+    void DiscordPriorityGraceChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || DiscordPriorityGraceSlider == null)
+            return;
+        var minutes = Math.Clamp(Math.Round(DiscordPriorityGraceSlider.Value), 1, 120);
+        if (Math.Abs(DiscordPriorityGraceSlider.Value - minutes) > 0.01)
+            DiscordPriorityGraceSlider.Value = minutes;
+        AppHost.Instance.Data.Settings.DiscordPriorityGraceMinutes = minutes;
+        if (DiscordPriorityGraceLabel != null)
+            DiscordPriorityGraceLabel.Text = $"{minutes:0} min";
+        AppHost.Instance.RequestSave();
+    }
+
+    void UpdateDiscordPriorityIntervalChrome()
+    {
+        if (DiscordPriorityIntervalRow == null)
+            return;
+        var mode = AppHost.Instance.Data.Settings.EffectiveDiscordPriorityRepeatMode();
+        DiscordPriorityIntervalRow.Visibility = mode == 0 ? Visibility.Collapsed : Visibility.Visible;
+        if (DiscordPriorityGraceRow != null)
+            DiscordPriorityGraceRow.Visibility = mode == 2 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    void DiscordPriorityTestSound(object sender, RoutedEventArgs e)
+    {
+        var s = AppHost.Instance.Data.Settings;
+        AlertSound.Play(s.DiscordPrioritySound, s.DiscordPriorityVolume);
+    }
+
+    void LoadDiscordClockOpacity(double opacity)
+    {
+        if (DiscordClockOpacitySlider == null)
+            return;
+        var pct = Math.Clamp(Math.Round(Math.Clamp(opacity <= 0 ? 0.7 : opacity, 0.1, 1) * 100), 10, 100);
+        DiscordClockOpacitySlider.Value = pct;
+        if (DiscordClockOpacityLabel != null)
+            DiscordClockOpacityLabel.Text = $"{pct:0}%";
+    }
+
+    void DiscordClockOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || DiscordClockOpacitySlider == null)
+            return;
+        var pct = Math.Clamp(Math.Round(DiscordClockOpacitySlider.Value), 10, 100);
+        if (Math.Abs(DiscordClockOpacitySlider.Value - pct) > 0.01)
+            DiscordClockOpacitySlider.Value = pct;
+        AppHost.Instance.Data.Settings.DiscordClockOpacity = pct / 100.0;
+        if (DiscordClockOpacityLabel != null)
+            DiscordClockOpacityLabel.Text = $"{pct:0}%";
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void DiscordClockRingInsetChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || DiscordClockRingInsetSlider == null)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        s.DiscordClockRingInset = SnapClockUiPercent(DiscordClockRingInsetSlider.Value, 0.04, 0.55);
+        if (Math.Abs(DiscordClockRingInsetSlider.Value - s.DiscordClockRingInset) > 0.0001)
+            DiscordClockRingInsetSlider.Value = s.DiscordClockRingInset;
+        if (DiscordClockRingInsetLabel != null)
+            DiscordClockRingInsetLabel.Text = $"{s.DiscordClockRingInset * 100:0}%";
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void UpdateDiscordDisplayChrome()
+    {
+        var clock = AppHost.Instance.Data.Settings.DiscordAlertDisplay != DiscordAlertDisplay.Window;
+        var window = AppHost.Instance.Data.Settings.DiscordAlertDisplay != DiscordAlertDisplay.Clock;
+        if (DiscordClockCueBox != null)
+            DiscordClockCueBox.IsEnabled = clock;
+        if (DiscordClockColorRow != null)
+            DiscordClockColorRow.IsEnabled = clock;
+        if (DiscordClockTextColorRow != null)
+            DiscordClockTextColorRow.IsEnabled = clock;
+        if (DiscordClockOpacitySlider != null)
+            DiscordClockOpacitySlider.IsEnabled = clock;
+        if (DiscordClockSenderBox != null)
+            DiscordClockSenderBox.IsEnabled = clock;
+        if (DiscordClockNameOnlyBox != null)
+            DiscordClockNameOnlyBox.IsEnabled = clock;
+        if (DiscordMissingClockCueBox != null)
+            DiscordMissingClockCueBox.IsEnabled = clock;
+        if (DiscordMissingClockLabelBox != null)
+            DiscordMissingClockLabelBox.IsEnabled = clock;
+        if (DiscordMissingClockColorRow != null)
+            DiscordMissingClockColorRow.IsEnabled = clock;
+        if (DiscordMissingClockOpacitySlider != null)
+            DiscordMissingClockOpacitySlider.IsEnabled = clock;
+        if (DiscordClockRingInsetSlider != null)
+            DiscordClockRingInsetSlider.IsEnabled = clock
+                && (AppHost.Instance.Data.Settings.DiscordClockCue == DiscordClockCue.PulseRing
+                    || AppHost.Instance.Data.Settings.DiscordMissingClockCue == DiscordMissingClockCue.PulseRing);
+        if (DiscordStayWhenMainHiddenBox != null)
+            DiscordStayWhenMainHiddenBox.IsEnabled = window;
+        if (DiscordKeepOnTopBox != null)
+            DiscordKeepOnTopBox.IsEnabled = window;
+        if (DiscordLockModeBox != null)
+            DiscordLockModeBox.IsEnabled = window;
+    }
+
     // auto model
     void ClockFilterChanged(object sender, EventArgs e)
     {
@@ -1791,6 +3102,15 @@ public partial class ConfigWindow : Window
             s.ClockUse12Hour = ClockHourFormatBox.SelectedIndex == 1;
         if (ClockTickStepBox != null && ClockTickStepBox.SelectedIndex >= 0)
             s.ClockTickStep = (ClockTickStep)ClockTickStepBox.SelectedIndex;
+        if (ClockWedgeInnerModeBox != null && ClockWedgeInnerModeBox.SelectedIndex >= 0)
+            s.ClockWedgeInnerMode = (ClockWedgeInnerMode)ClockWedgeInnerModeBox.SelectedIndex;
+        if (ClockWedgeInnerModeEndBox != null && ClockWedgeInnerModeEndBox.SelectedIndex >= 0)
+        {
+            s.ClockWedgeInnerModeEnd = (ClockWedgeInnerMode)ClockWedgeInnerModeEndBox.SelectedIndex;
+            s.ClockWedgeEndInitialized = true;
+        }
+        if (ClockWedgeBlendBox != null && ClockWedgeBlendBox.SelectedIndex >= 0)
+            s.ClockWedgeBlend = (ClockWedgeBlend)ClockWedgeBlendBox.SelectedIndex;
         if (ClockShowRecurringBox != null)
             s.ClockShowRecurring = ClockShowRecurringBox.IsChecked == true;
         if (ClockShowScheduledBox != null)
@@ -1801,6 +3121,11 @@ public partial class ConfigWindow : Window
             s.ClockKeepFaceWhenLocked = ClockKeepFaceBox.IsChecked == true;
         if (ClockAttentionTintBox != null)
             s.ClockAttentionTint = ClockAttentionTintBox.IsChecked == true;
+        if (ClockWindowShowGradientBox != null)
+            s.ClockWindowShowGradient = ClockWindowShowGradientBox.IsChecked == true;
+        if (ClockWindowStartOnlyBox != null)
+            s.ClockWindowStartOnly = ClockWindowStartOnlyBox.IsChecked == true;
+        UpdateClockWindowBandChrome();
         if (ClockGearDebugLabelsBox != null)
             s.ClockGearDebugLabels = ClockGearDebugLabelsBox.IsChecked == true;
         if (ClockGearDebugRingCenterBox != null)
@@ -1942,6 +3267,409 @@ public partial class ConfigWindow : Window
             ClockGearOpacityLabel.Text = $"{pct:0}%";
     }
 
+    static readonly (ClockGearCompoundStyle Style, string Label)[] CompoundStyleChoices =
+    [
+        (ClockGearCompoundStyle.Solid, "Solid"),
+        (ClockGearCompoundStyle.Ring, "Ring (open web)"),
+        (ClockGearCompoundStyle.Holes, "Lightening holes"),
+        (ClockGearCompoundStyle.Spokes, "Spokes"),
+        (ClockGearCompoundStyle.Slots, "Arc slots")
+    ];
+
+    sealed class CompoundStageUi
+    {
+        public required StackPanel Root { get; init; }
+        public required ComboBox StyleBox { get; init; }
+        public required StackPanel SpokePanel { get; init; }
+        public required Slider Count { get; init; }
+        public required TextBlock CountValue { get; init; }
+        public required Slider Sweep { get; init; }
+        public required TextBlock SweepValue { get; init; }
+        public required Slider Width { get; init; }
+        public required TextBlock WidthValue { get; init; }
+        public required StackPanel HolePanel { get; init; }
+        public required Slider HoleCount { get; init; }
+        public required TextBlock HoleCountValue { get; init; }
+        public required Slider HoleSize { get; init; }
+        public required TextBlock HoleSizeValue { get; init; }
+        public required Slider HolePlace { get; init; }
+        public required TextBlock HolePlaceValue { get; init; }
+    }
+
+    CompoundStageUi[]? _compoundUi;
+
+    void LoadClockGearCompoundStyles(AppSettings s)
+    {
+        s.ClockGearCompoundStages ??= [];
+        while (s.ClockGearCompoundStages.Count < 5)
+        {
+            var seed = s.ClockGearCompoundStages.Count > 0
+                ? s.ClockGearCompoundStages[^1].Clone()
+                : ClockGearCompoundStage.FromLegacy(s);
+            s.ClockGearCompoundStages.Add(seed.Clamped());
+        }
+
+        EnsureCompoundStageUi();
+        if (_compoundUi == null)
+            return;
+
+        var prev = _loading;
+        _loading = true;
+        try
+        {
+            var live = s.ClockGearDriveMode != ClockGearDriveMode.Off;
+            for (var i = 0; i < _compoundUi.Length; i++)
+            {
+                var ui = _compoundUi[i];
+                ui.Root.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
+                var st = s.ClockGearCompoundStages[i].Clamped();
+                SelectCompoundStyle(ui.StyleBox, st.Style);
+                ui.SpokePanel.Visibility = st.Style == ClockGearCompoundStyle.Spokes
+                    ? Visibility.Visible : Visibility.Collapsed;
+                ui.Count.Value = st.SpokeCount;
+                ui.CountValue.Text = $"{st.SpokeCount}";
+                ui.Sweep.Value = st.SpokeSweepDeg;
+                ui.SweepValue.Text = $"{st.SpokeSweepDeg:0}°";
+                ui.Width.Value = Math.Round(st.SpokeWidth * 100);
+                ui.WidthValue.Text = $"{st.SpokeWidth * 100:0}%";
+                ui.HolePanel.Visibility = st.Style == ClockGearCompoundStyle.Holes
+                    ? Visibility.Visible : Visibility.Collapsed;
+                ui.HoleCount.Value = st.HoleCount;
+                ui.HoleCountValue.Text = $"{st.HoleCount}";
+                ui.HoleSize.Value = Math.Round(st.HoleSize * 100);
+                ui.HoleSizeValue.Text = $"{st.HoleSize * 100:0}%";
+                ui.HolePlace.Value = Math.Round(st.HolePlace * 100);
+                ui.HolePlaceValue.Text = $"{st.HolePlace * 100:0}%";
+            }
+        }
+        finally
+        {
+            _loading = prev;
+        }
+    }
+
+    void EnsureCompoundStageUi()
+    {
+        if (_compoundUi != null || ClockGearCompoundHost == null)
+            return;
+        _compoundUi = new CompoundStageUi[4];
+        for (var i = 0; i < _compoundUi.Length; i++)
+            _compoundUi[i] = BuildCompoundStageUi(i);
+    }
+
+    CompoundStageUi BuildCompoundStageUi(int index)
+    {
+        var comboStyle = (Style)FindResource("DarkCombo");
+        var root = new StackPanel { Margin = new Thickness(0, index == 0 ? 0 : 10, 0, 0) };
+        root.Children.Add(new TextBlock
+        {
+            Text = $"Ring {index + 1}",
+            Foreground = BrushHex("#9AA0A8"),
+            Margin = new Thickness(0, 0, 0, 4)
+        });
+
+        var styleBox = new ComboBox { Style = comboStyle, MaxDropDownHeight = 360 };
+        foreach (var choice in CompoundStyleChoices)
+            styleBox.Items.Add(new ComboBoxItem { Content = choice.Label, Tag = choice.Style });
+        styleBox.SelectedIndex = 0;
+        styleBox.SelectionChanged += (_, _) => CompoundStageChanged(index);
+        root.Children.Add(styleBox);
+
+        var spokePanel = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Visibility = Visibility.Collapsed };
+
+        var countValue = new TextBlock
+        {
+            Foreground = BrushHex("#9AA0A8"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+            MinWidth = 28,
+            Text = "5"
+        };
+        var countDock = new DockPanel();
+        DockPanel.SetDock(countValue, Dock.Right);
+        countDock.Children.Add(countValue);
+        countDock.Children.Add(new TextBlock
+        {
+            Text = "Spoke count",
+            Foreground = BrushHex("#9AA0A8"),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        spokePanel.Children.Add(countDock);
+        var count = new Slider
+        {
+            Minimum = 3, Maximum = 12, TickFrequency = 1, IsSnapToTickEnabled = true, Value = 5
+        };
+        count.PreviewMouseLeftButtonDown += SliderGoToClick;
+        count.MouseMove += SliderDrag;
+        count.MouseLeftButtonUp += SliderEndDrag;
+        count.LostMouseCapture += SliderEndDrag;
+        count.ValueChanged += (_, _) => CompoundStageChanged(index);
+        spokePanel.Children.Add(count);
+
+        spokePanel.Children.Add(new TextBlock
+        {
+            Text = "Spoke sweep",
+            Foreground = BrushHex("#9AA0A8"),
+            Margin = new Thickness(0, 8, 0, 4)
+        });
+        var sweepValue = new TextBlock
+        {
+            Foreground = BrushHex("#9AA0A8"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+            MinWidth = 40,
+            Text = "0°"
+        };
+        var sweepDock = new DockPanel();
+        DockPanel.SetDock(sweepValue, Dock.Right);
+        sweepDock.Children.Add(sweepValue);
+        sweepDock.Children.Add(new TextBlock
+        {
+            Text = "Outer-end shift",
+            Foreground = BrushHex("#9AA0A8"),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        spokePanel.Children.Add(sweepDock);
+        var sweep = new Slider
+        {
+            Minimum = -75, Maximum = 75, TickFrequency = 1, IsSnapToTickEnabled = true, Value = 0
+        };
+        sweep.PreviewMouseLeftButtonDown += SliderGoToClick;
+        sweep.MouseMove += SliderDrag;
+        sweep.MouseLeftButtonUp += SliderEndDrag;
+        sweep.LostMouseCapture += SliderEndDrag;
+        sweep.ValueChanged += (_, _) => CompoundStageChanged(index);
+        spokePanel.Children.Add(sweep);
+
+        var widthValue = new TextBlock
+        {
+            Foreground = BrushHex("#9AA0A8"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+            MinWidth = 40,
+            Text = "28%"
+        };
+        var widthDock = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
+        DockPanel.SetDock(widthValue, Dock.Right);
+        widthDock.Children.Add(widthValue);
+        widthDock.Children.Add(new TextBlock
+        {
+            Text = "Spoke width",
+            Foreground = BrushHex("#9AA0A8"),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        spokePanel.Children.Add(widthDock);
+        var width = new Slider
+        {
+            Minimum = 8, Maximum = 55, TickFrequency = 1, IsSnapToTickEnabled = true, Value = 28
+        };
+        width.PreviewMouseLeftButtonDown += SliderGoToClick;
+        width.MouseMove += SliderDrag;
+        width.MouseLeftButtonUp += SliderEndDrag;
+        width.LostMouseCapture += SliderEndDrag;
+        width.ValueChanged += (_, _) => CompoundStageChanged(index);
+        spokePanel.Children.Add(width);
+
+        root.Children.Add(spokePanel);
+
+        var holePanel = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Visibility = Visibility.Collapsed };
+        var holeCountValue = new TextBlock
+        {
+            Foreground = BrushHex("#9AA0A8"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+            MinWidth = 28,
+            Text = "6"
+        };
+        var holeCountDock = new DockPanel();
+        DockPanel.SetDock(holeCountValue, Dock.Right);
+        holeCountDock.Children.Add(holeCountValue);
+        holeCountDock.Children.Add(new TextBlock
+        {
+            Text = "Hole count",
+            Foreground = BrushHex("#9AA0A8"),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        holePanel.Children.Add(holeCountDock);
+        var holeCount = new Slider
+        {
+            Minimum = 3, Maximum = 16, TickFrequency = 1, IsSnapToTickEnabled = true, Value = 6
+        };
+        holeCount.PreviewMouseLeftButtonDown += SliderGoToClick;
+        holeCount.MouseMove += SliderDrag;
+        holeCount.MouseLeftButtonUp += SliderEndDrag;
+        holeCount.LostMouseCapture += SliderEndDrag;
+        holeCount.ValueChanged += (_, _) => CompoundStageChanged(index);
+        holePanel.Children.Add(holeCount);
+
+        var holeSizeValue = new TextBlock
+        {
+            Foreground = BrushHex("#9AA0A8"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+            MinWidth = 40,
+            Text = "70%"
+        };
+        var holeSizeDock = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
+        DockPanel.SetDock(holeSizeValue, Dock.Right);
+        holeSizeDock.Children.Add(holeSizeValue);
+        holeSizeDock.Children.Add(new TextBlock
+        {
+            Text = "Hole size",
+            Foreground = BrushHex("#9AA0A8"),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        holePanel.Children.Add(holeSizeDock);
+        var holeSize = new Slider
+        {
+            Minimum = 20, Maximum = 100, TickFrequency = 1, IsSnapToTickEnabled = true, Value = 70
+        };
+        holeSize.PreviewMouseLeftButtonDown += SliderGoToClick;
+        holeSize.MouseMove += SliderDrag;
+        holeSize.MouseLeftButtonUp += SliderEndDrag;
+        holeSize.LostMouseCapture += SliderEndDrag;
+        holeSize.ValueChanged += (_, _) => CompoundStageChanged(index);
+        holePanel.Children.Add(holeSize);
+
+        var holePlaceValue = new TextBlock
+        {
+            Foreground = BrushHex("#9AA0A8"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+            MinWidth = 40,
+            Text = "50%"
+        };
+        var holePlaceDock = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
+        DockPanel.SetDock(holePlaceValue, Dock.Right);
+        holePlaceDock.Children.Add(holePlaceValue);
+        holePlaceDock.Children.Add(new TextBlock
+        {
+            Text = "Distance from center",
+            Foreground = BrushHex("#9AA0A8"),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        holePanel.Children.Add(holePlaceDock);
+        var holePlace = new Slider
+        {
+            Minimum = 12, Maximum = 88, TickFrequency = 1, IsSnapToTickEnabled = true, Value = 50
+        };
+        holePlace.PreviewMouseLeftButtonDown += SliderGoToClick;
+        holePlace.MouseMove += SliderDrag;
+        holePlace.MouseLeftButtonUp += SliderEndDrag;
+        holePlace.LostMouseCapture += SliderEndDrag;
+        holePlace.ValueChanged += (_, _) => CompoundStageChanged(index);
+        holePanel.Children.Add(holePlace);
+
+        root.Children.Add(holePanel);
+        ClockGearCompoundHost!.Children.Add(root);
+
+        return new CompoundStageUi
+        {
+            Root = root,
+            StyleBox = styleBox,
+            SpokePanel = spokePanel,
+            Count = count,
+            CountValue = countValue,
+            Sweep = sweep,
+            SweepValue = sweepValue,
+            Width = width,
+            WidthValue = widthValue,
+            HolePanel = holePanel,
+            HoleCount = holeCount,
+            HoleCountValue = holeCountValue,
+            HoleSize = holeSize,
+            HoleSizeValue = holeSizeValue,
+            HolePlace = holePlace,
+            HolePlaceValue = holePlaceValue
+        };
+    }
+
+    static void SelectCompoundStyle(ComboBox box, ClockGearCompoundStyle style)
+    {
+        for (var i = 0; i < box.Items.Count; i++)
+        {
+            if (box.Items[i] is ComboBoxItem item && item.Tag is ClockGearCompoundStyle k && k == style)
+            {
+                box.SelectedIndex = i;
+                return;
+            }
+        }
+        box.SelectedIndex = 0;
+    }
+
+    void CompoundStageChanged(int index)
+    {
+        if (_loading || _compoundUi == null || index < 0 || index >= _compoundUi.Length)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        s.ClockGearCompoundStages ??= [];
+        while (s.ClockGearCompoundStages.Count < 5)
+            s.ClockGearCompoundStages.Add(ClockGearCompoundStage.FromLegacy(s));
+
+        var ui = _compoundUi[index];
+        var style = ClockGearCompoundStyle.Solid;
+        if (ui.StyleBox.SelectedItem is ComboBoxItem pick && pick.Tag is ClockGearCompoundStyle tagged)
+            style = tagged;
+
+        var count = (int)Math.Clamp(Math.Round(ui.Count.Value), 3, 12);
+        if (Math.Abs(ui.Count.Value - count) > 0.01)
+            ui.Count.Value = count;
+        ui.CountValue.Text = $"{count}";
+
+        var sweepDeg = Math.Clamp(Math.Round(ui.Sweep.Value), -75, 75);
+        if (Math.Abs(ui.Sweep.Value - sweepDeg) > 0.01)
+            ui.Sweep.Value = sweepDeg;
+        ui.SweepValue.Text = $"{sweepDeg:0}°";
+
+        var widthPct = Math.Clamp(Math.Round(ui.Width.Value), 8, 55);
+        if (Math.Abs(ui.Width.Value - widthPct) > 0.01)
+            ui.Width.Value = widthPct;
+        ui.WidthValue.Text = $"{widthPct:0}%";
+
+        ui.SpokePanel.Visibility = style == ClockGearCompoundStyle.Spokes
+            ? Visibility.Visible : Visibility.Collapsed;
+
+        var holeCount = (int)Math.Clamp(Math.Round(ui.HoleCount.Value), 3, 16);
+        if (Math.Abs(ui.HoleCount.Value - holeCount) > 0.01)
+            ui.HoleCount.Value = holeCount;
+        ui.HoleCountValue.Text = $"{holeCount}";
+
+        var holeSizePct = Math.Clamp(Math.Round(ui.HoleSize.Value), 20, 100);
+        if (Math.Abs(ui.HoleSize.Value - holeSizePct) > 0.01)
+            ui.HoleSize.Value = holeSizePct;
+        ui.HoleSizeValue.Text = $"{holeSizePct:0}%";
+
+        var holePlacePct = Math.Clamp(Math.Round(ui.HolePlace.Value), 12, 88);
+        if (Math.Abs(ui.HolePlace.Value - holePlacePct) > 0.01)
+            ui.HolePlace.Value = holePlacePct;
+        ui.HolePlaceValue.Text = $"{holePlacePct:0}%";
+
+        ui.HolePanel.Visibility = style == ClockGearCompoundStyle.Holes
+            ? Visibility.Visible : Visibility.Collapsed;
+
+        s.ClockGearCompoundStages[index] = new ClockGearCompoundStage
+        {
+            Style = style,
+            SpokeCount = count,
+            SpokeLean = sweepDeg > 0.5 ? ClockGearSpokeLean.Clockwise
+                : sweepDeg < -0.5 ? ClockGearSpokeLean.CounterClockwise
+                : ClockGearSpokeLean.Straight,
+            SpokeSweepDeg = sweepDeg,
+            SpokeWidth = widthPct / 100.0,
+            HoleCount = holeCount,
+            HoleSize = holeSizePct / 100.0,
+            HolePlace = holePlacePct / 100.0
+        }.Clamped();
+
+        s.ClockGearCompoundStyle = s.ClockGearCompoundStages[0].Style;
+        s.ClockGearCompoundSpokeCount = s.ClockGearCompoundStages[0].SpokeCount;
+        s.ClockGearCompoundSpokeLean = s.ClockGearCompoundStages[0].SpokeLean;
+        s.ClockGearCompoundSpokeWidth = s.ClockGearCompoundStages[0].SpokeWidth;
+
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
     void ClockGearOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (_loading || ClockGearOpacitySlider == null)
@@ -1953,6 +3681,31 @@ public partial class ConfigWindow : Window
         s.ClockGearOpacity = pct / 100.0;
         if (ClockGearOpacityLabel != null)
             ClockGearOpacityLabel.Text = $"{pct:0}%";
+        AppHost.Instance.SyncClockOverlay();
+        AppHost.Instance.RequestSave();
+    }
+
+    void LoadClockGearRingOpacity(double opacity)
+    {
+        if (ClockGearRingOpacitySlider == null)
+            return;
+        var pct = Math.Clamp(Math.Round(Math.Clamp(opacity, 0.05, 1) * 100), 5, 100);
+        ClockGearRingOpacitySlider.Value = pct;
+        if (ClockGearRingOpacityLabel != null)
+            ClockGearRingOpacityLabel.Text = $"{pct:0}%";
+    }
+
+    void ClockGearRingOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loading || ClockGearRingOpacitySlider == null)
+            return;
+        var s = AppHost.Instance.Data.Settings;
+        var pct = Math.Clamp(Math.Round(ClockGearRingOpacitySlider.Value), 5, 100);
+        if (Math.Abs(ClockGearRingOpacitySlider.Value - pct) > 0.01)
+            ClockGearRingOpacitySlider.Value = pct;
+        s.ClockGearRingOpacity = pct / 100.0;
+        if (ClockGearRingOpacityLabel != null)
+            ClockGearRingOpacityLabel.Text = $"{pct:0}%";
         AppHost.Instance.SyncClockOverlay();
         AppHost.Instance.RequestSave();
     }
@@ -1978,6 +3731,14 @@ public partial class ConfigWindow : Window
         public required TextBlock RepeatsValue { get; init; }
         public required Slider Stride { get; init; }
         public required TextBlock StrideValue { get; init; }
+        public required TextBlock RungTitle { get; init; }
+        public required FrameworkElement SweepRow { get; init; }
+        public required StackPanel BarPanel { get; init; }
+        public required ComboBox OriginBox { get; init; }
+        public required Slider Bars { get; init; }
+        public required TextBlock BarsValue { get; init; }
+        public required Slider Between { get; init; }
+        public required TextBlock BetweenValue { get; init; }
     }
 
     static readonly (ClockGearCarriageKind Kind, string Label, string Hint)[] CarriageKindChoices =
@@ -1995,7 +3756,17 @@ public partial class ConfigWindow : Window
         (ClockGearCarriageKind.Helix, "Helix ribbon",
             "Spiral ribbons winding between the two orbits."),
         (ClockGearCarriageKind.Fan, "Leaf spring",
-            "Same pin-link template, with repeats filling the gap to the next planet.")
+            "Same pin-link template, with repeats filling the gap to the next planet."),
+        (ClockGearCarriageKind.Bars, "Bars",
+            "Straight lines from the inner rail to the outer rail. Spacing lines up on the large compound, the idler (the pinion shares the large axle), or the midpoint between neighbors.")
+    ];
+
+    static readonly (ClockGearCarriageBarOrigin Origin, string Label)[] BarOriginChoices =
+    [
+        (ClockGearCarriageBarOrigin.LargeCenter, "Large compound center"),
+        (ClockGearCarriageBarOrigin.SmallCenter, "Small compound center"),
+        (ClockGearCarriageBarOrigin.MidLarge, "Midpoint between large compounds"),
+        (ClockGearCarriageBarOrigin.MidSmall, "Midpoint between small compounds")
     ];
 
     CarriageStageUi[]? _carriageUi;
@@ -2072,8 +3843,12 @@ public partial class ConfigWindow : Window
                 ui.RepeatsValue.Text = CarriageRepeatsText(st.LinkRepeats);
                 ui.Stride.Value = st.LinkStride;
                 ui.StrideValue.Text = CarriageStrideText(st.LinkStride);
-                ui.LinkPanel.Visibility = CarriageUsesPinLinks(st.Kind)
-                    ? Visibility.Visible : Visibility.Collapsed;
+                SelectBarOrigin(ui.OriginBox, st.BarOrigin);
+                ui.Bars.Value = st.BarCount;
+                ui.BarsValue.Text = $"{st.BarCount}";
+                ui.Between.Value = st.BarBetween;
+                ui.BetweenValue.Text = st.BarBetween <= 0 ? "none" : $"{st.BarBetween}";
+                ApplyCarriageKindPanels(ui, st.Kind);
             }
         }
         finally
@@ -2124,8 +3899,9 @@ public partial class ConfigWindow : Window
         root.Children.Add(hint);
 
         var (rail, railValue) = AddCarriageSlider(root, "Rail thickness", 1, 12, 0.5, "4", index);
-        var (rung, rungValue) = AddCarriageSlider(root, "Brace thickness", 1, 10, 0.5, "2.4", index);
+        var (rung, rungValue, rungTitle) = AddCarriageSliderTitled(root, "Brace thickness", 1, 10, 0.5, "2.4", index);
         var (sweep, sweepValue, sweepTitle) = AddCarriageSliderTitled(root, "Brace sweep", 0, 45, 1, "18°", index);
+        var sweepRow = (FrameworkElement)sweepTitle.Parent;
 
         var dirBox = new ComboBox
         {
@@ -2151,6 +3927,30 @@ public partial class ConfigWindow : Window
 
         var (hub, hubValue) = AddCarriageSlider(root, "Hub reinforcement", 0, 14, 0.5, "off", index);
 
+        var barPanel = new StackPanel { Visibility = Visibility.Collapsed };
+        var originBox = new ComboBox
+        {
+            Style = comboStyle,
+            Margin = new Thickness(0, 8, 0, 0),
+            MaxDropDownHeight = 280
+        };
+        foreach (var choice in BarOriginChoices)
+            originBox.Items.Add(new ComboBoxItem { Content = choice.Label, Tag = choice.Origin });
+        originBox.SelectedIndex = 0;
+        originBox.SelectionChanged += (_, _) => CarriageStageChanged(index);
+        barPanel.Children.Add(originBox);
+        var (bars, barsValue) = AddCarriageSlider(barPanel, "Bars", 1, 12, 1, "4", index);
+        var (between, betweenValue) = AddCarriageSlider(barPanel, "Bars between", 0, 8, 1, "none", index);
+        var barHint = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = BrushHex("#7A8088"),
+            Margin = new Thickness(0, 4, 0, 0),
+            Text = "Bars is how many lines run around the ring. Bars between adds that many more in every gap."
+        };
+        barPanel.Children.Add(barHint);
+        root.Children.Add(barPanel);
+
         var linkPanel = new StackPanel();
         var (repeats, repeatsValue) = AddCarriageSlider(linkPanel, "Link repeats", 0, 8, 1, "none", index);
         var (stride, strideValue) = AddCarriageSlider(linkPanel, "Link stride", 0, 6, 1, "same set", index);
@@ -2172,6 +3972,14 @@ public partial class ConfigWindow : Window
             Hint = hint,
             SweepTitle = sweepTitle,
             SweepValue = sweepValue,
+            RungTitle = rungTitle,
+            SweepRow = sweepRow,
+            BarPanel = barPanel,
+            OriginBox = originBox,
+            Bars = bars,
+            BarsValue = barsValue,
+            Between = between,
+            BetweenValue = betweenValue,
             Rail = rail,
             RailValue = railValue,
             Rung = rung,
@@ -2243,6 +4051,32 @@ public partial class ConfigWindow : Window
         return b;
     }
 
+    static void ApplyCarriageKindPanels(CarriageStageUi ui, ClockGearCarriageKind kind)
+    {
+        var bars = kind == ClockGearCarriageKind.Bars;
+        ui.LinkPanel.Visibility = CarriageUsesPinLinks(kind)
+            ? Visibility.Visible : Visibility.Collapsed;
+        ui.BarPanel.Visibility = bars ? Visibility.Visible : Visibility.Collapsed;
+        ui.SweepRow.Visibility = bars ? Visibility.Collapsed : Visibility.Visible;
+        ui.Sweep.Visibility = bars ? Visibility.Collapsed : Visibility.Visible;
+        ui.DirBox.Visibility = bars ? Visibility.Collapsed : Visibility.Visible;
+        ui.RungTitle.Text = bars ? "Bar thickness" : "Brace thickness";
+    }
+
+    static void SelectBarOrigin(ComboBox box, ClockGearCarriageBarOrigin origin)
+    {
+        for (var i = 0; i < box.Items.Count; i++)
+        {
+            if (box.Items[i] is ComboBoxItem item
+                && item.Tag is ClockGearCarriageBarOrigin o && o == origin)
+            {
+                box.SelectedIndex = i;
+                return;
+            }
+        }
+        box.SelectedIndex = 0;
+    }
+
     static void SelectCarriageKind(ComboBox box, ClockGearCarriageKind kind)
     {
         for (var i = 0; i < box.Items.Count; i++)
@@ -2278,6 +4112,11 @@ public partial class ConfigWindow : Window
         st.Hub = Math.Clamp(ui.Hub.Value, 0, 14);
         st.LinkRepeats = (int)Math.Clamp(Math.Round(ui.Repeats.Value), 0, 8);
         st.LinkStride = (int)Math.Clamp(Math.Round(ui.Stride.Value), 0, 6);
+        if (ui.OriginBox.SelectedItem is ComboBoxItem originPick
+            && originPick.Tag is ClockGearCarriageBarOrigin origin)
+            st.BarOrigin = origin;
+        st.BarCount = (int)Math.Clamp(Math.Round(ui.Bars.Value), 1, 12);
+        st.BarBetween = (int)Math.Clamp(Math.Round(ui.Between.Value), 0, 8);
         st.Clamped();
         ui.RailValue.Text = $"{st.Rail:0.#}";
         ui.RungValue.Text = $"{st.Rung:0.#}";
@@ -2286,10 +4125,11 @@ public partial class ConfigWindow : Window
         ui.HubValue.Text = st.Hub < 0.05 ? "off" : $"{st.Hub:0.#}";
         ui.RepeatsValue.Text = CarriageRepeatsText(st.LinkRepeats);
         ui.StrideValue.Text = CarriageStrideText(st.LinkStride);
+        ui.BarsValue.Text = $"{st.BarCount}";
+        ui.BetweenValue.Text = st.BarBetween <= 0 ? "none" : $"{st.BarBetween}";
         ui.Hint.Text = CarriageKindChoices.FirstOrDefault(c => c.Kind == kind).Hint
             ?? CarriageKindChoices[0].Hint;
-        ui.LinkPanel.Visibility = CarriageUsesPinLinks(kind)
-            ? Visibility.Visible : Visibility.Collapsed;
+        ApplyCarriageKindPanels(ui, kind);
         s.ClockGearCarriageRail = s.ClockGearCarriageStages[0].Rail;
         s.ClockGearCarriageRung = s.ClockGearCarriageStages[0].Rung;
         s.ClockGearCarriageSweepDeg = s.ClockGearCarriageStages[0].SweepDeg;
@@ -2318,7 +4158,7 @@ public partial class ConfigWindow : Window
         {
             stages = ClockGearGeometry.WithDrawnCompounds(stages, s.ClockGearCompoundScale);
             var hours = s.ClockHorizonHours <= 0 ? 24 : s.ClockHorizonHours;
-            diagOuter = 1.0 / ClockGearGeometry.FaceToSecondRatio(hours);
+            diagOuter = ClockGearGeometry.FaceRingSecScale(hours);
             diagStages = stages;
             if (auto)
             {
@@ -2829,6 +4669,7 @@ public partial class ConfigWindow : Window
         }
         LoadClockGearCarrierRates(s);
         LoadClockGearCompoundScales(s);
+        LoadClockGearCompoundStyles(s);
         LoadClockGearCarriageStyle(s);
     }
 
@@ -3372,6 +5213,97 @@ public partial class ConfigWindow : Window
             if (ClockWedgeWidthLabel != null)
                 ClockWedgeWidthLabel.Text = $"{s.ClockWedgeWidth * 100:0}%";
         }
+        if (ClockWedgeInnerSlider != null)
+        {
+            s.ClockWedgeInner = SnapClockUiPercent(ClockWedgeInnerSlider.Value, 0, 0.80);
+            if (Math.Abs(ClockWedgeInnerSlider.Value - s.ClockWedgeInner) > 0.0001)
+                ClockWedgeInnerSlider.Value = s.ClockWedgeInner;
+            if (ClockWedgeInnerLabel != null)
+                ClockWedgeInnerLabel.Text = $"{s.ClockWedgeInner * 100:0}%";
+        }
+        if (ClockWedgeFadeSlider != null)
+        {
+            s.ClockWedgeFade = SnapClockUiPercent(ClockWedgeFadeSlider.Value, 0, 1);
+            if (Math.Abs(ClockWedgeFadeSlider.Value - s.ClockWedgeFade) > 0.0001)
+                ClockWedgeFadeSlider.Value = s.ClockWedgeFade;
+            if (ClockWedgeFadeLabel != null)
+                ClockWedgeFadeLabel.Text = $"{s.ClockWedgeFade * 100:0}%";
+        }
+        if (ClockWedgeFadeReachSlider != null)
+        {
+            s.ClockWedgeFadeReach = SnapClockUiPercent(ClockWedgeFadeReachSlider.Value, 0, 1);
+            if (Math.Abs(ClockWedgeFadeReachSlider.Value - s.ClockWedgeFadeReach) > 0.0001)
+                ClockWedgeFadeReachSlider.Value = s.ClockWedgeFadeReach;
+            if (ClockWedgeFadeReachLabel != null)
+                ClockWedgeFadeReachLabel.Text = $"{s.ClockWedgeFadeReach * 100:0}%";
+        }
+        if (ClockWedgeInnerEndSlider != null)
+        {
+            s.ClockWedgeInnerEnd = SnapClockUiPercent(ClockWedgeInnerEndSlider.Value, 0, 0.80);
+            if (Math.Abs(ClockWedgeInnerEndSlider.Value - s.ClockWedgeInnerEnd) > 0.0001)
+                ClockWedgeInnerEndSlider.Value = s.ClockWedgeInnerEnd;
+            if (ClockWedgeInnerEndLabel != null)
+                ClockWedgeInnerEndLabel.Text = $"{s.ClockWedgeInnerEnd * 100:0}%";
+            s.ClockWedgeEndInitialized = true;
+        }
+        if (ClockWedgeFadeEndSlider != null)
+        {
+            s.ClockWedgeFadeEnd = SnapClockUiPercent(ClockWedgeFadeEndSlider.Value, 0, 1);
+            if (Math.Abs(ClockWedgeFadeEndSlider.Value - s.ClockWedgeFadeEnd) > 0.0001)
+                ClockWedgeFadeEndSlider.Value = s.ClockWedgeFadeEnd;
+            if (ClockWedgeFadeEndLabel != null)
+                ClockWedgeFadeEndLabel.Text = $"{s.ClockWedgeFadeEnd * 100:0}%";
+            s.ClockWedgeEndInitialized = true;
+        }
+        if (ClockWedgeFadeReachEndSlider != null)
+        {
+            s.ClockWedgeFadeReachEnd = SnapClockUiPercent(ClockWedgeFadeReachEndSlider.Value, 0, 1);
+            if (Math.Abs(ClockWedgeFadeReachEndSlider.Value - s.ClockWedgeFadeReachEnd) > 0.0001)
+                ClockWedgeFadeReachEndSlider.Value = s.ClockWedgeFadeReachEnd;
+            if (ClockWedgeFadeReachEndLabel != null)
+                ClockWedgeFadeReachEndLabel.Text = $"{s.ClockWedgeFadeReachEnd * 100:0}%";
+            s.ClockWedgeEndInitialized = true;
+        }
+        if (ClockWedgeOpacityRecurringSlider != null)
+        {
+            s.ClockWedgeOpacityRecurring = SnapClockUiPercent(ClockWedgeOpacityRecurringSlider.Value, 0.05, 1);
+            if (Math.Abs(ClockWedgeOpacityRecurringSlider.Value - s.ClockWedgeOpacityRecurring) > 0.0001)
+                ClockWedgeOpacityRecurringSlider.Value = s.ClockWedgeOpacityRecurring;
+            if (ClockWedgeOpacityRecurringLabel != null)
+                ClockWedgeOpacityRecurringLabel.Text = $"{s.ClockWedgeOpacityRecurring * 100:0}%";
+        }
+        if (ClockWedgeOpacityScheduledSlider != null)
+        {
+            s.ClockWedgeOpacityScheduled = SnapClockUiPercent(ClockWedgeOpacityScheduledSlider.Value, 0.05, 1);
+            if (Math.Abs(ClockWedgeOpacityScheduledSlider.Value - s.ClockWedgeOpacityScheduled) > 0.0001)
+                ClockWedgeOpacityScheduledSlider.Value = s.ClockWedgeOpacityScheduled;
+            if (ClockWedgeOpacityScheduledLabel != null)
+                ClockWedgeOpacityScheduledLabel.Text = $"{s.ClockWedgeOpacityScheduled * 100:0}%";
+        }
+        if (ClockWedgeOpacityDueSlider != null)
+        {
+            s.ClockWedgeOpacityDue = SnapClockUiPercent(ClockWedgeOpacityDueSlider.Value, 0.05, 1);
+            if (Math.Abs(ClockWedgeOpacityDueSlider.Value - s.ClockWedgeOpacityDue) > 0.0001)
+                ClockWedgeOpacityDueSlider.Value = s.ClockWedgeOpacityDue;
+            if (ClockWedgeOpacityDueLabel != null)
+                ClockWedgeOpacityDueLabel.Text = $"{s.ClockWedgeOpacityDue * 100:0}%";
+        }
+        if (ClockWindowOpenOpacitySlider != null)
+        {
+            s.ClockWindowOpenOpacity = SnapClockUiPercent(ClockWindowOpenOpacitySlider.Value, 0.05, 1);
+            if (Math.Abs(ClockWindowOpenOpacitySlider.Value - s.ClockWindowOpenOpacity) > 0.0001)
+                ClockWindowOpenOpacitySlider.Value = s.ClockWindowOpenOpacity;
+            if (ClockWindowOpenOpacityLabel != null)
+                ClockWindowOpenOpacityLabel.Text = $"{s.ClockWindowOpenOpacity * 100:0}%";
+        }
+        if (ClockWindowLastOpacitySlider != null)
+        {
+            s.ClockWindowLastOpacity = SnapClockUiPercent(ClockWindowLastOpacitySlider.Value, 0.05, 1);
+            if (Math.Abs(ClockWindowLastOpacitySlider.Value - s.ClockWindowLastOpacity) > 0.0001)
+                ClockWindowLastOpacitySlider.Value = s.ClockWindowLastOpacity;
+            if (ClockWindowLastOpacityLabel != null)
+                ClockWindowLastOpacityLabel.Text = $"{s.ClockWindowLastOpacity * 100:0}%";
+        }
         AppHost.Instance.SyncClockOverlay();
         AppHost.Instance.RequestSave();
     }
@@ -3427,48 +5359,45 @@ public partial class ConfigWindow : Window
     }
 
     // auto model
-    void ClockHorizonUnitChanged(object sender, SelectionChangedEventArgs e)
+    void FillClockHorizonBox()
     {
-        if (_loading || ClockHorizonBox == null || ClockHorizonUnitBox == null)
+        if (ClockHorizonBox == null || ClockHorizonBox.Items.Count > 0)
             return;
-        var s = AppHost.Instance.Data.Settings;
-        var hours = s.ClockHorizonHours <= 0 ? 24 : s.ClockHorizonHours;
-        s.ClockHorizonInHours = ClockHorizonUnitBox.SelectedIndex == 0;
-        var amount = s.ClockHorizonInHours ? hours : hours / 24.0;
-        ClockHorizonBox.Text = amount.ToString("0.###", CultureInfo.CurrentCulture);
-        AppHost.Instance.SyncClockOverlay();
-        AppHost.Instance.RequestSave();
-    }
-
-    // auto model
-    void ClockHorizonCommit(object sender, RoutedEventArgs e) => CommitClockHorizon(true);
-
-    // auto model
-    void ClockHorizonKey(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Enter)
+        foreach (var hours in ClockGearGeometry.HorizonHourOptions)
         {
-            CommitClockHorizon(true);
-            e.Handled = true;
+            ClockHorizonBox.Items.Add(new ComboBoxItem
+            {
+                Content = ClockGearGeometry.HorizonOptionLabel(hours),
+                Tag = hours
+            });
         }
     }
 
-    // auto model
-    void CommitClockHorizon(bool rewrite)
+    void SelectClockHorizon(double hours)
     {
-        if (_loading || ClockHorizonBox == null || ClockHorizonUnitBox == null)
+        if (ClockHorizonBox == null)
+            return;
+        var snapped = ClockGearGeometry.SnapHorizonHours(hours);
+        for (var i = 0; i < ClockHorizonBox.Items.Count; i++)
+        {
+            if (ClockHorizonBox.Items[i] is ComboBoxItem { Tag: int tag } && tag == snapped)
+            {
+                ClockHorizonBox.SelectedIndex = i;
+                return;
+            }
+        }
+
+        if (ClockHorizonBox.Items.Count > 0)
+            ClockHorizonBox.SelectedIndex = 0;
+    }
+
+    void ClockHorizonChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || ClockHorizonBox?.SelectedItem is not ComboBoxItem { Tag: int hours })
             return;
         var s = AppHost.Instance.Data.Settings;
-        s.ClockHorizonInHours = ClockHorizonUnitBox.SelectedIndex == 0;
-        double amount;
-        if (s.ClockHorizonInHours)
-            amount = ParseDouble(ClockHorizonBox.Text, 24, 1, 14 * 24);
-        else
-            amount = ParseDouble(ClockHorizonBox.Text, 1, 1.0 / 24, 14);
-        s.ClockHorizonHours = s.ClockHorizonInHours ? amount : amount * 24;
-        if (rewrite)
-            ClockHorizonBox.Text = (s.ClockHorizonInHours ? s.ClockHorizonHours : s.ClockHorizonHours / 24.0)
-                .ToString("0.###", CultureInfo.CurrentCulture);
+        s.ClockHorizonHours = hours;
+        s.ClockHorizonInHours = hours % 24 != 0;
         AppHost.Instance.SyncClockOverlay();
         AppHost.Instance.RequestSave();
     }
@@ -3870,11 +5799,14 @@ public partial class ConfigWindow : Window
             OnceHoldPin.IsChecked = item.HoldPinWhenHidden;
         LoadItemCheckRule(item, OnceCheckRuleBox, OnceReshowRow, OnceReshowBox, OnceReshowUnitBox);
         BindItemColors(OnceColorHost, "once", false, 1, item.Colors, colors => item.Colors = colors);
+        SyncSteamUrlButtons(OnceUrl, OnceUrlSteam);
+        ShowFocusLabel(OnceFocusLabel, item.FocusWindowTitle);
         _loading = false;
     }
 
     void OnceFieldChanged(object sender, EventArgs e)
     {
+        SyncSteamUrlButtons(OnceUrl, OnceUrlSteam);
         if (_loading || SelectedOnce() is not OnceItem item)
             return;
         item.Title = OnceTitle.Text.Trim().Length == 0 ? "New to-do" : OnceTitle.Text.Trim();
@@ -4126,6 +6058,9 @@ public partial class ConfigWindow : Window
         TodoLastChecked.Text = "Last checked " + RecurrenceEngine.DescribeLastChecked(RecurrenceEngine.LastChecked(item), DateTime.Now);
         TodoKind.SelectedIndex = Math.Max(0, Array.FindIndex(Kinds, k => k.Kind == item.Recurrence.Kind));
         TodoTime.Text = item.Recurrence.Time;
+        if (TodoDueByTime != null)
+            TodoDueByTime.Text = item.Recurrence.DueByTime ?? "";
+        LoadItemClockOpacity(TodoClockOpacitySlider, TodoClockOpacityLabel, item.ClockOpacity);
         TodoInterval.Text = item.Recurrence.Kind == RecurrenceKind.AfterCompletionHours
             ? item.Recurrence.Interval.ToString("0.###", CultureInfo.CurrentCulture)
             : ((int)Math.Round(item.Recurrence.Interval)).ToString(CultureInfo.CurrentCulture);
@@ -4143,11 +6078,14 @@ public partial class ConfigWindow : Window
         UpdateKindRows();
         BindItemColors(TodoColorHost, "todo", item.UnknownDate, RecurrenceEngine.TodoCheckEveryDays(item),
             item.Colors, colors => item.Colors = colors);
+        SyncSteamUrlButtons(TodoUrl, TodoUrlSteam);
+        ShowFocusLabel(TodoFocusLabel, item.FocusWindowTitle);
         _loading = false;
     }
 
     void TodoFieldChanged(object sender, EventArgs e)
     {
+        SyncSteamUrlButtons(TodoUrl, TodoUrlSteam);
         if (_loading || SelectedTodo() is not TodoItem item)
             return;
 
@@ -4170,6 +6108,13 @@ public partial class ConfigWindow : Window
             item.Recurrence.Kind = Kinds[TodoKind.SelectedIndex].Kind;
         if (ApplyClockBox(TodoTime, false, true, out var clock))
             item.Recurrence.Time = clock;
+        if (TodoDueByTime != null)
+        {
+            if (string.IsNullOrWhiteSpace(TodoDueByTime.Text))
+                item.Recurrence.DueByTime = null;
+            else if (ApplyClockBox(TodoDueByTime, false, false, out var dueByClock))
+                item.Recurrence.DueByTime = dueByClock;
+        }
         // auto model
         item.Recurrence.Interval = item.Recurrence.Kind == RecurrenceKind.AfterCompletionHours
             ? ParseDouble(TodoInterval.Text, 1, 1.0 / 60, 8760)
@@ -4222,6 +6167,21 @@ public partial class ConfigWindow : Window
         TodoFieldChanged(sender, e);
     }
 
+    void TodoDueByTimeLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_loading || TodoDueByTime == null)
+            return;
+        if (string.IsNullOrWhiteSpace(TodoDueByTime.Text))
+        {
+            TodoDueByTime.Text = "";
+            TodoFieldChanged(sender, e);
+            return;
+        }
+
+        ApplyClockBox(TodoDueByTime, true, false, out _);
+        TodoFieldChanged(sender, e);
+    }
+
     void TodoWatchChanged(object sender, RoutedEventArgs e)
     {
         UpdateKindRows();
@@ -4264,6 +6224,8 @@ public partial class ConfigWindow : Window
         IntervalLabel.Text = hours ? "Hours" : kind == RecurrenceKind.AfterCompletion ? "Days" : "Every N";
         Grid.SetColumn(IntervalRow, hours ? 0 : 2);
         Grid.SetColumnSpan(IntervalRow, hours ? 3 : 1);
+        if (TodoDueByRow != null)
+            TodoDueByRow.Visibility = Vis(!hours && kind != RecurrenceKind.AfterCompletion);
         WeekdaysLabel.Visibility = Vis(weekly);
         WeekdaysPanel.Visibility = Vis(weekly);
         MonthDayRow.Visibility = Vis(monthDay);
@@ -4291,6 +6253,11 @@ public partial class ConfigWindow : Window
         EventLastChecked.Text = "Last checked " + RecurrenceEngine.DescribeLastChecked(RecurrenceEngine.LastChecked(item), DateTime.Now);
         EventDate.SelectedDate = item.At?.Date;
         EventTime.Text = item.At?.ToString("HH:mm") ?? "09:00";
+        if (EventDueByDate != null)
+            EventDueByDate.SelectedDate = item.DueBy?.Date;
+        if (EventDueByTime != null)
+            EventDueByTime.Text = item.DueBy?.ToString("HH:mm") ?? "";
+        LoadItemClockOpacity(EventClockOpacitySlider, EventClockOpacityLabel, item.ClockOpacity);
         EventPin.Text = item.PinSlot.ToString();
         if (EventHoldPin != null)
             EventHoldPin.IsChecked = item.HoldPinWhenHidden;
@@ -4305,6 +6272,8 @@ public partial class ConfigWindow : Window
         ShowCheckEvery(RecurrenceEngine.EventCheckEveryDays(item), EventCheckAmount, EventCheckUnit);
         BindItemColors(EventColorHost, "event", item.At == null, RecurrenceEngine.EventCheckEveryDays(item),
             item.Colors, colors => item.Colors = colors);
+        SyncSteamUrlButtons(EventUrl, EventUrlSteam);
+        ShowFocusLabel(EventFocusLabel, item.FocusWindowTitle);
         _loading = false;
     }
 
@@ -4342,8 +6311,24 @@ public partial class ConfigWindow : Window
         EventFieldChanged(sender, e);
     }
 
+    void EventDueByTimeLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_loading || EventDueByTime == null)
+            return;
+        if (string.IsNullOrWhiteSpace(EventDueByTime.Text))
+        {
+            EventDueByTime.Text = "";
+            EventFieldChanged(sender, e);
+            return;
+        }
+
+        ApplyClockBox(EventDueByTime, true, false, out _);
+        EventFieldChanged(sender, e);
+    }
+
     void EventFieldChanged(object sender, EventArgs e)
     {
+        SyncSteamUrlButtons(EventUrl, EventUrlSteam);
         if (_loading || SelectedEvent() is not EventItem item)
             return;
         item.Title = EventTitle.Text.Trim().Length == 0 ? "New scheduled" : EventTitle.Text.Trim();
@@ -4356,6 +6341,7 @@ public partial class ConfigWindow : Window
             if (item.At != null)
                 item.LastCheckedAt = DateTime.Now;
             item.At = null;
+            item.DueBy = null;
             item.CheckEveryDays = ReadCheckEvery(EventCheckAmount, EventCheckUnit);
         }
         else
@@ -4365,6 +6351,27 @@ public partial class ConfigWindow : Window
             if (ApplyClockBox(EventTime, false, false, out var clock))
                 time = TimeSpan.Parse(clock);
             item.At = date.Date + time;
+
+            if (EventDueByTime == null || string.IsNullOrWhiteSpace(EventDueByTime.Text))
+            {
+                item.DueBy = null;
+            }
+            else if (ApplyClockBox(EventDueByTime, false, false, out var dueClock))
+            {
+                var dueDate = EventDueByDate?.SelectedDate ?? item.At.Value.Date;
+                var dueTime = TimeSpan.Parse(dueClock);
+                var due = dueDate.Date + dueTime;
+                if (due <= item.At.Value)
+                    due = item.At.Value.Date.AddDays(1) + dueTime;
+                item.DueBy = due;
+                if (EventDueByDate != null && EventDueByDate.SelectedDate != due.Date)
+                {
+                    var was = _loading;
+                    _loading = true;
+                    EventDueByDate.SelectedDate = due.Date;
+                    _loading = was;
+                }
+            }
         }
         EventLastChecked.Text = "Last checked " + RecurrenceEngine.DescribeLastChecked(RecurrenceEngine.LastChecked(item), DateTime.Now);
         var pin = ReadPin(EventPin);
@@ -4419,11 +6426,14 @@ public partial class ConfigWindow : Window
         NotePin.Text = item.PinSlot.ToString();
         if (NoteHoldPin != null)
             NoteHoldPin.IsChecked = item.HoldPinWhenHidden;
+        SyncSteamUrlButtons(NoteUrl, NoteUrlSteam);
+        ShowFocusLabel(NoteFocusLabel, item.FocusWindowTitle);
         _loading = false;
     }
 
     void NoteFieldChanged(object sender, EventArgs e)
     {
+        SyncSteamUrlButtons(NoteUrl, NoteUrlSteam);
         if (_loading || SelectedNote() is not NoteItem item)
             return;
         item.Title = NoteTitle.Text.Trim().Length == 0 ? "Note" : NoteTitle.Text.Trim();
@@ -4720,7 +6730,7 @@ public partial class ConfigWindow : Window
         return true;
     }
 
-    static readonly string[] DefaultSettingsOpen = ["overlay", "temphide", "clock-options", "clock-aesthetics"];
+    static readonly string[] DefaultSettingsOpen = ["overlay", "temphide", "clock-options", "clock-wedges", "clock-aesthetics"];
 
     void LoadSettingsSections(AppSettings s)
     {
@@ -4729,6 +6739,7 @@ public partial class ConfigWindow : Window
         if (!open.Exists(id => id.StartsWith("clock-", StringComparison.Ordinal)))
         {
             open.Add("clock-options");
+            open.Add("clock-wedges");
             open.Add("clock-aesthetics");
         }
         ApplySectionOpen(SettingsOverlay, open);
@@ -4738,6 +6749,7 @@ public partial class ConfigWindow : Window
         ApplySectionOpen(SettingsList, open);
         ApplySectionOpen(SettingsSystem, open);
         ApplySectionOpen(ClockOptions, open);
+        ApplySectionOpen(ClockWedges, open);
         ApplySectionOpen(ClockAesthetics, open);
     }
 
@@ -4750,8 +6762,17 @@ public partial class ConfigWindow : Window
 
     void SettingsSectionChanged(object sender, RoutedEventArgs e)
     {
-        if (_loading)
+        if (_loading || _syncingNav)
             return;
+        if (sender is Expander { IsExpanded: true } box)
+        {
+            var page = _settingsPages.FirstOrDefault(p => ReferenceEquals(p.Section, box));
+            if (page != null && !ReferenceEquals(SettingsNav.SelectedItem, page))
+            {
+                SettingsNav.SelectedItem = page;
+                return;
+            }
+        }
         var s = AppHost.Instance.Data.Settings;
         s.SettingsOpen =
         [
@@ -4762,11 +6783,294 @@ public partial class ConfigWindow : Window
             IdIfOpen(SettingsList),
             IdIfOpen(SettingsSystem),
             IdIfOpen(ClockOptions),
+            IdIfOpen(ClockWedges),
             IdIfOpen(ClockAesthetics)
         ];
         s.SettingsOpen.RemoveAll(string.IsNullOrEmpty);
         AppHost.Instance.RequestSave();
     }
+
+    sealed class SettingsPage
+    {
+        public required string Group { get; init; }
+        public required string Title { get; init; }
+        public required TabItem Tab { get; init; }
+        public Expander? Section { get; init; }
+        public FrameworkElement? Anchor { get; init; }
+        public DependencyObject? RangeParent { get; init; }
+        public DependencyObject? RangeStart { get; init; }
+        public DependencyObject? RangeStop { get; init; }
+        public string SearchText { get; set; } = "";
+        public bool ShowGroup { get; set; }
+    }
+
+    readonly List<SettingsPage> _settingsPages = [];
+    bool _syncingNav;
+
+    void BuildSettingsNav()
+    {
+        if (SettingsNav == null || MainTabs == null)
+            return;
+        var layout = (TabItem)MainTabs.Items[0];
+        var clockStack = LogicalTreeHelper.GetParent(ClockModuleBox) as DependencyObject;
+        var integrationStack = LogicalTreeHelper.GetParent(IntegrationDiscordHead) as DependencyObject;
+        _settingsPages.Clear();
+        _settingsPages.Add(Page("Tasks", "Layout", layout));
+        _settingsPages.Add(Page("Tasks", "Completed", CompletedTab));
+        _settingsPages.Add(Page("Clock", "General", ClockTab, anchor: ClockModuleBox, parent: clockStack, stop: ClockOptions));
+        _settingsPages.Add(Page("Clock", "Face", ClockTab, ClockOptions));
+        _settingsPages.Add(Page("Clock", "Wedges", ClockTab, ClockWedges));
+        _settingsPages.Add(Page("Clock", "Gears", ClockTab, ClockAesthetics));
+        _settingsPages.Add(Page("Integration", "While hidden", IntegrationTab, anchor: ClockStayWhenMainHiddenBox, parent: integrationStack, stop: IntegrationDiscordHead));
+        _settingsPages.Add(Page("Integration", "Discord", IntegrationTab, anchor: IntegrationDiscordHead, parent: integrationStack, start: IntegrationDiscordHead, stop: IntegrationApps));
+        _settingsPages.Add(Page("Integration", "App layouts", IntegrationTab, anchor: IntegrationApps, root: IntegrationApps));
+        _settingsPages.Add(Page("Usage", "Usage", UsageTab));
+        _settingsPages.Add(Page("Overlay", "Lock", SettingsTab, SettingsOverlay));
+        _settingsPages.Add(Page("Overlay", "Temporary hide", SettingsTab, SettingsTempHide));
+        _settingsPages.Add(Page("Overlay", "Appearance", SettingsTab, SettingsLook));
+        _settingsPages.Add(Page("Overlay", "Task colors", SettingsTab, SettingsColors));
+        _settingsPages.Add(Page("Overlay", "List", SettingsTab, SettingsList));
+        _settingsPages.Add(Page("Overlay", "System", SettingsTab, SettingsSystem));
+        foreach (var page in _settingsPages)
+            page.SearchText = (page.Group + " " + page.Title + " " + IndexPage(page)).ToLowerInvariant();
+        ApplySettingsFilter(selectMatch: false);
+    }
+
+    static SettingsPage Page(
+        string group, string title, TabItem tab,
+        Expander? section = null, FrameworkElement? anchor = null,
+        DependencyObject? parent = null, DependencyObject? start = null, DependencyObject? stop = null,
+        DependencyObject? root = null) => new()
+    {
+        Group = group,
+        Title = title,
+        Tab = tab,
+        Section = section,
+        Anchor = anchor ?? section,
+        RangeParent = root ?? parent ?? (DependencyObject?)section ?? tab,
+        RangeStart = start,
+        RangeStop = root == null && section == null ? stop : null
+    };
+
+    void SettingsSearchChanged(object sender, TextChangedEventArgs e)
+    {
+        if (SettingsSearchHint != null)
+            SettingsSearchHint.Visibility = string.IsNullOrEmpty(SettingsSearch.Text)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        if (_loading)
+            return;
+        ApplySettingsFilter(selectMatch: true);
+    }
+
+    void SettingsNavChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || _syncingNav || SettingsNav.SelectedItem is not SettingsPage page)
+            return;
+        ShowSettingsPage(page);
+    }
+
+    void ApplySettingsFilter(bool selectMatch)
+    {
+        var query = SettingsSearch?.Text.Trim() ?? "";
+        var shown = string.IsNullOrEmpty(query)
+            ? _settingsPages.ToList()
+            : _settingsPages.Where(page => PageMatches(page, query)).ToList();
+        var lastGroup = "";
+        foreach (var page in shown)
+        {
+            page.ShowGroup = page.Group != lastGroup;
+            lastGroup = page.Group;
+        }
+
+        var previous = SettingsNav.SelectedItem as SettingsPage;
+        var keep = previous ?? _settingsPages.FirstOrDefault(p => ReferenceEquals(p.Tab, MainTabs.SelectedItem));
+        _syncingNav = true;
+        SettingsNav.ItemsSource = shown.ToList();
+        SettingsPage? next = null;
+        if (shown.Count == 0)
+            next = null;
+        else if (keep != null && shown.Contains(keep) && (!selectMatch || PageMatches(keep, query)))
+            next = keep;
+        else
+            next = shown[0];
+        SettingsNav.SelectedItem = next;
+        if (next != null)
+            SettingsNav.ScrollIntoView(next);
+        _syncingNav = false;
+        if (next != null && (selectMatch || !ReferenceEquals(previous, next)))
+            ShowSettingsPage(next);
+    }
+
+    static bool PageMatches(SettingsPage page, string query)
+    {
+        if (string.IsNullOrEmpty(query))
+            return true;
+        var parts = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.All(part => page.SearchText.Contains(part, StringComparison.OrdinalIgnoreCase));
+    }
+
+    bool SelectSettingsPage(Func<SettingsPage, bool> match)
+    {
+        var page = _settingsPages.FirstOrDefault(match);
+        if (page == null || SettingsNav == null)
+            return false;
+        SettingsNav.SelectedItem = page;
+        return true;
+    }
+
+    void ShowSettingsPage(SettingsPage page)
+    {
+        _syncingNav = true;
+        try
+        {
+            if (!ReferenceEquals(MainTabs.SelectedItem, page.Tab))
+                MainTabs.SelectedItem = page.Tab;
+            if (page.Section != null)
+            {
+                foreach (var other in _settingsPages)
+                {
+                    if (other.Section == null || !ReferenceEquals(other.Tab, page.Tab))
+                        continue;
+                    other.Section.IsExpanded = ReferenceEquals(other, page);
+                }
+            }
+        }
+        finally
+        {
+            _syncingNav = false;
+        }
+
+        SettingsSectionChanged(this, new RoutedEventArgs());
+        var query = SettingsSearch?.Text.Trim() ?? "";
+        Dispatcher.BeginInvoke(() =>
+        {
+            page.Anchor?.BringIntoView();
+            SettingsNav.ScrollIntoView(page);
+            if (query.Length > 0)
+                FindMatch(page, query)?.BringIntoView();
+        }, DispatcherPriority.Loaded);
+    }
+
+    string IndexPage(SettingsPage page)
+    {
+        var sb = new StringBuilder();
+        if (page.RangeParent == null)
+            return "";
+        if (page.Section != null)
+        {
+            AppendLogicalText(page.Section, sb);
+            return sb.ToString();
+        }
+
+        var on = page.RangeStart == null;
+        foreach (var child in LogicalTreeHelper.GetChildren(page.RangeParent))
+        {
+            if (child is not DependencyObject node)
+                continue;
+            if (page.RangeStart != null && ReferenceEquals(node, page.RangeStart))
+                on = true;
+            if (page.RangeStop != null && ReferenceEquals(node, page.RangeStop))
+                break;
+            if (on)
+                AppendLogicalText(node, sb);
+        }
+
+        return sb.ToString();
+    }
+
+    static void AppendLogicalText(DependencyObject node, StringBuilder sb)
+    {
+        if (node is ItemsControl items)
+        {
+            foreach (var item in items.Items)
+            {
+                if (item is string text)
+                    sb.Append(' ').Append(text);
+            }
+        }
+
+        switch (node)
+        {
+            case TextBlock text:
+                sb.Append(' ').Append(text.Text);
+                break;
+            case HeaderedContentControl header when header.Header is string headerText:
+                sb.Append(' ').Append(headerText);
+                break;
+            case ContentControl content when content.Content is string contentText:
+                sb.Append(' ').Append(contentText);
+                break;
+        }
+
+        foreach (var child in LogicalTreeHelper.GetChildren(node))
+        {
+            if (child is DependencyObject next)
+                AppendLogicalText(next, sb);
+        }
+    }
+
+    static FrameworkElement? FindMatch(SettingsPage page, string query)
+    {
+        if (page.RangeParent == null)
+            return null;
+        var parts = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var needle = parts.Length == 0 ? query : parts[^1];
+        FrameworkElement? found = null;
+        void Walk(DependencyObject node)
+        {
+            if (found != null)
+                return;
+            if (node is ItemsControl items)
+            {
+                foreach (var item in items.Items)
+                {
+                    if (item is string text && text.Contains(needle, StringComparison.OrdinalIgnoreCase) && node is FrameworkElement host)
+                    {
+                        found = host;
+                        return;
+                    }
+                }
+            }
+            if (node is FrameworkElement element && OwnText(element).Contains(needle, StringComparison.OrdinalIgnoreCase))
+                found = element;
+            foreach (var child in LogicalTreeHelper.GetChildren(node))
+            {
+                if (page.RangeStop != null && ReferenceEquals(child, page.RangeStop))
+                    return;
+                if (child is DependencyObject next)
+                    Walk(next);
+            }
+        }
+
+        if (page.Section != null)
+            Walk(page.Section);
+        else
+        {
+            var on = page.RangeStart == null;
+            foreach (var child in LogicalTreeHelper.GetChildren(page.RangeParent))
+            {
+                if (child is not DependencyObject node)
+                    continue;
+                if (page.RangeStart != null && ReferenceEquals(node, page.RangeStart))
+                    on = true;
+                if (page.RangeStop != null && ReferenceEquals(node, page.RangeStop))
+                    break;
+                if (on)
+                    Walk(node);
+            }
+        }
+
+        return found;
+    }
+
+    static string OwnText(FrameworkElement element) => element switch
+    {
+        TextBlock text => text.Text ?? "",
+        HeaderedContentControl header when header.Header is string headerText => headerText,
+        ContentControl content when content.Content is string contentText => contentText,
+        _ => ""
+    };
 
     static string IdIfOpen(Expander? box) =>
         box is { IsExpanded: true, Tag: string id } ? id : "";
@@ -5206,6 +7510,8 @@ public partial class ConfigWindow : Window
         AppLayoutEditor.IsEnabled = true;
         AppLayoutHint.Visibility = Visibility.Collapsed;
         AppLayoutHideBox.SelectedIndex = (int)layout.Hide;
+        if (AppLayoutClockBox != null)
+            AppLayoutClockBox.SelectedIndex = (int)layout.Clock;
         AppLayoutLockBox.IsChecked = layout.ClickThrough;
         _loading = false;
     }
@@ -5216,6 +7522,8 @@ public partial class ConfigWindow : Window
             return;
         if (AppLayoutHideBox.SelectedIndex >= 0)
             layout.Hide = (AppLayoutHide)AppLayoutHideBox.SelectedIndex;
+        if (AppLayoutClockBox != null && AppLayoutClockBox.SelectedIndex >= 0)
+            layout.Clock = (AppLayoutClock)AppLayoutClockBox.SelectedIndex;
         layout.ClickThrough = AppLayoutLockBox.IsChecked == true;
         AppHost.Instance.UpdateAppLayout(layout);
     }

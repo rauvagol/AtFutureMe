@@ -47,12 +47,22 @@ public static class ProcessWatch
             .ToList();
     }
 
+    static RunningSnapshot? _cached;
+    static DateTime _cachedAt = DateTime.MinValue;
+
     public static RunningSnapshot Capture()
     {
+        var now = DateTime.UtcNow;
+        if (_cached is { } hit && now - _cachedAt < TimeSpan.FromMilliseconds(800))
+            return hit;
+
         var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (path, _) in EnumerateUserExes())
             paths.Add(path);
-        return new RunningSnapshot(paths);
+        var snapshot = new RunningSnapshot(paths);
+        _cached = snapshot;
+        _cachedAt = now;
+        return snapshot;
     }
 
     public static bool IsRunning(RunningSnapshot snapshot, string? exePath)

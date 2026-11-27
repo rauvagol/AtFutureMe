@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Media;
+using AtFutureMe.Models;
 
 namespace AtFutureMe.Services;
 
@@ -18,10 +19,10 @@ public static class GearCutter
     public const double PressureDeg = 20;
     public const double AddendumModules = 1.0;
     public const double DedendumModules = 1.25;
-    const int FlankSamplesMax = 8;
-
+    // A face a few hundred pixels wide cannot show more than a couple of
+    // segments on a flank. Denser samples stay in the tessellation cache.
     static int FlankCount(int teeth) =>
-        teeth >= 96 ? 3 : teeth >= 36 ? 4 : teeth >= 18 ? 6 : FlankSamplesMax;
+        teeth >= 48 ? 2 : teeth >= 20 ? 3 : 4;
 
     public readonly record struct Cut(
         int Teeth,
@@ -83,12 +84,212 @@ public static class GearCutter
         double cx, double cy, double pitchR, int teeth, double angle0 = 0)
     {
         var cut = External(pitchR, teeth);
-        var outline = Stream(ctx => WriteToothLoop(ctx, cx, cy, cut, angle0), FillRule.Nonzero);
-        var hubR = Math.Max(0.8, cut.RootR);
+        // The tooth loop already encloses the hub. A Union with a disk kept a
+        // second mesh (and the boolean result) for every planet, idler, and sun.
+        return Stream(ctx => WriteToothLoop(ctx, cx, cy, cut, angle0), FillRule.Nonzero);
+    }
+
+    /// <summary>
+    /// External gear with optional open web. Cutout styles use a single EvenOdd
+    /// stream (tooth outline + punched windows) so openings stay true holes —
+    /// CombinedGeometry Union/Exclude was inverting fill vs carriage.
+    /// </summary>
+    public static Geometry BuildExternalStyled(
+        double cx, double cy, double pitchR, int teeth,
+        double hubR, ClockGearCompoundStyle style,
+        int spokeCount = 5,
+        double spokeSweepDeg = 0,
+        double spokeWidthFrac = 0.28,
+        int holeCount = 6,
+        double holeSize = 0.7,
+        double holePlace = 0.5,
+        double angle0 = 0)
+    {
+        var cut = External(pitchR, teeth);
+        hubR = Math.Max(0.8, hubR);
+        if (style == ClockGearCompoundStyle.Solid || hubR >= cut.RootR - 0.75)
+        {
+            return Stream(ctx =>
+            {
+                WriteToothLoop(ctx, cx, cy, cut, angle0);
+                if (hubR > cut.RootR + 0.5)
+                    WriteCircle(ctx, cx, cy, hubR, clockwise: true);
+            }, FillRule.Nonzero);
+        }
+
+        var rimWidth = Math.Max(cut.Module * 1.55, cut.RootR * 0.18);
+        var rimInner = Math.Max(hubR + 1.0, cut.RootR - rimWidth);
+        if (rimInner <= hubR + 0.5)
+            rimInner = (hubR + cut.RootR) * 0.55;
+
+        spokeCount = Math.Clamp(spokeCount, 3, 12);
+        spokeWidthFrac = Math.Clamp(spokeWidthFrac <= 0 ? 0.28 : spokeWidthFrac, 0.08, 0.55);
+
+        return style switch
+        {
+            ClockGearCompoundStyle.Ring => Stream(ctx =>
+            {
+                WriteToothLoop(ctx, cx, cy, cut, angle0);
+                WriteCircle(ctx, cx, cy, rimInner, clockwise: false);
+                WriteCircle(ctx, cx, cy, hubR, clockwise: true);
+            }),
+            ClockGearCompoundStyle.Holes => Stream(ctx =>
+            {
+                WriteToothLoop(ctx, cx, cy, cut, angle0);
+                WriteLighteningHoleFigures(ctx, cx, cy, hubR, rimInner, holeCount, holeSize, holePlace, angle0);
+            }),
+            ClockGearCompoundStyle.Slots => Stream(ctx =>
+            {
+                WriteToothLoop(ctx, cx, cy, cut, angle0);
+                WriteSlotWindowFigures(ctx, cx, cy, hubR, rimInner, spokeCount, angle0);
+            }),
+            _ => Stream(ctx =>
+            {
+                WriteToothLoop(ctx, cx, cy, cut, angle0);
+                WriteCircle(ctx, cx, cy, rimInner, clockwise: false);
+                WriteCircle(ctx, cx, cy, hubR, clockwise: true);
+            })
+        };
+    }
+
+    /// <summary>
+    /// Rim, hub, and spokes as separate fills. Overlaps stay solid because they
+    /// are not combined with EvenOdd or a boolean. Spokes run from inside the
+    /// hub to inside the rim; the outer end is shifted by sweepDeg.
+    /// </summary>
+    public static Geometry[] BuildSpokeLayers(
+        double cx, double cy, double pitchR, int teeth, double hubR,
+        int spokeCount, double sweepDeg, double widthFrac, double angle0 = 0)
+    {
+        var cut = External(pitchR, teeth);
+        hubR = Math.Max(0.8, hubR);
+        var rimWidth = Math.Max(cut.Module * 1.55, cut.RootR * 0.18);
+        var rimInner = Math.Max(hubR + 1.0, cut.RootR - rimWidth);
+        if (rimInner <= hubR + 0.5)
+            rimInner = (hubR + cut.RootR) * 0.55;
+
+        var rim = Stream(ctx =>
+        {
+            WriteToothLoop(ctx, cx, cy, cut, angle0);
+            WriteCircle(ctx, cx, cy, rimInner, clockwise: false);
+        });
         var hub = new EllipseGeometry(new Point(cx, cy), hubR, hubR);
-        var geo = new CombinedGeometry(GeometryCombineMode.Union, hub, outline);
-        geo.Freeze();
-        return geo;
+        hub.Freeze();
+        var spokes = Stream(ctx =>
+            WriteSweptSpokes(ctx, cx, cy, hubR, rimInner, spokeCount, sweepDeg, widthFrac, angle0),
+            FillRule.Nonzero);
+        return [rim, hub, spokes];
+    }
+
+    /// <summary>
+    /// Nonzero spokes. The hub end stays put; the rim end shifts by sweepDeg and the body bows between them.
+    /// Drawn as its own fill so overlaps with the hub, rim, or another spoke stay solid.
+    /// </summary>
+    static void WriteSweptSpokes(
+        StreamGeometryContext ctx,
+        double cx, double cy, double hubR, double rimInner,
+        int spokeCount, double sweepDeg, double widthFrac, double angle0)
+    {
+        var step = Math.PI * 2.0 / spokeCount;
+        var sweep = Math.Clamp(sweepDeg, -75, 75) * Math.PI / 180.0;
+        var midR = (hubR + rimInner) * 0.5;
+        var halfW = Math.Max(0.45, widthFrac * midR * step * 0.5);
+        const int samples = 8;
+        // The end cap is a straight cut, so its corners sit inside the centerline
+        // radius. Bury past the hub and rim by the spoke half-width so both ends join.
+        var bury = halfW + 1.5;
+        var r0 = Math.Max(0.3, hubR - bury);
+        var r1 = rimInner + bury;
+
+        for (var i = 0; i < spokeCount; i++)
+        {
+            var aHub = angle0 + i * step;
+            var aRim = aHub + sweep;
+            var left = new Point[samples + 1];
+            var right = new Point[samples + 1];
+            Point Prev(int k)
+            {
+                var t = Math.Clamp(k, 0, samples) / (double)samples;
+                var r = r0 + (r1 - r0) * t;
+                var a = aHub + sweep * t;
+                return Polar(cx, cy, r, a);
+            }
+            for (var k = 0; k <= samples; k++)
+            {
+                var p = Prev(k);
+                var prev = Prev(k - 1);
+                var next = Prev(k + 1);
+                var dx = next.X - prev.X;
+                var dy = next.Y - prev.Y;
+                var len = Math.Max(1e-6, Math.Sqrt(dx * dx + dy * dy));
+                var ox = -dy / len * halfW;
+                var oy = dx / len * halfW;
+                left[k] = new Point(p.X - ox, p.Y - oy);
+                right[k] = new Point(p.X + ox, p.Y + oy);
+            }
+            ctx.BeginFigure(left[0], true, true);
+            for (var k = 1; k <= samples; k++)
+                ctx.LineTo(left[k], true, false);
+            for (var k = samples; k >= 0; k--)
+                ctx.LineTo(right[k], true, false);
+        }
+    }
+
+    static void WriteLighteningHoleFigures(
+        StreamGeometryContext ctx,
+        double cx, double cy, double hubR, double rimInner,
+        int count, double sizeFrac, double placeFrac, double angle0)
+    {
+        count = Math.Clamp(count <= 0 ? 6 : count, 3, 16);
+        placeFrac = Math.Clamp(placeFrac <= 0 ? 0.5 : placeFrac, 0.12, 0.88);
+        sizeFrac = Math.Clamp(sizeFrac <= 0 ? 0.7 : sizeFrac, 0.2, 1);
+        var gap = Math.Max(1.2, rimInner - hubR);
+        var centerR = hubR + gap * placeFrac;
+        var room = Math.Min(centerR - hubR, rimInner - centerR) - 0.35;
+        var holeR = Math.Max(0.45, Math.Min(room, room * sizeFrac));
+        for (var i = 0; i < count; i++)
+        {
+            var a = angle0 + (i + 0.5) * (Math.PI * 2.0 / count);
+            WriteCircle(ctx, cx + centerR * Math.Cos(a), cy + centerR * Math.Sin(a), holeR, clockwise: false);
+        }
+    }
+
+    static void WriteSlotWindowFigures(
+        StreamGeometryContext ctx,
+        double cx, double cy, double hubR, double rimInner, int slotCount, double angle0)
+    {
+        slotCount = Math.Clamp(slotCount, 3, 9);
+        var step = Math.PI * 2.0 / slotCount;
+        var span = step * 0.58;
+        var inner = hubR + (rimInner - hubR) * 0.08;
+        var outer = hubR + (rimInner - hubR) * 0.96;
+        for (var i = 0; i < slotCount; i++)
+        {
+            var mid = angle0 + (i + 0.5) * step;
+            WriteAnnularSectorFigure(ctx, cx, cy, inner, outer, mid - span * 0.5, mid + span * 0.5);
+        }
+    }
+
+    static void WriteAnnularSectorFigure(
+        StreamGeometryContext ctx,
+        double cx, double cy, double innerR, double outerR, double a0, double a1)
+    {
+        innerR = Math.Max(0.4, innerR);
+        outerR = Math.Max(innerR + 0.4, outerR);
+        var da = a1 - a0;
+        while (da <= 0)
+            da += Math.PI * 2;
+        while (da > Math.PI * 2)
+            da -= Math.PI * 2;
+        var large = da > Math.PI;
+        var o0 = Polar(cx, cy, outerR, a0);
+        var o1 = Polar(cx, cy, outerR, a0 + da);
+        var i1 = Polar(cx, cy, innerR, a0 + da);
+        var i0 = Polar(cx, cy, innerR, a0);
+        ctx.BeginFigure(o0, true, true);
+        ctx.ArcTo(o1, new Size(outerR, outerR), 0, large, SweepDirection.Clockwise, true, false);
+        ctx.LineTo(i1, true, false);
+        ctx.ArcTo(i0, new Size(innerR, innerR), 0, large, SweepDirection.Counterclockwise, true, false);
     }
 
     public static Geometry BuildInternalRing(

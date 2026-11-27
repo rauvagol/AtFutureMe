@@ -51,11 +51,19 @@ Desktop.ini
 $RECYCLE.BIN/
 *.lnk
 
-# App local data next to the portable exe (do not commit user state)
+# Personal data written next to the exe, or copied into the tree.
+# Tasks, folders, and overlay options live in these files.
 **/atfutureme.json
+**/atfutureme.json.bak
+**/atfutureme.json.bak2
 **/atfutureme.json.tmp
+**/atfutureme.json.unloadable-*
+**/atfutureme.manual-*.json
 **/atfutureme.log
 *.write-test
+
+# Local editor workspace (machine paths, sibling checkouts)
+*.code-workspace
 
 # Publish leftovers
 *.exe.publish

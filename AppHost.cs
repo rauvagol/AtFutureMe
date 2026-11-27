@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -36,6 +37,7 @@ public sealed partial class AppHost : IDisposable
     readonly HashSet<string> _notified = [];
     readonly Dictionary<string, MediaBrush> _brushes = [];
     readonly Dictionary<string, CategorySectionVm> _sections = [];
+    string _overlaySignature = "";
     readonly Dictionary<string, CategoryOverlay> _categoryWindows = [];
 
     WinForms.NotifyIcon? _tray;
@@ -45,9 +47,13 @@ public sealed partial class AppHost : IDisposable
     WinForms.ToolStripMenuItem? _autostartItem;
     RemindersOverlay? _reminders;
     ClockOverlay? _clock;
+    MiniClockOverlay? _mini;
+    bool _miniIdleHidden;
     UsageOverlay? _usage;
+    DiscordOverlay? _discord;
     TempHideCountdown? _countdown;
     ConfigWindow? _config;
+    DiscordDebugWindow? _discordDebug;
     Icon? _trayIcon;
     Window? _trayActivator;
     bool _hiddenAll;
@@ -61,6 +67,7 @@ public sealed partial class AppHost : IDisposable
 
     // auto model
     public UsageTracker? Usage { get; private set; }
+    public DiscordAlertService? Discord { get; private set; }
 
     public bool OverlayDragActive => _overlayDrag;
     /// <summary>Last computed clock rim (px). Gear sliders snap against this, not a dummy 120.</summary>
@@ -93,11 +100,17 @@ public sealed partial class AppHost : IDisposable
         ApplyWindowChrome();
         DiscardSessionHide();
         ShowOverlays();
+        ScheduleStartupZOrder();
         Usage = new UsageTracker(Application.Current.Dispatcher);
         Usage.Changed += OnUsageChanged;
         Usage.Start();
+        Discord = new DiscordAlertService(Application.Current.Dispatcher);
+        Discord.Changed += OnDiscordChanged;
+        Discord.Start();
+        SyncDiscordDebugWindow();
         SyncClockOverlay();
         SyncUsageOverlay();
+        SyncDiscordOverlay();
         _ = Task.Run(() => ClockGearGeometry.PrecomputedCombos());
         EnsureDesktop();
         SnapshotPairings();
@@ -430,10 +443,27 @@ public sealed partial class AppHost : IDisposable
 
     public void OpenConfig() => OpenConfigFor(null, null);
 
-    public void OpenTaskLink(string? url)
+    public async void OpenTaskLink(string? url, string? focusExe = null, string? focusTitle = null)
     {
-        if (!LinkText.TryStart(url, out var start))
+        try
+        {
+            url = await SteamAppInfo.RewriteNavUrlAsync(url);
+        }
+        catch (Exception ex)
+        {
+            App.Log("Steam link rewrite failed: " + ex.Message);
+        }
+
+        if (LinkFocus.TryActivateChosen(focusExe, focusTitle))
             return;
+        if (LinkFocus.TryActivate(url))
+            return;
+
+        if (!LinkText.TryStart(url, out var start))
+        {
+            App.Log("Open link ignored (unsupported): " + (url ?? ""));
+            return;
+        }
         try
         {
             Process.Start(start);
@@ -1082,6 +1112,7 @@ public sealed partial class AppHost : IDisposable
         // auto model
         SyncClockOverlay();
         SyncUsageOverlay();
+        SyncDiscordOverlay();
         UpdateTempHideCountdown();
     }
 
@@ -1090,7 +1121,7 @@ public sealed partial class AppHost : IDisposable
         var hours = Data.Settings.ClockHorizonHours;
         if (hours <= 0)
             hours = 24;
-        return Math.Clamp(hours, 1, 14 * 24);
+        return ClockGearGeometry.SnapHorizonHours(hours);
     }
 
     public string ClockHorizonLabel()
@@ -1111,7 +1142,7 @@ public sealed partial class AppHost : IDisposable
         return hours == 1 ? "Next hour" : $"Next {hours:0.###}h";
     }
 
-    public List<(string Title, double HoursAhead, string Kind, DateTime At, double? UsedPercent)> ClockEvents(DateTime now)
+    public List<(string Title, double HoursAhead, double? DueByHoursAhead, string Kind, DateTime At, DateTime? DueBy, double? UsedPercent, double Opacity)> ClockEvents(DateTime now)
     {
         var span = ClockHorizonHours();
         var end = now.AddHours(span);
@@ -1119,14 +1150,13 @@ public sealed partial class AppHost : IDisposable
         var allowed = s.ClockAllCategories || s.ClockCategoryIds is not { Count: > 0 }
             ? null
             : s.ClockCategoryIds.ToHashSet(StringComparer.Ordinal);
-        var rows = new List<(string Title, double HoursAhead, string Kind, DateTime At, double? UsedPercent)>();
+        var rows = new List<(string Title, double HoursAhead, double? DueByHoursAhead, string Kind, DateTime At, DateTime? DueBy, double? UsedPercent, double Opacity)>();
         foreach (var item in UpcomingItems(now))
         {
             if (item.Kind == "todo" && !s.ClockShowRecurring)
                 continue;
             if (item.Kind == "event" && !s.ClockShowScheduled)
                 continue;
-            // Usage markers come from BuildResetEvents below (independent of board filter).
             if (item.Kind.StartsWith("usage-", StringComparison.Ordinal))
                 continue;
             if (item.Kind is not ("todo" or "event"))
@@ -1143,22 +1173,45 @@ public sealed partial class AppHost : IDisposable
                     continue;
             }
 
-            DateTime at;
-            double hoursAhead;
-            if (item.Active)
+            DateTime start;
+            DateTime? dueBy;
+            double opacity = 1;
+            if (item.Kind == "todo")
             {
-                at = item.At;
-                hoursAhead = 0;
-            }
-            else if (item.At > now && item.At <= end)
-            {
-                at = item.At;
-                hoursAhead = (at - now).TotalHours;
+                var todo = Data.Todos.FirstOrDefault(t => t.Id == item.Id);
+                if (todo == null || !RecurrenceEngine.TryClockWindow(todo, now, out start, out dueBy))
+                    continue;
+                opacity = NormalizeClockOpacity(todo.ClockOpacity);
             }
             else
+            {
+                var ev = Data.Events.FirstOrDefault(e => e.Id == item.Id);
+                if (ev == null || !RecurrenceEngine.TryClockWindow(ev, out start, out dueBy))
+                    continue;
+                opacity = NormalizeClockOpacity(ev.ClockOpacity);
+            }
+
+            var windowEnd = dueBy ?? start;
+            if (windowEnd <= now)
+            {
+                // Past the window (or point) but still on the board → mark at Now as due.
+                if (!item.Active)
+                    continue;
+                rows.Add((item.Title, 0, null, item.Kind, start, dueBy, null, opacity));
+                continue;
+            }
+
+            if (start >= end)
                 continue;
 
-            rows.Add((item.Title, Math.Max(0, hoursAhead), item.Kind, at, null));
+            var hoursAhead = Math.Max(0, (start - now).TotalHours);
+            if (hoursAhead > span)
+                continue;
+            double? dueHours = null;
+            if (dueBy is DateTime db)
+                dueHours = Math.Clamp((db - now).TotalHours, 0, span);
+
+            rows.Add((item.Title, hoursAhead, dueHours, item.Kind, start, dueBy, null, opacity));
         }
 
         // auto model: clock usage wedges use their own at-limit lead hours (not the board filter)
@@ -1170,7 +1223,7 @@ public sealed partial class AppHost : IDisposable
                     continue;
                 if (!UsageTracker.ShouldShowOnClock(reset, s, now))
                     continue;
-                rows.Add((reset.Title, (reset.At - now).TotalHours, reset.Kind, reset.At, reset.UsedPercent));
+                rows.Add((reset.Title, (reset.At - now).TotalHours, null, reset.Kind, reset.At, null, reset.UsedPercent, 1));
             }
         }
 
@@ -1180,6 +1233,9 @@ public sealed partial class AppHost : IDisposable
             .Take(40)
             .ToList();
     }
+
+    static double NormalizeClockOpacity(double value) =>
+        value <= 0 ? 1 : Math.Clamp(value, 0.05, 1);
 
     // auto model
     bool ClockCategoryAllowed(string categoryId, HashSet<string> allowed)
@@ -1201,35 +1257,226 @@ public sealed partial class AppHost : IDisposable
         return false;
     }
 
+    public enum ClockShow
+    {
+        Off,
+        Main,
+        Mini
+    }
+
+    public ClockShow EffectiveClockShow()
+    {
+        if (ActiveLayout() is AppLayout layout)
+        {
+            return layout.Clock switch
+            {
+                AppLayoutClock.Mini => ClockShow.Mini,
+                AppLayoutClock.Off => ClockShow.Off,
+                _ => ClockShow.Main
+            };
+        }
+
+        if (!Data.Settings.ShowClockModule)
+            return ClockShow.Off;
+        return Data.Settings.LightweightClock ? ClockShow.Mini : ClockShow.Main;
+    }
+
     public void SyncClockOverlay()
     {
-        if (!Data.Settings.ShowClockModule || _hiddenAll || _layoutHideAll)
+        var mode = EffectiveClockShow();
+        var show = mode != ClockShow.Off
+            && ShouldShowStayPopout(true, Data.Settings.ClockStayWhenMainHidden != false);
+        if (!show || mode != ClockShow.Main)
+            ParkClock(close: mode != ClockShow.Main);
+        if (!show || mode != ClockShow.Mini)
         {
-            if (_clock != null)
+            _miniIdleHidden = false;
+            ParkMini(close: mode != ClockShow.Mini);
+        }
+
+        if (show && mode == ClockShow.Main)
+        {
+            if (_clock == null)
             {
-                _clock.Hide();
-                if (!Data.Settings.ShowClockModule)
-                {
-                    _clock.Close();
-                    _clock = null;
-                }
+                _clock = new ClockOverlay();
+                RestoreBounds(_clock, Data.Settings.Clock, defaultTopOffset: 80, _reminders);
             }
 
-            return;
+            if (!_clock.IsVisible)
+                _clock.Show();
+            _clock.ApplyChrome();
+            _clock.Refresh();
+            ApplyPopoutTopmost(_clock, Data.Settings.ClockKeepOnTop != false);
         }
-
-        if (_clock == null)
+        else if (show && mode == ClockShow.Mini)
         {
-            _clock = new ClockOverlay();
-            RestoreBounds(_clock, Data.Settings.Clock, defaultTopOffset: 80, _reminders);
+            if (MiniClockNeedsAttention(DateTime.Now))
+                _miniIdleHidden = false;
+
+            if (_mini == null)
+            {
+                _mini = new MiniClockOverlay();
+                RestoreBounds(_mini, Data.Settings.MiniClock, defaultTopOffset: 80, _reminders);
+            }
+
+            if (_miniIdleHidden)
+            {
+                if (_mini.IsVisible)
+                    _mini.Hide();
+            }
+            else
+            {
+                if (!_mini.IsVisible)
+                    _mini.Show();
+                _mini.ApplyChrome();
+                _mini.Refresh();
+                ApplyPopoutTopmost(_mini, Data.Settings.ClockKeepOnTop != false);
+            }
         }
 
-        if (!_clock.IsVisible)
-            _clock.Show();
-        _clock.ApplyChrome();
-        _clock.Refresh();
-        _clock.Topmost = false;
-        _clock.Topmost = true;
+        SyncDiscordPoll();
+    }
+
+    public void HideMiniUntilAttention()
+    {
+        if (EffectiveClockShow() != ClockShow.Mini)
+            return;
+        if (MiniClockNeedsAttention(DateTime.Now))
+            return;
+        _miniIdleHidden = true;
+        if (_mini is { IsVisible: true })
+            _mini.Hide();
+    }
+
+    public bool MiniClockNeedsAttention(DateTime now) =>
+        MiniClockRows(now).Count > 0 || MiniClockDiscordText().Length > 0;
+
+    public string MiniClockDiscordText()
+    {
+        var settings = Data.Settings;
+        if (!settings.ShowDiscordModule || settings.DiscordAlertDisplay == DiscordAlertDisplay.Window)
+            return "";
+        var discord = Discord;
+        if (discord == null)
+            return "";
+        if (discord.HasUnread && !string.IsNullOrWhiteSpace(discord.UnreadLabel))
+        {
+            var names = discord.UnreadNames.Count > 0
+                ? string.Join(", ", discord.UnreadNames)
+                : discord.UnreadLabel.Replace('\n', ' ');
+            return settings.DiscordClockNameOnly ? names : "New message from " + names;
+        }
+
+        if (discord.PluginMissing
+            && settings.DiscordMissingClockCue != DiscordMissingClockCue.Off
+            && !string.IsNullOrWhiteSpace(discord.MissingLabel))
+            return discord.MissingLabel;
+        return "";
+    }
+
+    void MaybeWakeMiniClock()
+    {
+        if (!_miniIdleHidden)
+            return;
+        if (EffectiveClockShow() != ClockShow.Mini)
+            return;
+        if (!ShouldShowStayPopout(true, Data.Settings.ClockStayWhenMainHidden != false))
+            return;
+        if (!MiniClockNeedsAttention(DateTime.Now))
+            return;
+        _miniIdleHidden = false;
+        SyncClockOverlay();
+    }
+
+    void ParkClock(bool close)
+    {
+        if (_clock == null)
+            return;
+        _clock.Hide();
+        if (!close)
+            return;
+        _clock.Close();
+        _clock = null;
+    }
+
+    void ParkMini(bool close)
+    {
+        if (_mini == null)
+            return;
+        _mini.Hide();
+        if (!close)
+            return;
+        _mini.Close();
+        _mini = null;
+    }
+
+    void SyncDiscordPoll()
+    {
+        if (Discord == null)
+            return;
+        var mainUp = _clock is { IsVisible: true };
+        var windowUp = DiscordShowsWindow(Data.Settings) && _discord is { IsVisible: true };
+        Discord.SetPollInterval(mainUp || windowUp
+            ? TimeSpan.FromSeconds(3)
+            : TimeSpan.FromMinutes(1));
+    }
+
+    public const double MiniClockMinHours = 1.0 / 60;
+    public const double MiniClockMaxHours = 48;
+
+    public static double NormalizeMiniClockHours(double hours)
+    {
+        if (hours <= 0)
+            hours = 6;
+        return Math.Clamp(hours, MiniClockMinHours, MiniClockMaxHours);
+    }
+
+    public static string MiniClockLookaheadText(double hours, bool shortForm)
+    {
+        var minutes = Math.Max(1, (int)Math.Round(NormalizeMiniClockHours(hours) * 60, MidpointRounding.AwayFromZero));
+        if (minutes < 60)
+            return shortForm ? $"{minutes}m" : minutes == 1 ? "1 minute" : $"{minutes} minutes";
+        var whole = minutes / 60;
+        var rem = minutes % 60;
+        if (rem == 0)
+            return shortForm ? $"{whole}h" : whole == 1 ? "1 hour" : $"{whole} hours";
+        return $"{whole}h {rem}m";
+    }
+
+    public List<(string Kind, string Id, string Title, DateTime At)> MiniClockRows(DateTime now)
+    {
+        var s = Data.Settings;
+        var end = now.AddHours(NormalizeMiniClockHours(s.MiniClockHours));
+        var allowed = s.ClockAllCategories || s.ClockCategoryIds is not { Count: > 0 }
+            ? null
+            : s.ClockCategoryIds.ToHashSet(StringComparer.Ordinal);
+        var rows = new List<(string Kind, string Id, string Title, DateTime At)>();
+        foreach (var item in UpcomingItems(now))
+        {
+            if (item.Kind == "todo" && !s.ClockShowRecurring)
+                continue;
+            if (item.Kind == "event" && !s.ClockShowScheduled)
+                continue;
+            if (item.Kind is not ("todo" or "event"))
+                continue;
+            if (allowed != null)
+            {
+                var folder = ResolveCategoryId(item.CategoryId);
+                if (folder.Length == 0)
+                {
+                    if (!allowed.Contains(""))
+                        continue;
+                }
+                else if (!ClockCategoryAllowed(folder, allowed))
+                    continue;
+            }
+
+            if (item.At > end)
+                continue;
+            rows.Add((item.Kind, item.Id, item.Title, item.At));
+        }
+
+        return rows.OrderBy(row => row.At).Take(16).ToList();
     }
 
     public void HideClockModule()
@@ -1295,6 +1542,160 @@ public sealed partial class AppHost : IDisposable
         SyncUsageOverlay();
         RequestSave();
         UiChanged?.Invoke();
+    }
+
+    void OnDiscordChanged()
+    {
+        _discord?.Refresh();
+        if (Data.Settings.DiscordAlertDisplay == DiscordAlertDisplay.Window)
+            return;
+        _clock?.RefreshDiscordCue();
+        if (_miniIdleHidden && MiniClockNeedsAttention(DateTime.Now))
+        {
+            _miniIdleHidden = false;
+            SyncClockOverlay();
+        }
+        else
+            _mini?.Refresh();
+    }
+
+    public static bool DiscordShowsWindow(AppSettings settings) =>
+        settings.ShowDiscordModule && settings.DiscordAlertDisplay != DiscordAlertDisplay.Clock;
+
+    public static bool DiscordShowsClockCue(AppSettings settings) =>
+        settings.ShowDiscordModule && settings.DiscordAlertDisplay != DiscordAlertDisplay.Window;
+
+    public bool ClockOverlayIsUp => _clock is { IsVisible: true };
+    public bool DiscordOverlayIsUp => _discord is { IsVisible: true };
+    public bool MainOverlayPutAway => _hiddenAll || _layoutHideAll || IsOverlayHidden(MainOverlayId);
+
+    public void SyncDiscordDebugWindow()
+    {
+        if (!Data.Settings.DiscordInboxDebug)
+        {
+            if (_discordDebug == null)
+                return;
+            var closing = _discordDebug;
+            _discordDebug = null;
+            closing.Close();
+            return;
+        }
+
+        if (_discordDebug != null)
+        {
+            if (!_discordDebug.IsVisible)
+                _discordDebug.Show();
+            _discordDebug.RefreshLog();
+            return;
+        }
+
+        _discordDebug = new DiscordDebugWindow { Topmost = true };
+        _discordDebug.Closed += (_, _) =>
+        {
+            _discordDebug = null;
+            if (!Data.Settings.DiscordInboxDebug)
+                return;
+            Data.Settings.DiscordInboxDebug = false;
+            RequestSave();
+            _config?.SyncDiscordInboxDebugBox();
+        };
+        Discord?.RefreshNow();
+        _discordDebug.Show();
+    }
+
+    public void SyncDiscordOverlay()
+    {
+        if (!ShouldShowStayPopout(DiscordShowsWindow(Data.Settings), Data.Settings.DiscordStayWhenMainHidden != false))
+        {
+            if (_discord != null)
+            {
+                _discord.Hide();
+                if (!Data.Settings.ShowDiscordModule)
+                {
+                    _discord.Close();
+                    _discord = null;
+                }
+            }
+
+            SyncDiscordPoll();
+            return;
+        }
+
+        if (_discord == null)
+        {
+            _discord = new DiscordOverlay();
+            RestoreBounds(_discord, Data.Settings.Discord, defaultTopOffset: 160, _reminders);
+        }
+
+        if (!_discord.IsVisible)
+            _discord.Show();
+        _discord.ApplyChrome();
+        _discord.Refresh();
+        ApplyPopoutTopmost(_discord, Data.Settings.DiscordKeepOnTop != false);
+        SyncDiscordPoll();
+    }
+
+    public void HideDiscordModule()
+    {
+        Data.Settings.ShowDiscordModule = false;
+        SyncDiscordOverlay();
+        RequestSave();
+        UiChanged?.Invoke();
+    }
+
+    bool ShouldShowStayPopout(bool enabled, bool stayWhenMainHidden)
+    {
+        if (!enabled)
+            return false;
+        if (_hiddenAll || _layoutHideAll)
+            return false;
+        return stayWhenMainHidden || !IsOverlayHidden(MainOverlayId);
+    }
+
+    static void ApplyPopoutTopmost(Window window, bool keepOnTop)
+    {
+        window.Topmost = keepOnTop;
+        if (keepOnTop)
+            NativeMethods.RaiseTopmost(window);
+    }
+
+    // Other startup programs create their windows after ours. Topmost order is
+    // whoever asked last, so a raise during Show loses to anything that appears
+    // a moment later. Re-raise a few times once the logon burst has settled.
+    void ScheduleStartupZOrder()
+    {
+        var delays = new[] { 500, 2000, 6000 };
+        foreach (var ms in delays)
+        {
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(ms) };
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                RaiseVisibleOverlayZOrder();
+            };
+            timer.Start();
+        }
+    }
+
+    void RaiseVisibleOverlayZOrder()
+    {
+        void Raise(Window? window, bool keepOnTop)
+        {
+            if (window is not { IsVisible: true } || !keepOnTop)
+                return;
+            window.Topmost = true;
+            NativeMethods.RaiseTopmost(window);
+        }
+
+        Raise(_reminders, true);
+        foreach (var window in _categoryWindows.Values)
+            Raise(window, true);
+        var clockOnTop = Data.Settings.ClockKeepOnTop != false;
+        Raise(_clock, clockOnTop);
+        Raise(_mini, clockOnTop);
+        Raise(_usage, true);
+        Raise(_discord, Data.Settings.DiscordKeepOnTop != false);
+        Raise(_countdown, true);
     }
 
     void UpdateTempHideCountdown()
@@ -1369,6 +1770,22 @@ public sealed partial class AppHost : IDisposable
         }
 
         todo.CompletedAt = isChecked ? DateTime.Now : null;
+        RequestSave();
+    }
+
+    public void DelayTodoHours(string id, double hours)
+    {
+        var todo = Data.Todos.FirstOrDefault(t => t.Id == id);
+        if (todo == null || todo.Recurrence.Kind != RecurrenceKind.AfterCompletionHours || hours <= 0)
+            return;
+        var now = DateTime.Now;
+        var state = RecurrenceEngine.EvaluateTodo(todo, now);
+        if (state.IsComplete)
+            return;
+        var intervalHours = Math.Clamp(RecurrenceEngine.IntervalHoursValue(todo.Recurrence), 1.0 / 60, 8760 * 24);
+        var interval = TimeSpan.FromHours(intervalHours);
+        var availableAt = todo.CompletedAt is DateTime done ? done + interval : todo.CreatedAt;
+        todo.CompletedAt = availableAt.AddHours(hours) - interval;
         RequestSave();
     }
 
@@ -1665,6 +2082,7 @@ public sealed partial class AppHost : IDisposable
         else if (Data.Settings.TempHideMain || LayoutSceneActive)
             ApplyOverlayVisibility();
         RefreshOverlayItems();
+        MaybeWakeMiniClock();
         UpdateTempHideCountdown();
         MaybeNotify();
     }
@@ -1873,6 +2291,17 @@ public sealed partial class AppHost : IDisposable
         var key = TaskKey(kind, id);
         if (!Data.Settings.TaskOrder.Contains(key))
             Data.Settings.TaskOrder.Add(key);
+    }
+
+    /// <summary>Insert a newly created task in TaskOrder immediately after another item.</summary>
+    public void TrackTaskAfter(string kind, string id, string afterKind, string afterId)
+    {
+        EnsureTaskOrder();
+        var key = TaskKey(kind, id);
+        Data.Settings.TaskOrder.Remove(key);
+        var after = Data.Settings.TaskOrder.IndexOf(TaskKey(afterKind, afterId));
+        var index = after < 0 ? Data.Settings.TaskOrder.Count : after + 1;
+        Data.Settings.TaskOrder.Insert(index, key);
     }
 
     public void UntrackTask(string kind, string id)
@@ -2131,6 +2560,50 @@ public sealed partial class AppHost : IDisposable
         rows.AddRange(result);
     }
 
+    string OverlaySignature(Dictionary<string, List<OverlayItemVm>> grouped, bool interactive)
+    {
+        var sb = new StringBuilder();
+        var now = DateTime.Now;
+        sb.Append(interactive ? '1' : '0');
+        sb.Append(_dueHighlight ? 'D' : '-');
+        sb.Append(Data.Settings.ManualSort ? 'M' : '-');
+        sb.Append(Data.Settings.HideEmptyFolders ? 'H' : '-');
+        sb.Append(Data.Settings.ShowFolderCounts ? 'C' : '-');
+        sb.Append(MainForcedVisibleByImportant(now) ? 'F' : '-');
+        sb.Append('\n').Append(TempHideStatusText(now));
+        var s = Data.Settings;
+        sb.Append('\n').Append(s.FontSize).Append('|').Append(s.BoldText)
+            .Append('|').Append(s.TextBackdrop).Append('|').Append(s.TextBackdropOpacity)
+            .Append('|').Append(s.FolderContentIndent).Append('|').Append(s.ClickThrough);
+        if (Data.Settings.ManualSort)
+            sb.Append('\n').Append(string.Join(",", Data.Settings.TaskOrder));
+        foreach (var category in Data.Categories)
+        {
+            sb.Append('\n').Append(category.Id)
+                .Append(category.PoppedOut ? 'p' : '-')
+                .Append(category.Collapsed ? 'c' : '-')
+                .Append(category.PinSlot)
+                .Append(category.Name);
+        }
+
+        foreach (var pair in grouped.OrderBy(p => p.Key, StringComparer.Ordinal))
+        {
+            sb.Append('\n').Append(pair.Key);
+            foreach (var row in pair.Value)
+            {
+                sb.Append('\t').Append(row.ItemKind).Append(':').Append(row.Id)
+                    .Append(row.IsChecked ? '1' : '0')
+                    .Append(row.Strikethrough ? 's' : '-')
+                    .Append(row.PinSlot).Append('|')
+                    .Append(row.Title).Append('|').Append(row.Meta).Append('|')
+                    .Append(row.SortAt.Ticks).Append('|')
+                    .Append(row.Foreground);
+            }
+        }
+
+        return sb.ToString();
+    }
+
     void RefreshOverlayItems()
     {
         var now = DateTime.Now;
@@ -2155,6 +2628,8 @@ public sealed partial class AppHost : IDisposable
                 CategoryId = categoryId,
                 Title = item.Title,
                 Url = item.Url,
+                FocusExePath = item.FocusExePath,
+                FocusWindowTitle = item.FocusWindowTitle,
                 IsChecked = complete,
                 ShowCheck = true,
                 ShowCheckIn = false,
@@ -2191,10 +2666,13 @@ public sealed partial class AppHost : IDisposable
                 CategoryId = categoryId,
                 Title = todo.Title,
                 Url = todo.Url,
+                FocusExePath = todo.FocusExePath,
+                FocusWindowTitle = todo.FocusWindowTitle,
                 Meta = RecurrenceEngine.FormatTodoMeta(todo, now, state),
                 IsChecked = state.IsComplete,
                 ShowCheck = true,
                 ShowCheckIn = todo.UnknownDate,
+                ShowDelay12 = todo.Recurrence.Kind == RecurrenceKind.AfterCompletionHours && !state.IsComplete,
                 ShowTrash = false,
                 ShowDelete = false,
                 Strikethrough = state.IsComplete,
@@ -2245,6 +2723,8 @@ public sealed partial class AppHost : IDisposable
                 CategoryId = categoryId,
                 Title = ev.Title,
                 Url = ev.Url,
+                FocusExePath = ev.FocusExePath,
+                FocusWindowTitle = ev.FocusWindowTitle,
                 Meta = meta,
                 IsChecked = complete,
                 ShowCheck = ev.At != null || complete,
@@ -2306,6 +2786,8 @@ public sealed partial class AppHost : IDisposable
                 CategoryId = categoryId,
                 Title = string.IsNullOrWhiteSpace(note.Title) ? note.Body : note.Title,
                 Url = note.Url,
+                FocusExePath = note.FocusExePath,
+                FocusWindowTitle = note.FocusWindowTitle,
                 Meta = string.IsNullOrWhiteSpace(note.Title) ? "" : note.Body,
                 ShowCheck = false,
                 ShowTrash = true,
@@ -2322,6 +2804,11 @@ public sealed partial class AppHost : IDisposable
 
         foreach (var (categoryId, rows) in grouped)
             SortOverlayRows(rows, categoryId);
+
+        var signature = OverlaySignature(grouped, interactive);
+        if (signature == _overlaySignature)
+            return;
+        _overlaySignature = signature;
 
         CategoryTree.RefreshLabels(Data.Categories);
         var folderCounts = Data.Settings.ShowFolderCounts ? FolderUncompletedCounts(grouped) : null;
@@ -2695,11 +3182,14 @@ public sealed partial class AppHost : IDisposable
                 var src = fresh[i];
                 row.Title = src.Title;
                 row.Url = src.Url;
+                row.FocusExePath = src.FocusExePath;
+                row.FocusWindowTitle = src.FocusWindowTitle;
                 row.Meta = src.Meta;
                 row.IsChecked = src.IsChecked;
                 row.ShowCheck = src.ShowCheck;
                 row.CheckEnabled = src.CheckEnabled;
                 row.ShowCheckIn = src.ShowCheckIn;
+                row.ShowDelay12 = src.ShowDelay12;
                 row.ShowSetWhen = src.ShowSetWhen;
                 row.ShowTrash = src.ShowTrash;
                 row.ShowDelete = src.ShowDelete;
@@ -2786,6 +3276,9 @@ public sealed partial class AppHost : IDisposable
             _usage.ApplyChrome();
         }
 
+        if (_discord != null)
+            _discord.ApplyChrome();
+
         foreach (var window in _categoryWindows.Values)
         {
             window.ResizeMode = resize;
@@ -2795,6 +3288,7 @@ public sealed partial class AppHost : IDisposable
         _reminders?.ApplyClickThrough();
         _clock?.ApplyClickThrough();
         _usage?.ApplyClickThrough();
+        _discord?.ApplyClickThrough();
         foreach (var window in _categoryWindows.Values)
             window.ApplyClickThrough();
         _countdown?.ApplyChrome();
@@ -2859,6 +3353,15 @@ public sealed partial class AppHost : IDisposable
             Data.Settings.Clock.Height = read.Height;
         }
 
+        if (_mini is { IsLoaded: true, IsVisible: true })
+        {
+            var read = ReadBounds(_mini);
+            Data.Settings.MiniClock.Left = read.Left;
+            Data.Settings.MiniClock.Top = read.Top;
+            Data.Settings.MiniClock.Width = read.Width;
+            Data.Settings.MiniClock.Height = read.Height;
+        }
+
         // auto model
         if (_usage is { IsLoaded: true, IsVisible: true })
         {
@@ -2867,6 +3370,15 @@ public sealed partial class AppHost : IDisposable
             Data.Settings.Usage.Top = read.Top;
             Data.Settings.Usage.Width = read.Width;
             Data.Settings.Usage.Height = read.Height;
+        }
+
+        if (_discord is { IsLoaded: true, IsVisible: true })
+        {
+            var read = ReadBounds(_discord);
+            Data.Settings.Discord.Left = read.Left;
+            Data.Settings.Discord.Top = read.Top;
+            Data.Settings.Discord.Width = read.Width;
+            Data.Settings.Discord.Height = read.Height;
         }
 
         foreach (var category in Data.Categories.Where(c => c.PoppedOut))
@@ -3154,9 +3666,14 @@ public sealed partial class AppHost : IDisposable
             Data.Settings.FolderContentIndent = 12;
         Data.Settings.FolderContentIndent = Math.Clamp(Data.Settings.FolderContentIndent, 0, 40);
         // auto model
+        Data.Settings.MiniClockHours = NormalizeMiniClockHours(Data.Settings.MiniClockHours);
+        if (Data.Settings.MiniClockHideSeconds < 0)
+            Data.Settings.MiniClockHideSeconds = 15;
+        Data.Settings.MiniClockHideSeconds = Math.Clamp(Data.Settings.MiniClockHideSeconds, 0, 600);
         if (Data.Settings.ClockHorizonHours <= 0)
             Data.Settings.ClockHorizonHours = 24;
-        Data.Settings.ClockHorizonHours = Math.Clamp(Data.Settings.ClockHorizonHours, 1, 14 * 24);
+        Data.Settings.ClockHorizonHours = ClockGearGeometry.SnapHorizonHours(Data.Settings.ClockHorizonHours);
+        Data.Settings.ClockHorizonInHours = ((int)Data.Settings.ClockHorizonHours) % 24 != 0;
         if (!Enum.IsDefined(Data.Settings.ClockTickStep))
             Data.Settings.ClockTickStep = ClockTickStep.Hour;
         Data.Settings.ClockTickLengthHour = SnapClockPercent(Data.Settings.ClockTickLengthHour, 0.01, 0.50);
@@ -3166,15 +3683,123 @@ public sealed partial class AppHost : IDisposable
         Data.Settings.ClockSecondHandLength = SnapClockPercent(Data.Settings.ClockSecondHandLength, 0.01, 0.95);
         Data.Settings.ClockHourHandLength = SnapClockPercent(Data.Settings.ClockHourHandLength, 0.01, 0.95);
         Data.Settings.ClockWedgeWidth = SnapClockPercent(Data.Settings.ClockWedgeWidth, 0.01, 0.15);
+        Data.Settings.ClockWedgeInner = SnapClockPercent(Data.Settings.ClockWedgeInner, 0, 0.80);
+        Data.Settings.ClockWedgeFade = SnapClockPercent(Data.Settings.ClockWedgeFade, 0, 1);
+        Data.Settings.ClockWedgeFadeReach = SnapClockPercent(Data.Settings.ClockWedgeFadeReach, 0, 1);
+        Data.Settings.ClockWedgeOpacityRecurring = SnapClockPercent(
+            Data.Settings.ClockWedgeOpacityRecurring <= 0 ? 0.63 : Data.Settings.ClockWedgeOpacityRecurring, 0.05, 1);
+        Data.Settings.ClockWedgeOpacityScheduled = SnapClockPercent(
+            Data.Settings.ClockWedgeOpacityScheduled <= 0 ? 0.63 : Data.Settings.ClockWedgeOpacityScheduled, 0.05, 1);
+        Data.Settings.ClockWedgeOpacityDue = SnapClockPercent(
+            Data.Settings.ClockWedgeOpacityDue <= 0 ? 0.78 : Data.Settings.ClockWedgeOpacityDue, 0.05, 1);
+        if (!Enum.IsDefined(Data.Settings.ClockWedgeInnerMode))
+            Data.Settings.ClockWedgeInnerMode = ClockWedgeInnerMode.Vertex;
+        if (!Data.Settings.ClockWedgeEndInitialized)
+        {
+            Data.Settings.ClockWedgeInnerEnd = Data.Settings.ClockWedgeInner;
+            Data.Settings.ClockWedgeFadeEnd = Data.Settings.ClockWedgeFade;
+            Data.Settings.ClockWedgeFadeReachEnd = Data.Settings.ClockWedgeFadeReach;
+            Data.Settings.ClockWedgeInnerModeEnd = Data.Settings.ClockWedgeInnerMode;
+            Data.Settings.ClockWedgeEndWarnPercent =
+                Data.Settings.ClockWindowWarnPercent <= 0 ? 0.5 : Data.Settings.ClockWindowWarnPercent;
+            Data.Settings.ClockWedgeEndLastHours =
+                Data.Settings.ClockWindowLastHours <= 0 ? 1 : Data.Settings.ClockWindowLastHours;
+            Data.Settings.ClockWedgeEndInitialized = true;
+        }
+        Data.Settings.ClockWedgeInnerEnd = SnapClockPercent(Data.Settings.ClockWedgeInnerEnd, 0, 0.80);
+        Data.Settings.ClockWedgeFadeEnd = SnapClockPercent(Data.Settings.ClockWedgeFadeEnd, 0, 1);
+        Data.Settings.ClockWedgeFadeReachEnd = SnapClockPercent(Data.Settings.ClockWedgeFadeReachEnd, 0, 1);
+        if (!Enum.IsDefined(Data.Settings.ClockWedgeInnerModeEnd))
+            Data.Settings.ClockWedgeInnerModeEnd = Data.Settings.ClockWedgeInnerMode;
+        if (Data.Settings.ClockWedgeEndWarnPercent <= 0)
+            Data.Settings.ClockWedgeEndWarnPercent =
+                Data.Settings.ClockWindowWarnPercent <= 0 ? 0.5 : Data.Settings.ClockWindowWarnPercent;
+        Data.Settings.ClockWedgeEndWarnPercent = Math.Clamp(Data.Settings.ClockWedgeEndWarnPercent, 0.05, 0.95);
+        if (Data.Settings.ClockWedgeEndLastHours <= 0)
+            Data.Settings.ClockWedgeEndLastHours =
+                Data.Settings.ClockWindowLastHours <= 0 ? 1 : Data.Settings.ClockWindowLastHours;
+        Data.Settings.ClockWedgeEndLastHours = Math.Clamp(Data.Settings.ClockWedgeEndLastHours, 0.05, 24 * 14);
         Data.Settings.ClockTimePosition = Math.Clamp(Data.Settings.ClockTimePosition, 0, 1);
         // auto model
         Data.Settings.ClockTimeFontSize = Math.Clamp(
             Data.Settings.ClockTimeFontSize <= 0 ? 13 : Data.Settings.ClockTimeFontSize, 8, 48);
         if (!Enum.IsDefined(Data.Settings.ClockLockMode))
             Data.Settings.ClockLockMode = ClockLockMode.Locked;
+        if (!Enum.IsDefined(Data.Settings.DiscordLockMode))
+            Data.Settings.DiscordLockMode = ClockLockMode.Locked;
+        if (!Enum.IsDefined(Data.Settings.DiscordAlertDisplay))
+            Data.Settings.DiscordAlertDisplay = DiscordAlertDisplay.Window;
+        if (!Enum.IsDefined(Data.Settings.DiscordClockCue))
+            Data.Settings.DiscordClockCue = DiscordClockCue.PulseFace;
+        if (!Enum.IsDefined(Data.Settings.DiscordClockSender))
+            Data.Settings.DiscordClockSender = DiscordClockSender.Off;
+        Data.Settings.DiscordClockColor = ColorText.NormalizeOr(Data.Settings.DiscordClockColor, "#5865F2");
+        Data.Settings.DiscordClockTextColor = ColorText.NormalizeOr(Data.Settings.DiscordClockTextColor, "#E8EAED");
+        Data.Settings.DiscordClockOpacity = Math.Clamp(
+            Data.Settings.DiscordClockOpacity <= 0 ? 0.7 : Data.Settings.DiscordClockOpacity, 0.1, 1);
+        Data.Settings.DiscordClockRingInset = Math.Clamp(
+            Data.Settings.DiscordClockRingInset <= 0 ? 0.08 : Data.Settings.DiscordClockRingInset, 0.04, 0.55);
+        if (!Enum.IsDefined(Data.Settings.DiscordMissingClockCue))
+            Data.Settings.DiscordMissingClockCue = DiscordMissingClockCue.Off;
+        if (!Enum.IsDefined(Data.Settings.ClockLastChanceCue))
+            Data.Settings.ClockLastChanceCue = ClockLastChanceCue.Off;
+        if (!Enum.IsDefined(Data.Settings.DiscordMissingClockLabel))
+            Data.Settings.DiscordMissingClockLabel = DiscordClockSender.Below;
+        Data.Settings.DiscordMissingClockColor = ColorText.NormalizeOr(Data.Settings.DiscordMissingClockColor, "#FFB74D");
+        Data.Settings.DiscordMissingClockOpacity = Math.Clamp(
+            Data.Settings.DiscordMissingClockOpacity <= 0 ? 0.7 : Data.Settings.DiscordMissingClockOpacity, 0.1, 1);
+        Data.Settings.DiscordNameAliases ??= [];
+        Data.Settings.DiscordNameColors ??= [];
+        Data.Settings.DiscordNameColors = Data.Settings.DiscordNameColors
+            .Select(c => new DiscordNameColor
+            {
+                Name = (c.Name ?? "").Trim().TrimStart('@'),
+                Color = ColorText.NormalizeOr(c.Color, Data.Settings.DiscordClockColor),
+                TextColor = ColorText.TryNormalize(c.TextColor, out var textHex) ? textHex : null,
+                OutlineColor = ColorText.TryNormalize(c.OutlineColor, out var outlineHex) ? outlineHex : null,
+                OutlineStrength = Math.Clamp(c.OutlineStrength <= 0 ? 2 : c.OutlineStrength, 1, 6),
+                TextSize = c.TextSize <= 0 ? 0 : Math.Clamp(c.TextSize, 8, 48)
+            })
+            .Where(c => c.Name.Length > 0)
+            .GroupBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.Last())
+            .ToList();
+        Data.Settings.DiscordPriorityNames ??= [];
+        Data.Settings.DiscordPriorityNames = Data.Settings.DiscordPriorityNames
+            .Select(n => n.Trim().TrimStart('@'))
+            .Where(n => n.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        Data.Settings.DiscordPrioritySound = AlertSound.NormalizeId(Data.Settings.DiscordPrioritySound);
+        Data.Settings.DiscordPriorityVolume = Math.Clamp(Data.Settings.DiscordPriorityVolume, 0, 1);
+        Data.Settings.DiscordPriorityIntervalMinutes = Math.Clamp(
+            Data.Settings.DiscordPriorityIntervalMinutes <= 0 ? 5 : Data.Settings.DiscordPriorityIntervalMinutes,
+            0.5, 24 * 60);
+        Data.Settings.DiscordPriorityGraceMinutes = Math.Clamp(
+            Data.Settings.DiscordPriorityGraceMinutes <= 0 ? 10 : Data.Settings.DiscordPriorityGraceMinutes,
+            0.5, 24 * 60);
+        if (Data.Settings.DiscordPriorityRepeatMode is int mode)
+            Data.Settings.DiscordPriorityRepeatMode = Math.Clamp(mode, 0, 2);
+        else
+            Data.Settings.DiscordPriorityRepeatMode = Data.Settings.DiscordPrioritySoundOnce ? 0 : 1;
+        Data.Settings.DiscordPrioritySoundOnce = Data.Settings.EffectiveDiscordPriorityRepeatMode() == 0;
+        Data.Settings.Discord ??= new WindowBounds { Width = 280, Height = 280 };
         Data.Settings.ClockColorRecurring = ColorText.NormalizeOr(Data.Settings.ClockColorRecurring, "#8AB4F8");
         Data.Settings.ClockColorScheduled = ColorText.NormalizeOr(Data.Settings.ClockColorScheduled, "#FFD24D");
         Data.Settings.ClockColorDue = ColorText.NormalizeOr(Data.Settings.ClockColorDue, ColorText.Due);
+        Data.Settings.ClockWindowOpenColor = ColorText.NormalizeOr(Data.Settings.ClockWindowOpenColor, "#5DDC8A");
+        Data.Settings.ClockWindowLastColor = ColorText.NormalizeOr(Data.Settings.ClockWindowLastColor, "#FF5A5A");
+        // First load: keep both ends on the recurring wedge opacity so existing windows look unchanged.
+        if (Data.Settings.ClockWindowOpenOpacity <= 0)
+            Data.Settings.ClockWindowOpenOpacity = Data.Settings.ClockWedgeOpacityRecurring;
+        if (Data.Settings.ClockWindowLastOpacity <= 0)
+            Data.Settings.ClockWindowLastOpacity = Data.Settings.ClockWedgeOpacityRecurring;
+        Data.Settings.ClockWindowOpenOpacity = SnapClockPercent(Data.Settings.ClockWindowOpenOpacity, 0.05, 1);
+        Data.Settings.ClockWindowLastOpacity = SnapClockPercent(Data.Settings.ClockWindowLastOpacity, 0.05, 1);
+        Data.Settings.ClockWindowWarnPercent = Math.Clamp(
+            Data.Settings.ClockWindowWarnPercent <= 0 ? 0.5 : Data.Settings.ClockWindowWarnPercent, 0.05, 0.95);
+        Data.Settings.ClockWindowLastHours = Math.Clamp(
+            Data.Settings.ClockWindowLastHours <= 0 ? 1 : Data.Settings.ClockWindowLastHours, 0.05, 24 * 14);
         Data.Settings.ClockColorCaret = ColorText.NormalizeOr(Data.Settings.ClockColorCaret, "#8AB4F8");
         Data.Settings.ClockColorRing = ColorText.NormalizeOr(Data.Settings.ClockColorRing, "#C5C9D0");
         Data.Settings.ClockColorMajorTick = ColorText.NormalizeOr(Data.Settings.ClockColorMajorTick, "#C5C9D0");
@@ -3187,6 +3812,15 @@ public sealed partial class AppHost : IDisposable
         Data.Settings.ClockColorAttention = ColorText.NormalizeOr(Data.Settings.ClockColorAttention, "#FF8A65");
         if (!Enum.IsDefined(Data.Settings.ClockGearDriveMode))
             Data.Settings.ClockGearDriveMode = ClockGearDriveMode.Off;
+        if (!Enum.IsDefined(Data.Settings.ClockGearCompoundStyle))
+            Data.Settings.ClockGearCompoundStyle = ClockGearCompoundStyle.Solid;
+        if (!Enum.IsDefined(Data.Settings.ClockGearCompoundSpokeLean))
+            Data.Settings.ClockGearCompoundSpokeLean = ClockGearSpokeLean.Straight;
+        Data.Settings.ClockGearCompoundSpokeCount = Math.Clamp(
+            Data.Settings.ClockGearCompoundSpokeCount <= 0 ? 5 : Data.Settings.ClockGearCompoundSpokeCount, 3, 12);
+        Data.Settings.ClockGearCompoundSpokeWidth = Math.Clamp(
+            Data.Settings.ClockGearCompoundSpokeWidth <= 0 ? 0.28 : Data.Settings.ClockGearCompoundSpokeWidth, 0.08, 0.55);
+        Data.Settings.ClockGearCompoundStages = NormalizeGearCompoundStages(Data.Settings);
         Data.Settings.ConfigTabIndex = Math.Max(0, Data.Settings.ConfigTabIndex);
         // auto model
         Data.Settings.ClockGearAnimSpeed = Math.Clamp(
@@ -3238,6 +3872,8 @@ public sealed partial class AppHost : IDisposable
         Data.Settings.ClockGearCarriageStages = NormalizeGearCarriageStages(Data.Settings);
         Data.Settings.ClockGearOpacity = Math.Clamp(
             Data.Settings.ClockGearOpacity <= 0 ? 0.42 : Data.Settings.ClockGearOpacity, 0.05, 1);
+        Data.Settings.ClockGearRingOpacity = Math.Clamp(
+            Data.Settings.ClockGearRingOpacity <= 0 ? 1 : Data.Settings.ClockGearRingOpacity, 0.05, 1);
         Data.Settings.ClockTimeOutlineStrength = Math.Clamp(
             Data.Settings.ClockTimeOutlineStrength <= 0 ? 2 : Data.Settings.ClockTimeOutlineStrength, 1, 6);
         // auto model
@@ -3460,6 +4096,30 @@ public sealed partial class AppHost : IDisposable
         return result;
     }
 
+    static List<ClockGearCompoundStage> NormalizeGearCompoundStages(AppSettings s)
+    {
+        const int gaps = 5;
+        var src = s.ClockGearCompoundStages;
+        var seeded = src == null || src.Count == 0;
+        var result = new List<ClockGearCompoundStage>(gaps);
+        for (var i = 0; i < gaps; i++)
+        {
+            ClockGearCompoundStage st;
+            if (src != null && i < src.Count && src[i] != null)
+                st = src[i].Clone();
+            else if (seeded)
+                st = ClockGearCompoundStage.FromLegacy(s);
+            else
+                st = result.Count > 0 ? result[^1].Clone() : ClockGearCompoundStage.FromLegacy(s);
+            result.Add(st.Clamped());
+        }
+        s.ClockGearCompoundStyle = result[0].Style;
+        s.ClockGearCompoundSpokeCount = result[0].SpokeCount;
+        s.ClockGearCompoundSpokeLean = result[0].SpokeLean;
+        s.ClockGearCompoundSpokeWidth = result[0].SpokeWidth;
+        return result;
+    }
+
     // auto model
     static List<double> NormalizeGearIdlerOffsets(List<double>? offsets, double legacyGap0)
     {
@@ -3634,8 +4294,14 @@ public sealed partial class AppHost : IDisposable
         _clock = null;
         _usage?.Close();
         _usage = null;
+        _discord?.Close();
+        _discord = null;
+        _discordDebug?.Close();
+        _discordDebug = null;
         Usage?.Dispose();
         Usage = null;
+        Discord?.Dispose();
+        Discord = null;
         foreach (var window in _categoryWindows.Values.ToList())
             window.Close();
         _categoryWindows.Clear();

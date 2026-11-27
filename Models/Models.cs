@@ -24,6 +24,9 @@ public sealed class Recurrence
     /// <summary>Clock time as HH:mm (local). Empty means midnight.</summary>
     public string Time { get; set; } = "00:00";
 
+    /// <summary>Optional end of the work window as HH:mm. Empty = point-in-time (no due-by). If earlier than or equal to <see cref="Time"/>, it wraps to the next day.</summary>
+    public string? DueByTime { get; set; }
+
     /// <summary>N for every-N-days, every-N-weeks, N days after completion, or N hours after completion (fractional hours allowed).</summary>
     // auto model
     public double Interval { get; set; } = 1;
@@ -50,6 +53,7 @@ public sealed class Recurrence
     {
         Kind = Kind,
         Time = Time,
+        DueByTime = DueByTime,
         Interval = Interval,
         Weekdays = [.. Weekdays],
         MonthDay = MonthDay,
@@ -123,6 +127,10 @@ public sealed class TodoItem : IHasCheckRule
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Title { get; set; } = "New recurring";
     public string? Url { get; set; }
+    /// <summary>When set, clicking the link focuses this process instead of guessing.</summary>
+    public string? FocusExePath { get; set; }
+    /// <summary>Window title to prefer when that process has more than one window.</summary>
+    public string? FocusWindowTitle { get; set; }
     public string CategoryId { get; set; } = "";
     public bool Enabled { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.Now;
@@ -150,6 +158,33 @@ public sealed class TodoItem : IHasCheckRule
     public bool ImportantLeadInHours { get; set; } = true;
 
     public TaskColors? Colors { get; set; }
+
+    /// <summary>Clock wedge fill opacity for this item (0.05–1). 0 means use default (~63%).</summary>
+    public double ClockOpacity { get; set; }
+
+    /// <summary>Copy for Duplicate — new Id, fresh created/check state, title marked as copy.</summary>
+    public TodoItem Duplicate() => new()
+    {
+        Title = TaskDuplicate.Title(Title),
+        Url = Url,
+        FocusExePath = FocusExePath,
+        FocusWindowTitle = FocusWindowTitle,
+        CategoryId = CategoryId,
+        Enabled = Enabled,
+        PinSlot = PinSlot,
+        HoldPinWhenHidden = HoldPinWhenHidden,
+        UnknownDate = UnknownDate,
+        CheckEveryDays = CheckEveryDays,
+        Recurrence = Recurrence.Clone(),
+        CheckRule = CheckRule,
+        CheckReshowHours = CheckReshowHours,
+        CheckReshowInHours = CheckReshowInHours,
+        Important = Important,
+        ImportantLeadHours = ImportantLeadHours,
+        ImportantLeadInHours = ImportantLeadInHours,
+        Colors = Colors?.Clone(),
+        ClockOpacity = ClockOpacity
+    };
 }
 
 public sealed class OnceItem : IHasCheckRule
@@ -157,6 +192,8 @@ public sealed class OnceItem : IHasCheckRule
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Title { get; set; } = "New to-do";
     public string? Url { get; set; }
+    public string? FocusExePath { get; set; }
+    public string? FocusWindowTitle { get; set; }
     public string CategoryId { get; set; } = "";
     public DateTime CreatedAt { get; set; } = DateTime.Now;
     public DateTime? CompletedAt { get; set; }
@@ -167,6 +204,21 @@ public sealed class OnceItem : IHasCheckRule
     public double CheckReshowHours { get; set; } = 24;
     public bool CheckReshowInHours { get; set; }
     public TaskColors? Colors { get; set; }
+
+    public OnceItem Duplicate() => new()
+    {
+        Title = TaskDuplicate.Title(Title),
+        Url = Url,
+        FocusExePath = FocusExePath,
+        FocusWindowTitle = FocusWindowTitle,
+        CategoryId = CategoryId,
+        PinSlot = PinSlot,
+        HoldPinWhenHidden = HoldPinWhenHidden,
+        CheckRule = CheckRule,
+        CheckReshowHours = CheckReshowHours,
+        CheckReshowInHours = CheckReshowInHours,
+        Colors = Colors?.Clone()
+    };
 }
 
 public sealed class EventItem : IHasCheckRule
@@ -174,9 +226,13 @@ public sealed class EventItem : IHasCheckRule
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Title { get; set; } = "New scheduled";
     public string? Url { get; set; }
+    public string? FocusExePath { get; set; }
+    public string? FocusWindowTitle { get; set; }
     public string CategoryId { get; set; } = "";
     public DateTime CreatedAt { get; set; } = DateTime.Now;
     public DateTime? At { get; set; }
+    /// <summary>Optional end of the work window. Null = point event at <see cref="At"/>.</summary>
+    public DateTime? DueBy { get; set; }
     public DateTime? LastCheckedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public int PinSlot { get; set; }
@@ -204,6 +260,35 @@ public sealed class EventItem : IHasCheckRule
     public bool ImportantLeadInHours { get; set; } = true;
 
     public TaskColors? Colors { get; set; }
+
+    /// <summary>Clock wedge fill opacity for this item (0.05–1). 0 means use default (~63%).</summary>
+    public double ClockOpacity { get; set; }
+
+    public EventItem Duplicate() => new()
+    {
+        Title = TaskDuplicate.Title(Title),
+        Url = Url,
+        FocusExePath = FocusExePath,
+        FocusWindowTitle = FocusWindowTitle,
+        CategoryId = CategoryId,
+        At = At,
+        DueBy = DueBy,
+        CheckEveryDays = CheckEveryDays,
+        PinSlot = PinSlot,
+        HoldPinWhenHidden = HoldPinWhenHidden,
+        CheckRule = CheckRule,
+        CheckReshowHours = CheckReshowHours,
+        CheckReshowInHours = CheckReshowInHours,
+        ShowBeforeHours = ShowBeforeHours,
+        ShowBeforeInHours = ShowBeforeInHours,
+        ShowAfterCheckHours = ShowAfterCheckHours,
+        ShowAfterCheckInHours = ShowAfterCheckInHours,
+        Important = Important,
+        ImportantLeadHours = ImportantLeadHours,
+        ImportantLeadInHours = ImportantLeadInHours,
+        Colors = Colors?.Clone(),
+        ClockOpacity = ClockOpacity
+    };
 }
 
 public sealed class NoteItem
@@ -211,12 +296,40 @@ public sealed class NoteItem
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Title { get; set; } = "Note";
     public string? Url { get; set; }
+    public string? FocusExePath { get; set; }
+    public string? FocusWindowTitle { get; set; }
     public string Body { get; set; } = "";
     public string CategoryId { get; set; } = "";
     public bool Hidden { get; set; }
     public int PinSlot { get; set; }
     // auto model
     public bool HoldPinWhenHidden { get; set; }
+
+    public NoteItem Duplicate() => new()
+    {
+        Title = TaskDuplicate.Title(Title),
+        Url = Url,
+        FocusExePath = FocusExePath,
+        FocusWindowTitle = FocusWindowTitle,
+        Body = Body,
+        CategoryId = CategoryId,
+        Hidden = Hidden,
+        PinSlot = PinSlot,
+        HoldPinWhenHidden = HoldPinWhenHidden
+    };
+}
+
+static class TaskDuplicate
+{
+    public static string Title(string title)
+    {
+        title = title.Trim();
+        if (title.Length == 0)
+            return "Copy";
+        return title.EndsWith(" (copy)", StringComparison.OrdinalIgnoreCase)
+            ? title
+            : title + " (copy)";
+    }
 }
 
 public sealed class WindowBounds
@@ -310,10 +423,73 @@ public sealed class AppSettings
     public WindowBounds Reminders { get; set; } = new() { Width = 340, Height = 460 };
     // auto model: optional Now-at-top event clock
     public bool ShowClockModule { get; set; }
+    /// <summary>When the clock module is on and no app layout is forcing a clock: text list instead of the face.</summary>
+    public bool LightweightClock { get; set; }
+    /// <summary>How far ahead the lightweight clock lists tasks, in hours. Values under 1 are minutes.</summary>
+    public double MiniClockHours { get; set; } = 6;
+    /// <summary>
+    /// After this many empty seconds the lightweight clock hides until Discord or a
+    /// task in the look-ahead needs attention. 0 keeps the empty panel visible.
+    /// </summary>
+    public double MiniClockHideSeconds { get; set; } = 15;
+    public WindowBounds MiniClock { get; set; } = new() { Width = 280, Height = 220 };
+    /// <summary>Null/true: clock stays up when the main overlay is hidden.</summary>
+    public bool? ClockStayWhenMainHidden { get; set; }
+    /// <summary>Null/true: clock stays above other windows.</summary>
+    public bool? ClockKeepOnTop { get; set; }
+    public bool ShowDiscordModule { get; set; }
+    public DiscordAlertDisplay DiscordAlertDisplay { get; set; } = DiscordAlertDisplay.Window;
+    public DiscordClockCue DiscordClockCue { get; set; } = DiscordClockCue.PulseFace;
+    public DiscordClockSender DiscordClockSender { get; set; } = DiscordClockSender.Off;
+    /// <summary>When true, clock sender lines are just the name/alias, not “New message from …”.</summary>
+    public bool DiscordClockNameOnly { get; set; }
+    public string DiscordClockColor { get; set; } = "#5865F2";
+    public string DiscordClockTextColor { get; set; } = "#E8EAED";
+    /// <summary>Peak opacity of the Discord clock cue (0–1).</summary>
+    public double DiscordClockOpacity { get; set; } = 0.7;
+    /// <summary>Pulse-ring thickness as a fraction of clock radius (grows inward).</summary>
+    public double DiscordClockRingInset { get; set; } = 0.08;
+    public DiscordMissingClockCue DiscordMissingClockCue { get; set; } = DiscordMissingClockCue.Off;
+    public DiscordClockSender DiscordMissingClockLabel { get; set; } = DiscordClockSender.Below;
+    public string DiscordMissingClockColor { get; set; } = "#FFB74D";
+    public double DiscordMissingClockOpacity { get; set; } = 0.7;
+    public List<DiscordNameAlias> DiscordNameAliases { get; set; } = [];
+    /// <summary>Per-sender cue colors (username, display name, alias, or user ID → hex).</summary>
+    public List<DiscordNameColor> DiscordNameColors { get; set; } = [];
+    /// <summary>Discord usernames, display names, or user IDs that trigger a priority sound while unread.</summary>
+    public List<string> DiscordPriorityNames { get; set; } = [];
+    /// <summary>Sound catalog id (e.g. notify, ding, alarm01).</summary>
+    public string DiscordPrioritySound { get; set; } = "notify";
+    /// <summary>0–1 playback volume for the priority sound.</summary>
+    public double DiscordPriorityVolume { get; set; } = 0.7;
+    /// <summary>Legacy: true = once. Prefer <see cref="DiscordPriorityRepeatMode"/> when set.</summary>
+    public bool DiscordPrioritySoundOnce { get; set; } = true;
+    /// <summary>0 = once per unread, 1 = every X minutes, 2 = every X after Y minutes unread. Null = derive from SoundOnce.</summary>
+    public int? DiscordPriorityRepeatMode { get; set; }
+    /// <summary>Minutes between repeats for modes 1 and 2.</summary>
+    public double DiscordPriorityIntervalMinutes { get; set; } = 5;
+    /// <summary>Minutes unread before the first sound in mode 2 (every X after Y).</summary>
+    public double DiscordPriorityGraceMinutes { get; set; } = 10;
+
+    public int EffectiveDiscordPriorityRepeatMode()
+    {
+        if (DiscordPriorityRepeatMode is int mode)
+            return Math.Clamp(mode, 0, 2);
+        return DiscordPrioritySoundOnce ? 0 : 1;
+    }
+
+    /// <summary>When true, Integration shows a live “why no alert” log. Takes effect immediately.</summary>
+    public bool DiscordInboxDebug { get; set; }
+    public WindowBounds Discord { get; set; } = new() { Width = 280, Height = 280 };
+    public ClockLockMode DiscordLockMode { get; set; } = ClockLockMode.Locked;
+    /// <summary>Null/true: Discord alerts stay up when the main overlay is hidden.</summary>
+    public bool? DiscordStayWhenMainHidden { get; set; }
+    /// <summary>Null/true: Discord alerts stay above other windows.</summary>
+    public bool? DiscordKeepOnTop { get; set; }
     public WindowBounds Clock { get; set; } = new() { Width = 280, Height = 300 };
     /// <summary>How far ahead the clock face covers, in hours.</summary>
     public double ClockHorizonHours { get; set; } = 24;
-    /// <summary>True when the Clock tab edits the horizon in hours; false means days.</summary>
+    /// <summary>True when chrome labels the horizon in hours; false means whole days. Snapped horizons that are multiples of 24 use days.</summary>
     public bool ClockHorizonInHours { get; set; } = true;
     /// <summary>When true, rim labels use 12-hour clock; otherwise 24-hour.</summary>
     public bool ClockUse12Hour { get; set; }
@@ -331,6 +507,38 @@ public sealed class AppSettings
     /// <summary>Task wedge angular width as a fraction of the full ring (snapped to 1%).</summary>
     // auto model
     public double ClockWedgeWidth { get; set; } = 0.02;
+    /// <summary>How far from the center a task wedge begins, as a fraction of the rim radius.</summary>
+    // auto model
+    public double ClockWedgeInner { get; set; }
+    /// <summary>Vertex shifts the point outward; cutout leaves a round hole over the center.</summary>
+    // auto model
+    public ClockWedgeInnerMode ClockWedgeInnerMode { get; set; } = ClockWedgeInnerMode.Vertex;
+    /// <summary>How transparent the wedge is at the center. 0 keeps it solid.</summary>
+    // auto model
+    public double ClockWedgeFade { get; set; }
+    /// <summary>Fraction of the rim radius, from the center, over which the fade runs. Beyond that the wedge is solid.</summary>
+    // auto model
+    public double ClockWedgeFadeReach { get; set; } = 1;
+    /// <summary>
+    /// Due-by window end (last-chance) radial profile. When false, end mirrors start until the user edits it.
+    /// </summary>
+    public bool ClockWedgeEndInitialized { get; set; }
+    public double ClockWedgeInnerEnd { get; set; }
+    public ClockWedgeInnerMode ClockWedgeInnerModeEnd { get; set; } = ClockWedgeInnerMode.Vertex;
+    public double ClockWedgeFadeEnd { get; set; }
+    public double ClockWedgeFadeReachEnd { get; set; } = 1;
+    /// <summary>0–1: fraction of the window after which the start wedge shape starts shifting toward the end shape.</summary>
+    public double ClockWedgeEndWarnPercent { get; set; }
+    /// <summary>Hours before due-by when the wedge end shape is fully applied.</summary>
+    public double ClockWedgeEndLastHours { get; set; }
+    /// <summary>Fill opacity for recurring, scheduled, and due task wedges.</summary>
+    // auto model
+    public double ClockWedgeOpacityRecurring { get; set; } = 0.63;
+    public double ClockWedgeOpacityScheduled { get; set; } = 0.63;
+    public double ClockWedgeOpacityDue { get; set; } = 0.78;
+    /// <summary>How overlapping task wedges combine. Normal lays each one over the last.</summary>
+    // auto model
+    public ClockWedgeBlend ClockWedgeBlend { get; set; } = ClockWedgeBlend.Normal;
     public bool ClockShowEventLabels { get; set; }
     public bool ClockShowRecurring { get; set; } = true;
     public bool ClockShowScheduled { get; set; } = true;
@@ -359,6 +567,24 @@ public sealed class AppSettings
     public string ClockColorRecurring { get; set; } = "#8AB4F8";
     public string ClockColorScheduled { get; set; } = "#FFD24D";
     public string ClockColorDue { get; set; } = "#5DDC8A";
+    /// <summary>Due-by window: color when the window has just opened.</summary>
+    public string ClockWindowOpenColor { get; set; } = "#5DDC8A";
+    /// <summary>Due-by window: color at last-chance / overdue.</summary>
+    public string ClockWindowLastColor { get; set; } = "#FF5A5A";
+    /// <summary>Due-by window fill opacity at open (start of the band). 0 = migrate from type opacity.</summary>
+    public double ClockWindowOpenOpacity { get; set; }
+    /// <summary>Due-by window fill opacity at last-chance / due-by (end of the band). 0 = migrate from type opacity.</summary>
+    public double ClockWindowLastOpacity { get; set; }
+    /// <summary>0–1: fraction of the window after which the open color starts shifting toward last-chance (default 0.5).</summary>
+    public double ClockWindowWarnPercent { get; set; } = 0.5;
+    /// <summary>Hours before due-by when the wedge is fully last-chance color (default 1).</summary>
+    public double ClockWindowLastHours { get; set; } = 1;
+    /// <summary>When true, due-by wedges paint the open→last-chance ramp along the arc instead of a single “now” color.</summary>
+    public bool ClockWindowShowGradient { get; set; }
+    /// <summary>When true (default), upcoming due-by windows mark only the start time; once the window is open, the start→due-by band is shown.</summary>
+    public bool ClockWindowStartOnly { get; set; } = true;
+    /// <summary>Whole-face cue while any due-by task is in last-chance (same shapes as Discord clock cues).</summary>
+    public ClockLastChanceCue ClockLastChanceCue { get; set; } = ClockLastChanceCue.Off;
     public string ClockColorCaret { get; set; } = "#8AB4F8";
     public string ClockColorRing { get; set; } = "#C5C9D0";
     public string ClockColorMajorTick { get; set; } = "#C5C9D0";
@@ -450,6 +676,21 @@ public sealed class AppSettings
     /// <summary>Compound fill. Blank = darkened ring color.</summary>
     // auto model
     public string ClockGearCompoundColor { get; set; } = "";
+    /// <summary>Large compound body: solid disk or cutout styles that show the carriage.</summary>
+    // auto model
+    public ClockGearCompoundStyle ClockGearCompoundStyle { get; set; } = ClockGearCompoundStyle.Solid;
+    /// <summary>Spoke count when compound style is Spokes (3–12). Legacy seed for stages.</summary>
+    // auto model
+    public int ClockGearCompoundSpokeCount { get; set; } = 5;
+    /// <summary>Spoke lean when compound style is Spokes. Legacy seed for stages.</summary>
+    // auto model
+    public ClockGearSpokeLean ClockGearCompoundSpokeLean { get; set; } = ClockGearSpokeLean.Straight;
+    /// <summary>Spoke width fraction (0.08–0.55). Legacy seed for stages.</summary>
+    // auto model
+    public double ClockGearCompoundSpokeWidth { get; set; } = 0.28;
+    /// <summary>Per-annulus large-compound look. Empty = seed from legacy scalars.</summary>
+    // auto model
+    public List<ClockGearCompoundStage> ClockGearCompoundStages { get; set; } = [];
     /// <summary>Small planet pinion. Blank = ring color.</summary>
     // auto model
     public string ClockGearPlanetColor { get; set; } = "";
@@ -485,6 +726,8 @@ public sealed class AppSettings
     public double ClockGearCarriageHub { get; set; }
     /// <summary>0–1 train opacity. Outer drive teeth and center sun stay full strength.</summary>
     public double ClockGearOpacity { get; set; } = 0.42;
+    /// <summary>0–1 opacity for intermediate hollow toothed rings (outer rim teeth stay full strength).</summary>
+    public double ClockGearRingOpacity { get; set; } = 1;
     /// <summary>Tooth radial depth as a fraction of that gear's pitch radius.</summary>
     public double ClockGearToothDepthFrac { get; set; } = 0.14;
     /// <summary>Fraction of each pitch angle taken by the tooth tip.</summary>
@@ -583,6 +826,74 @@ public enum UsageLockMode
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
+public enum DiscordAlertDisplay
+{
+    Window,
+    Clock,
+    Both
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum DiscordClockCue
+{
+    PulseFace,
+    TintFace,
+    PulseRing,
+    RimDot
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum DiscordClockSender
+{
+    Off,
+    OnFace,
+    Below
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum DiscordMissingClockCue
+{
+    Off,
+    PulseFace,
+    TintFace,
+    PulseRing,
+    RimDot
+}
+
+/// <summary>Whole-face overlay when a due-by window is in last-chance (mirrors Discord missing-cue options).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum ClockLastChanceCue
+{
+    Off,
+    PulseFace,
+    TintFace,
+    PulseRing,
+    RimDot
+}
+
+public sealed class DiscordNameAlias
+{
+    public string From { get; set; } = "";
+    public string To { get; set; } = "";
+}
+
+public sealed class DiscordNameColor
+{
+    /// <summary>Discord username, display name, alias, or user ID.</summary>
+    public string Name { get; set; } = "";
+    /// <summary>Clock cue color as #RRGGBB.</summary>
+    public string Color { get; set; } = "#5865F2";
+    /// <summary>Optional sender/label text color. Null/empty = use default sender text color.</summary>
+    public string? TextColor { get; set; }
+    /// <summary>Optional text outline color. Null/empty = no outline.</summary>
+    public string? OutlineColor { get; set; }
+    /// <summary>Outline thickness in DIP when <see cref="OutlineColor"/> is set (1–6).</summary>
+    public int OutlineStrength { get; set; } = 2;
+    /// <summary>Optional sender text size in DIP. 0 = use default (app font size − 1).</summary>
+    public double TextSize { get; set; }
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ClockLockMode
 {
     Locked,
@@ -599,7 +910,115 @@ public enum ClockTickStep
     Minute
 }
 
-/// <summary>Clock face aesthetics gear drive — Off or a locked tooth progression.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum ClockWedgeInnerMode
+{
+    Vertex,
+    Cutout
+}
+
+/// <summary>How overlapping task wedges combine before they are drawn on the clock.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum ClockWedgeBlend
+{
+    Normal,
+    Multiply,
+    Darken,
+    Add,
+    Screen,
+    Overlay
+}
+
+/// <summary>Large compound body look (cutouts reveal the carriage behind).</summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum ClockGearCompoundStyle
+{
+    /// <summary>Filled disk to the root circle (legacy).</summary>
+    Solid,
+    /// <summary>Hub + thin toothed rim; open annulus shows the frame.</summary>
+    Ring,
+    /// <summary>Circular lightening holes in the web.</summary>
+    Holes,
+    /// <summary>Radial spokes between hub and rim (see SpokeCount / SpokeLean).</summary>
+    Spokes,
+    /// <summary>Curved slot cutouts around the hub.</summary>
+    Slots
+}
+
+/// <summary>Spoke lean for <see cref="ClockGearCompoundStyle.Spokes"/>.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum ClockGearSpokeLean
+{
+    Straight,
+    Clockwise,
+    CounterClockwise
+}
+
+/// <summary>Large-compound look for one annulus.</summary>
+// auto model
+public sealed class ClockGearCompoundStage
+{
+    public ClockGearCompoundStyle Style { get; set; } = ClockGearCompoundStyle.Solid;
+    public int SpokeCount { get; set; } = 5;
+    public ClockGearSpokeLean SpokeLean { get; set; } = ClockGearSpokeLean.Straight;
+    /// <summary>Degrees the outer end is shifted around the rim. Sign is direction. The spoke bows to that end.</summary>
+    public double SpokeSweepDeg { get; set; }
+    /// <summary>Fraction of each sector taken by a spoke (constant linear width).</summary>
+    public double SpokeWidth { get; set; } = 0.28;
+    /// <summary>How many circular lightening holes sit in the web.</summary>
+    public int HoleCount { get; set; } = 6;
+    /// <summary>Hole diameter as a fraction of the room between hub and rim at that radius.</summary>
+    public double HoleSize { get; set; } = 0.7;
+    /// <summary>0 = against the hub, 1 = against the rim.</summary>
+    public double HolePlace { get; set; } = 0.5;
+
+    public ClockGearCompoundStage Clone() => new()
+    {
+        Style = Style,
+        SpokeCount = SpokeCount,
+        SpokeLean = SpokeLean,
+        SpokeSweepDeg = SpokeSweepDeg,
+        SpokeWidth = SpokeWidth,
+        HoleCount = HoleCount,
+        HoleSize = HoleSize,
+        HolePlace = HolePlace
+    };
+
+    public ClockGearCompoundStage Clamped()
+    {
+        if (!Enum.IsDefined(Style))
+            Style = ClockGearCompoundStyle.Solid;
+        if (!Enum.IsDefined(SpokeLean))
+            SpokeLean = ClockGearSpokeLean.Straight;
+        SpokeCount = Math.Clamp(SpokeCount <= 0 ? 5 : SpokeCount, 3, 12);
+        SpokeWidth = Math.Clamp(SpokeWidth <= 0 ? 0.28 : SpokeWidth, 0.08, 0.55);
+        SpokeSweepDeg = Math.Clamp(SpokeSweepDeg, -75, 75);
+        HoleCount = Math.Clamp(HoleCount <= 0 ? 6 : HoleCount, 3, 16);
+        HoleSize = Math.Clamp(HoleSize <= 0 ? 0.7 : HoleSize, 0.2, 1);
+        HolePlace = Math.Clamp(HolePlace <= 0 ? 0.5 : HolePlace, 0.12, 0.88);
+        if (Math.Abs(SpokeSweepDeg) < 0.01 && SpokeLean != ClockGearSpokeLean.Straight)
+            SpokeSweepDeg = SpokeLean == ClockGearSpokeLean.Clockwise ? 30 : -30;
+        return this;
+    }
+
+    public static ClockGearCompoundStage FromLegacy(AppSettings s) => new ClockGearCompoundStage
+    {
+        Style = s.ClockGearCompoundStyle,
+        SpokeCount = s.ClockGearCompoundSpokeCount,
+        SpokeLean = s.ClockGearCompoundSpokeLean,
+        SpokeWidth = s.ClockGearCompoundSpokeWidth
+    }.Clamped();
+
+    public static ClockGearCompoundStage At(AppSettings settings, int stage)
+    {
+        var list = settings.ClockGearCompoundStages;
+        if (list != null && stage >= 0 && stage < list.Count && list[stage] != null)
+            return list[stage];
+        return FromLegacy(settings);
+    }
+}
+
+/// <summary>Carrier frame style for one annulus.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ClockGearCarriageKind
 {
@@ -616,7 +1035,23 @@ public enum ClockGearCarriageKind
     /// <summary>Helical ribbons winding between the two orbits.</summary>
     Helix,
     /// <summary>Several pin-to-pin bows fanned around each pair.</summary>
-    Fan
+    Fan,
+    /// <summary>Straight bars from the inner rail to the outer rail.</summary>
+    Bars
+}
+
+/// <summary>Which point the bar spacing lines up with.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum ClockGearCarriageBarOrigin
+{
+    /// <summary>Each large compound's center.</summary>
+    LargeCenter,
+    /// <summary>Each idler center. The planet pinion shares the large compound's axle.</summary>
+    SmallCenter,
+    /// <summary>Straight midpoint between neighboring large-compound centers.</summary>
+    MidLarge,
+    /// <summary>Straight midpoint between neighboring idler centers.</summary>
+    MidSmall
 }
 
 /// <summary>Carriage look for one annulus.</summary>
@@ -634,6 +1069,12 @@ public sealed class ClockGearCarriageStage
     public int LinkRepeats { get; set; }
     /// <summary>0 = own idler; 1 = next planet’s idler, wrapping around the ring.</summary>
     public int LinkStride { get; set; }
+    /// <summary>Which centers the bar spacing lines up with.</summary>
+    public ClockGearCarriageBarOrigin BarOrigin { get; set; } = ClockGearCarriageBarOrigin.LargeCenter;
+    /// <summary>Primary bars around the ring.</summary>
+    public int BarCount { get; set; } = 4;
+    /// <summary>Extra lines in each gap between those bars.</summary>
+    public int BarBetween { get; set; }
 
     public ClockGearCarriageStage Clone() => new()
     {
@@ -645,7 +1086,10 @@ public sealed class ClockGearCarriageStage
         Pins = Pins,
         Hub = Hub,
         LinkRepeats = LinkRepeats,
-        LinkStride = LinkStride
+        LinkStride = LinkStride,
+        BarOrigin = BarOrigin,
+        BarCount = BarCount,
+        BarBetween = BarBetween
     };
 
     public ClockGearCarriageStage Clamped()
@@ -658,6 +1102,10 @@ public sealed class ClockGearCarriageStage
         Hub = Math.Clamp(Hub, 0, 14);
         LinkRepeats = Math.Clamp(LinkRepeats, 0, 8);
         LinkStride = Math.Clamp(LinkStride, 0, 6);
+        if (!Enum.IsDefined(BarOrigin))
+            BarOrigin = ClockGearCarriageBarOrigin.LargeCenter;
+        BarCount = Math.Clamp(BarCount <= 0 ? 4 : BarCount, 1, 12);
+        BarBetween = Math.Clamp(BarBetween, 0, 8);
         return this;
     }
 
@@ -722,6 +1170,14 @@ public enum AppLayoutHide
     All
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum AppLayoutClock
+{
+    Main,
+    Mini,
+    Off
+}
+
 public sealed class DesktopLayout
 {
     public bool ClickThrough { get; set; }
@@ -747,6 +1203,7 @@ public sealed class AppLayout
     public string ExePath { get; set; } = "";
     public string ExeName { get; set; } = "";
     public AppLayoutHide Hide { get; set; } = AppLayoutHide.Unchanged;
+    public AppLayoutClock Clock { get; set; } = AppLayoutClock.Main;
     public bool ClickThrough { get; set; }
     public WindowBounds? MainBounds { get; set; }
     public List<AppLayoutFolder> Folders { get; set; } = [];
@@ -810,6 +1267,16 @@ public sealed class TaskColors
         || !string.IsNullOrWhiteSpace(Late3)
         || !string.IsNullOrWhiteSpace(Due)
         || !string.IsNullOrWhiteSpace(Completed);
+
+    public TaskColors Clone() => new()
+    {
+        Idle = Idle,
+        Late1 = Late1,
+        Late2 = Late2,
+        Late3 = Late3,
+        Due = Due,
+        Completed = Completed
+    };
 }
 
 public sealed class IgnoredPairTarget

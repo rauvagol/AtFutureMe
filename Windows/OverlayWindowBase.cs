@@ -4,6 +4,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using AtFutureMe.Services;
 
 namespace AtFutureMe.Windows;
@@ -21,6 +22,15 @@ public class OverlayWindowBase : Window
     bool _allowActivate;
     bool _leaveFocusQueued;
 
+    // Click-through follows the cursor, but a per-frame render callback keeps every
+    // layered window repainting at the monitor refresh rate. Poll only when the
+    // cursor actually moves.
+    static readonly List<OverlayWindowBase> HitWindows = [];
+    static readonly DispatcherTimer HitTimer = new() { Interval = TimeSpan.FromMilliseconds(32) };
+    static bool HitTimerHooked;
+    static int LastCursorX = int.MinValue;
+    static int LastCursorY = int.MinValue;
+
     public OverlayWindowBase()
     {
         WindowStyle = WindowStyle.None;
@@ -33,8 +43,8 @@ public class OverlayWindowBase : Window
         SnapsToDevicePixels = true;
         UseLayoutRounding = true;
         SourceInitialized += OnSourceInitialized;
-        Loaded += (_, _) => CompositionTarget.Rendering += OnRendering;
-        Closed += (_, _) => CompositionTarget.Rendering -= OnRendering;
+        Loaded += (_, _) => RegisterHitWindow();
+        Closed += (_, _) => UnregisterHitWindow();
         // auto model: take focus only for controls that need typing / menu navigation
         AddHandler(PreviewMouseDownEvent, new MouseButtonEventHandler(OnPreviewMouseDownForFocus), true);
         AddHandler(PreviewGotKeyboardFocusEvent, new KeyboardFocusChangedEventHandler(OnPreviewGotKeyboardFocus), true);
@@ -64,7 +74,48 @@ public class OverlayWindowBase : Window
         return IntPtr.Zero;
     }
 
-    void OnRendering(object? sender, EventArgs e) => ApplyClickThrough();
+    void RegisterHitWindow()
+    {
+        if (!HitWindows.Contains(this))
+            HitWindows.Add(this);
+        if (!HitTimerHooked)
+        {
+            HitTimer.Tick += (_, _) => PollHitWindows();
+            HitTimerHooked = true;
+        }
+        if (!HitTimer.IsEnabled)
+            HitTimer.Start();
+        ApplyClickThrough();
+    }
+
+    void UnregisterHitWindow()
+    {
+        HitWindows.Remove(this);
+        if (HitWindows.Count == 0)
+            HitTimer.Stop();
+    }
+
+    static void PollHitWindows()
+    {
+        if (HitWindows.Count == 0)
+        {
+            HitTimer.Stop();
+            return;
+        }
+
+        if (!NativeMethods.GetCursorPos(out var pt))
+            return;
+        if (pt.X == LastCursorX && pt.Y == LastCursorY)
+            return;
+        LastCursorX = pt.X;
+        LastCursorY = pt.Y;
+
+        foreach (var window in HitWindows.ToArray())
+        {
+            if (window.IsVisible)
+                window.ApplyClickThrough();
+        }
+    }
 
     public void ApplyClickThrough()
     {
